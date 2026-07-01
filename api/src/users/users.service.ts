@@ -101,6 +101,22 @@ export class UsersService {
     };
   }
 
+  async getMyStats(userId: string) {
+    const [topicCount, replyCount, eventCount] = await Promise.all([
+      this.prisma.forumTopic.count({
+        where: { userId, deletedAt: null },
+      }),
+      this.prisma.forumReply.count({
+        where: { userId, deletedAt: null },
+      }),
+      this.prisma.eventAttendee.count({
+        where: { userId, status: 'GOING' },
+      }),
+    ]);
+
+    return { topicCount, replyCount, eventCount };
+  }
+
   private async ensureReferralCode(userId: string) {
     const existing = await this.prisma.user.findUnique({
       where: { id: userId },
