@@ -1,0 +1,10 @@
+{
+  "name": "Türk Expatlar",
+  "short_name": "Expatlar",
+  "description": "Almanya'daki Türkçe konuşan topluluk platformu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#c0392b",
+  "lang": "tr"
+}

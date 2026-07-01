@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.next/
+.env
+.env.local
+sifre.md
+hetznersifre.md
+google-oauth.env
+*.credentials.md
+*.log
+.DS_Store
+coverage/
+.turbo/
+mobile/.expo/
+*.tar.gz
+api/uploads/

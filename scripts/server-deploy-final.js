@@ -1,0 +1,50 @@
+const { Client } = require("ssh2");
+const pass = process.env.SSH_PASS;
+const dbUrl =
+  "postgresql://postgres.puixogwequambqxjhzja:TurkExpatlar88@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require";
+const escaped = dbUrl.replace(/'/g, "'\\''");
+
+const script = `
+set -e
+export NVM_DIR="$HOME/.nvm"
+. "$NVM_DIR/nvm.sh"
+nvm use 20
+export PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH"
+
+cd ~/turkexpatlar/api
+sed -i "s|^DATABASE_URL=.*|DATABASE_URL='${escaped}'|" .env
+
+cd ~/turkexpatlar
+sed -i "s|dist/main.js|dist/src/main.js|g" ecosystem.config.js
+grep -q "interpreter:" ecosystem.config.js || sed -i "s|cwd: './api',|cwd: './api',\\n      interpreter: '/home/www/.nvm/versions/node/v20.20.2/bin/node',|" ecosystem.config.js
+
+cd api
+test -f dist/src/main.js || npm run build
+
+cd ~/turkexpatlar
+npx pm2 delete turkexpatlar-api 2>/dev/null || true
+npx pm2 start ecosystem.config.js --only turkexpatlar-api --env production
+sleep 4
+npx pm2 list
+npx pm2 logs turkexpatlar-api --lines 8 --nostream 2>/dev/null || true
+curl -s -o /tmp/api-test.json -w "HTTP:%{http_code}" http://127.0.0.1:3201/api/site-settings/public
+echo ""
+head -c 300 /tmp/api-test.json 2>/dev/null; echo ""
+`;
+
+const c = new Client();
+c.on("ready", () => {
+  c.exec(script, (e, s) => {
+    s.on("data", (d) => process.stdout.write(d));
+    s.stderr.on("data", (d) => process.stderr.write(d));
+    s.on("close", (code) => {
+      console.log("\nExit:", code);
+      c.end();
+    });
+  });
+}).connect({
+  host: "access-5020523952.webspace-host.com",
+  port: 22,
+  username: "su1182926",
+  password: pass,
+});

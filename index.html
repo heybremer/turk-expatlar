@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Türk Expatlar · UI Mockup Başlatıcı</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:      #fafafa;
+      --surface: #ffffff;
+      --fg:      #111111;
+      --muted:   #6b7280;
+      --border:  #e5e7eb;
+      --accent:  #1a56db;
+      --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+      --font-body: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-mono: ui-monospace, 'JetBrains Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+    a { color: inherit; text-decoration: none; }
+    p { margin: 0; text-wrap: pretty; }
+    h1, h2, h3 { margin: 0; text-wrap: balance; }
+
+    .container { max-width: 1120px; margin-inline: auto; padding-inline: 32px; }
+
+    /* Nav */
+    .topnav { position: sticky; top: 0; z-index: 10; background: color-mix(in oklch, var(--bg) 90%, transparent); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); }
+    .topnav-inner { display: flex; align-items: center; gap: 12px; padding-block: 14px; }
+    .logo-mark { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+    .logo-text { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+    .nav-sep { color: var(--border); font-size: 20px; margin-inline: 4px; }
+    .nav-sub { font-size: 13px; color: var(--muted); }
+
+    /* Hero section */
+    .hero { padding-block: 64px 48px; border-bottom: 1px solid var(--border); }
+    .hero h1 { font-size: clamp(32px, 5vw, 56px); font-weight: 700; letter-spacing: -0.025em; line-height: 1.1; }
+    .hero p { font-size: 17px; color: var(--muted); margin-top: 14px; max-width: 54ch; line-height: 1.6; }
+    .eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+
+    /* File cards */
+    .files-section { padding-block: 48px; }
+    .files-section h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 24px; }
+    .files-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    @media (max-width: 800px) { .files-grid { grid-template-columns: 1fr; } }
+
+    .file-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 24px; display: flex; flex-direction: column; gap: 12px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      cursor: pointer;
+    }
+    .file-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .file-card-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: grid; place-items: center;
+      border: 1px solid var(--border);
+    }
+    .file-card-icon svg { width: 22px; height: 22px; }
+    .file-card-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+    .file-card-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .file-card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tag { display: inline-flex; align-items: center; padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px; font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+    .file-card-link { margin-top: auto; font-size: 13px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 4px; }
+
+    /* Brand tokens preview */
+    .tokens-section { padding-block: 40px; border-top: 1px solid var(--border); }
+    .tokens-section h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.015em; margin-bottom: 20px; }
+    .tokens-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .token-chip { display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; font-size: 12px; }
+    .token-swatch { width: 20px; height: 20px; border-radius: 999px; border: 1px solid rgba(0,0,0,0.08); }
+
+    /* Footer */
+    .pagefoot { padding-block: 32px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+    .pagefoot-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  </style>
+</head>
+<body>
+
+  <header class="topnav">
+    <div class="container topnav-inner">
+      <div class="logo-mark">TE</div>
+      <span class="logo-text">Türk Expatlar</span>
+      <span class="nav-sep">/</span>
+      <span class="nav-sub">UI Mockup · 2026</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <p class="eyebrow">Mockup Dosyaları</p>
+        <h1>Türk Expatlar<br>Uygulama Tasarımı</h1>
+        <p>iOS ve Android için mobil uygulama ekranları ile pazarlama landing sayfası. Tüm dosyalar gerçek uygulama veri yapısından üretilmiştir.</p>
+      </div>
+    </section>
+
+    <section class="files-section">
+      <div class="container">
+        <h2>Dosyalar</h2>
+        <div class="files-grid">
+
+          <!-- Landing page -->
+          <a href="landing.html" class="file-card">
+            <div class="file-card-icon" style="color: var(--accent);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div class="file-card-title">landing.html</div>
+            <div class="file-card-desc">Pazarlama landing sayfası. Hero, özellikler, topluluk istatistikleri ve App Store / Google Play indirme CTA'sı.</div>
+            <div class="file-card-tags">
+              <span class="tag">Responsive</span>
+              <span class="tag">Marketing</span>
+            </div>
+            <span class="file-card-link">Aç →</span>
+          </a>
+
+          <!-- iOS mockup -->
+          <a href="mobile-ios.html" class="file-card">
+            <div class="file-card-icon" style="color: #555;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            </div>
+            <div class="file-card-title">mobile-ios.html</div>
+            <div class="file-card-desc">iPhone 15 Pro frame içinde 5 ana ekran: Akış, Forum, Sohbet, Etkinlikler, Profil. Dynamic Island, status bar ve tab bar dahil.</div>
+            <div class="file-card-tags">
+              <span class="tag">iOS</span>
+              <span class="tag">5 Ekran</span>
+              <span class="tag">iPhone 15 Pro</span>
+            </div>
+            <span class="file-card-link">Aç →</span>
+          </a>
+
+          <!-- Android mockup -->
+          <a href="mobile-android.html" class="file-card">
+            <div class="file-card-icon" style="color: #3ddc84;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 2.1l-2.3 2.3M7 2.1l2.3 2.3M3 9h18M3 15h18M7 21.9l2.3-2.3M17 21.9l-2.3-2.3M12 22v-3M12 5V2M5 19H4a1 1 0 01-1-1V6a1 1 0 011-1h16a1 1 0 011 1v12a1 1 0 01-1 1h-1"/></svg>
+            </div>
+            <div class="file-card-title">mobile-android.html</div>
+            <div class="file-card-desc">Pixel 8 frame içinde aynı 5 ekran. Material You navigasyon stili, punch-hole kamera ve gesture navigation bar.</div>
+            <div class="file-card-tags">
+              <span class="tag">Android</span>
+              <span class="tag">5 Ekran</span>
+              <span class="tag">Pixel 8</span>
+            </div>
+            <span class="file-card-link">Aç →</span>
+          </a>
+
+        </div>
+      </div>
+    </section>
+
+    <section class="tokens-section">
+      <div class="container">
+        <h2>Marka Renkleri</h2>
+        <div class="tokens-row">
+          <div class="token-chip"><div class="token-swatch" style="background:#1a56db;"></div><span style="font-family: var(--font-mono);">--accent · #1a56db</span></div>
+          <div class="token-chip"><div class="token-swatch" style="background:#111111;"></div><span style="font-family: var(--font-mono);">--fg · #111111</span></div>
+          <div class="token-chip"><div class="token-swatch" style="background:#fafafa;border:1px solid #e5e7eb;"></div><span style="font-family: var(--font-mono);">--bg · #fafafa</span></div>
+          <div class="token-chip"><div class="token-swatch" style="background:#6b7280;"></div><span style="font-family: var(--font-mono);">--muted · #6b7280</span></div>
+          <div class="token-chip"><div class="token-swatch" style="background:#16a34a;"></div><span style="font-family: var(--font-mono);">--success · #16a34a</span></div>
+          <div class="token-chip"><div class="token-swatch" style="background:#d97706;"></div><span style="font-family: var(--font-mono);">--warn · #d97706</span></div>
+          <div class="token-chip"><div class="token-swatch" style="background:#dc2626;"></div><span style="font-family: var(--font-mono);">--danger · #dc2626</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pagefoot">
+    <div class="container pagefoot-inner">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="logo-mark" style="width:24px;height:24px;font-size:10px;border-radius:6px;">TE</div>
+        <span style="font-weight:600;color:var(--fg);">Türk Expatlar</span>
+      </div>
+      <span style="font-family:var(--font-mono);">turkexpatlar.de · UI Mockup 2026</span>
+    </div>
+  </footer>
+
+</body>
+</html>

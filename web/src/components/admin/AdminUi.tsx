@@ -1,0 +1,55 @@
+"use client";
+
+import { Button } from "@/components/ui/Button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
+export function AdminPagination({
+  page,
+  totalPages,
+  total,
+  onPage,
+}: {
+  page: number;
+  totalPages: number;
+  total: number;
+  onPage: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="mt-4 flex items-center justify-between text-sm">
+      <p className="text-muted">Sayfa {page} / {totalPages} ({total} kayıt)</p>
+      <div className="flex gap-2">
+        <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+          <ChevronLeft className="h-4 w-4" /> Önceki
+        </Button>
+        <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>
+          Sonraki <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function AdminModal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose?: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-xl">
+        <h3 className="font-semibold">{title}</h3>
+        <div className="mt-3">{children}</div>
+        {onClose && (
+          <div className="mt-4 flex justify-end">
+            <Button variant="ghost" size="sm" onClick={onClose}>Kapat</Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

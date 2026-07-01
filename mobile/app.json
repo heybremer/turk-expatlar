@@ -1,0 +1,80 @@
+{
+  "expo": {
+    "name": "Türk Expatlar",
+    "slug": "turk-expatlar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "turkexpatlar",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "de.turkexpatlar.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Profil fotoğrafı çekmek için kamera izni gereklidir.",
+        "NSPhotoLibraryUsageDescription": "Profil fotoğrafı seçmek için galeri izni gereklidir.",
+        "NSPhotoLibraryAddUsageDescription": "Fotoğraf kaydetmek için izin gereklidir."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a56db"
+      },
+      "package": "de.turkexpatlar.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "backgroundColor": "#1a56db",
+          "resizeMode": "contain",
+          "imageWidth": 200
+        }
+      ],
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1a56db"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Profil fotoğrafı seçmek için galeri izni gereklidir."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Sesli mesaj göndermek için mikrofon izni gereklidir."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "60c5944e-5117-46d5-9a16-f0234f098217"
+      }
+    }
+  }
+}
