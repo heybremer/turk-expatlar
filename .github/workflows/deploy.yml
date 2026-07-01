@@ -1,0 +1,42 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            cd ${{ secrets.APP_DIR || '/opt/turkexpatlar' }}
+
+            echo "==> Pulling latest changes..."
+            git pull origin main
+
+            echo "==> Installing API dependencies..."
+            cd api && npm ci && npx prisma migrate deploy && npm run build
+            cd ..
+
+            echo "==> Installing Web dependencies..."
+            cd web && npm ci --legacy-peer-deps && npm run build
+            cd ..
+
+            echo "==> Restarting services..."
+            pm2 restart all || pm2 start ecosystem.config.js
+
+            echo "==> Deploy complete!"
