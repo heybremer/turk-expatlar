@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Ban, ChevronDown, ChevronRight, Clock, FileText, Globe,
   Hash, ImageIcon, KeyRound, Loader2, Lock, MapPin, Menu,
-  MessageCircle, Paperclip, Send, Smile, Users, X,
+  MessageCircle, Paperclip, Send, Smile, Trash2, Users, X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { siteContentClass } from "@/lib/site-layout";
@@ -312,6 +312,7 @@ export default function SohbetOdasiPage() {
   const params = useParams<{ type: string; slug: string }>();
   const router = useRouter();
   const { token, user, logout } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
 
   const [chatId, setChatId] = useState<string | null>(null);
   const [roomName, setRoomName] = useState("");
@@ -488,6 +489,9 @@ export default function SohbetOdasiPage() {
     function onMessageDeleted({ messageId }: { messageId: string }) {
       setMessages((p) => p.filter((m) => m.id !== messageId));
     }
+    function onRoomCleared() {
+      setMessages([]);
+    }
     function onModerationNotice(data: { message?: string; code?: string; clearInput?: boolean }) {
       if (data?.message) {
         setModerationNotice(data.message);
@@ -516,6 +520,7 @@ export default function SohbetOdasiPage() {
     sock.on("user_typing_stop", onUserTypingStop);
     sock.on("online_users", onOnlineUsers);
     sock.on("message_deleted", onMessageDeleted);
+    sock.on("room_cleared", onRoomCleared);
     sock.on("moderation_notice", onModerationNotice);
     sock.on("error", onSocketError);
     if (sock.connected) { setConnected(true); joinRoom(); } else { sock.connect(); }
@@ -527,6 +532,7 @@ export default function SohbetOdasiPage() {
       sock.off("history", onHistory); sock.off("new_message", onNewMessage);
       sock.off("user_typing", onUserTyping); sock.off("user_typing_stop", onUserTypingStop);
       sock.off("online_users", onOnlineUsers); sock.off("message_deleted", onMessageDeleted);
+      sock.off("room_cleared", onRoomCleared);
       sock.off("moderation_notice", onModerationNotice);
       sock.off("error", onSocketError);
       setTypingUsers({});
@@ -568,6 +574,17 @@ export default function SohbetOdasiPage() {
   }
 
   function deleteMsg(messageId: string) { getSocket(token).emit("delete_message", { messageId }); }
+
+  async function clearRoom() {
+    if (!chatId || !token) return;
+    if (!confirm("Bu odadaki tüm mesajlar herkes için silinecek. Bu işlem geri alınamaz. Devam edilsin mi?")) return;
+    try {
+      await api.delete(`/chat/${chatId}/messages`, token);
+      setMessages([]);
+    } catch {
+      alert("Sohbet temizlenemedi");
+    }
+  }
 
   async function openDm(targetUserId: string) {
     if (!token) { router.push("/giris"); return; }
@@ -695,6 +712,15 @@ export default function SohbetOdasiPage() {
           </p>
         </div>
         <ChatRulesButton />
+        {isAdmin && (
+          <button
+            onClick={clearRoom}
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-muted active:bg-background"
+            title="Sohbeti temizle"
+          >
+            <Trash2 className="h-4.5 w-4.5" />
+          </button>
+        )}
         <button
           onClick={() => setMobileMembersOpen(true)}
           className="flex h-10 flex-shrink-0 items-center gap-1 rounded-full px-2.5 text-muted active:bg-background"
@@ -719,6 +745,16 @@ export default function SohbetOdasiPage() {
         </p>
         <div className="ml-auto flex items-center gap-2">
           <ChatRulesButton />
+          {isAdmin && (
+            <button
+              onClick={clearRoom}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted hover:border-danger hover:text-danger"
+              title="Sohbeti temizle"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Sohbeti temizle
+            </button>
+          )}
           <span className={`flex items-center gap-1.5 text-xs ${connected ? "text-success" : "text-muted"}`}>
             <span className={`h-2 w-2 rounded-full ${connected ? "bg-success" : "bg-border"}`} />
             {connected ? "Bağlı" : "Bağlanıyor…"}
