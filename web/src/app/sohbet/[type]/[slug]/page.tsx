@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Ban, ChevronDown, ChevronRight, Clock, FileText, Globe,
   Hash, ImageIcon, KeyRound, Loader2, Lock, MapPin, Menu,
-  MessageCircle, Paperclip, Send, Smile, Trash2, Users, X,
+  MessageCircle, Send, Smile, Trash2, Users, X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { siteContentClass } from "@/lib/site-layout";
@@ -869,17 +869,12 @@ export default function SohbetOdasiPage() {
                   <p className="text-xs text-primary">{formatTypingLabel(Object.values(typingUsers))}</p>
                 )}
                 <div className="relative flex items-center gap-1">
-                  <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" className="hidden" onChange={handleFileSelect} />
+                  <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileSelect} />
 
                   <button type="button" title="Resim" disabled={uploading}
-                    onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = "image/*"; fileInputRef.current.click(); } }}
+                    onClick={() => fileInputRef.current?.click()}
                     className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary disabled:opacity-40 active:bg-background">
                     {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                  </button>
-                  <button type="button" title="Dosya" disabled={uploading}
-                    onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = ".pdf,.doc,.docx,.txt"; fileInputRef.current.click(); } }}
-                    className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary disabled:opacity-40 active:bg-background">
-                    <Paperclip className="h-4 w-4" />
                   </button>
 
                   <div className="relative" ref={emojiRef}>

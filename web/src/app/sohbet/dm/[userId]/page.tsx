@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Clock, FileText, ImageIcon, KeyRound, Loader2, Lock, Paperclip, Send, Smile, WifiOff, X,
+  ArrowLeft, Clock, FileText, ImageIcon, KeyRound, Loader2, Lock, Send, Smile, WifiOff, X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -556,16 +556,11 @@ export default function DmPage() {
                     </div>
                   )}
                   <div className="relative flex items-center gap-1.5">
-                    <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" className="hidden" onChange={handleFileSelect} />
+                    <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileSelect} />
                     <button type="button" title="Resim" disabled={uploading}
-                      onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = "image/*"; fileInputRef.current.click(); } }}
+                      onClick={() => fileInputRef.current?.click()}
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary disabled:opacity-40">
                       {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                    </button>
-                    <button type="button" title="Dosya" disabled={uploading}
-                      onClick={() => { if (fileInputRef.current) { fileInputRef.current.accept = ".pdf,.doc,.docx,.txt"; fileInputRef.current.click(); } }}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary disabled:opacity-40">
-                      <Paperclip className="h-4 w-4" />
                     </button>
                     <div className="relative" ref={emojiRef}>
                       <button type="button" title="Emoji" onClick={() => setShowEmoji((v) => !v)}
