@@ -32,6 +32,7 @@ type Message = {
   attachments?: Attachment[] | null;
   expiresAt?: string | null;
   createdAt: string;
+  reactions?: { emoji: string; count: number }[];
   user: { id: string; role?: string; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null };
 };
 type OnlineUser = { userId: string; displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null; socketId: string };
@@ -486,6 +487,9 @@ export default function SohbetOdasiPage() {
     function onRoomCleared() {
       setMessages([]);
     }
+    function onMessageReaction(data: { messageId: string; reactions: { emoji: string; count: number }[] }) {
+      setMessages((p) => p.map((m) => (m.id === data.messageId ? { ...m, reactions: data.reactions } : m)));
+    }
     function onModerationNotice(data: { message?: string; code?: string; clearInput?: boolean }) {
       if (data?.message) {
         setModerationNotice(data.message);
@@ -515,6 +519,7 @@ export default function SohbetOdasiPage() {
     sock.on("online_users", onOnlineUsers);
     sock.on("message_deleted", onMessageDeleted);
     sock.on("room_cleared", onRoomCleared);
+    sock.on("message_reaction", onMessageReaction);
     sock.on("moderation_notice", onModerationNotice);
     sock.on("error", onSocketError);
     if (sock.connected) { setConnected(true); joinRoom(); } else { sock.connect(); }
@@ -527,6 +532,7 @@ export default function SohbetOdasiPage() {
       sock.off("user_typing", onUserTyping); sock.off("user_typing_stop", onUserTypingStop);
       sock.off("online_users", onOnlineUsers); sock.off("message_deleted", onMessageDeleted);
       sock.off("room_cleared", onRoomCleared);
+      sock.off("message_reaction", onMessageReaction);
       sock.off("moderation_notice", onModerationNotice);
       sock.off("error", onSocketError);
       setTypingUsers({});
@@ -818,8 +824,13 @@ export default function SohbetOdasiPage() {
                     avatarUrl={msg.user.profile?.avatarUrl}
                     role={msg.user.role}
                     postalCountry={msg.user.profile?.postalCountry as PostalCountry | undefined}
+                    reactions={msg.reactions}
                     onNameClick={!isMe ? () => openDm(msg.user.id) : undefined}
                     onDelete={isMe ? () => deleteMsg(msg.id) : undefined}
+                    onReact={(emoji) => {
+                      if (!token) return;
+                      getSocket(token).emit("react_message", { messageId: msg.id, emoji });
+                    }}
                   />
                 );
               })}

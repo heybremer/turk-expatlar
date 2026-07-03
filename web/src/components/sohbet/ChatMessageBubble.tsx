@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Clock, FileText, Trash2 } from "lucide-react";
 import { ChatAvatar } from "@/components/sohbet/ChatAvatar";
 import { CountryFlagBadge } from "@/components/user/CountryFlagBadge";
@@ -73,6 +73,8 @@ export function ChatMessageBubble({
   onReact,
 }: Props) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [popEmoji, setPopEmoji] = useState(false);
+  const popTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Emoji picker kapatıcı
   useEffect(() => {
     if (!showEmojiPicker) return;
@@ -80,6 +82,16 @@ export function ChatMessageBubble({
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [showEmojiPicker]);
+  useEffect(() => () => { if (popTimeoutRef.current) clearTimeout(popTimeoutRef.current); }, []);
+
+  // WhatsApp'taki gibi bir mesaja çift tıklandığında hızlıca 👍 reaksiyonu eklenir.
+  function handleDoubleClick() {
+    if (!onReact) return;
+    onReact("👍");
+    setPopEmoji(true);
+    if (popTimeoutRef.current) clearTimeout(popTimeoutRef.current);
+    popTimeoutRef.current = setTimeout(() => setPopEmoji(false), 700);
+  }
 
   const time = new Date(createdAt).toLocaleTimeString("tr-TR", {
     hour: "2-digit",
@@ -132,12 +144,18 @@ export function ChatMessageBubble({
           )}
 
           <div
-            className={`rounded-2xl px-3 py-2 ${
+            onDoubleClick={handleDoubleClick}
+            className={`relative select-none rounded-2xl px-3 py-2 ${onReact ? "cursor-pointer" : ""} ${
               isMe
                 ? "rounded-br-md bg-primary text-white"
                 : "rounded-bl-md border border-border bg-surface text-text"
             }`}
           >
+            {popEmoji && (
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-3xl animate-[ping_0.6s_ease-out]">
+                👍
+              </span>
+            )}
             {body && (
               <p className={`whitespace-pre-wrap break-words text-sm leading-relaxed ${isMe ? "text-white" : ""}`}>
                 {body}
