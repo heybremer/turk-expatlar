@@ -16,7 +16,7 @@ import { ChatPageShell } from "@/components/sohbet/ChatPageShell";
 import { DmConversationList } from "@/components/sohbet/DmConversationList";
 import { DmJoinPasswordModal, DmPasswordModal } from "@/components/sohbet/DmPasswordModal";
 import { NewMessageModal } from "@/components/sohbet/NewMessageModal";
-import { DmEntry, isDeletedChatUser, markChatRead, scrollMessagesToBottom } from "@/components/sohbet/chat-utils";
+import { DmEntry, isDeletedChatUser, markChatRead, scrollMessagesToBottom, setupChatViewportHeight } from "@/components/sohbet/chat-utils";
 import { ChatMessageBubble, getLastReadOwnMessageId } from "@/components/sohbet/ChatMessageBubble";
 import { formatTypingLabel, useChatTyping } from "@/components/sohbet/useChatTyping";
 import { ModerationNotice } from "@/components/sohbet/ModerationNotice";
@@ -91,25 +91,9 @@ export default function DmPage() {
   }, []);
 
   // Sohbet sayfasında sayfayı sabit yükseklikte tut; yalnızca mesaj listesi scroll etsin.
-  // body'ye kesin (definite) yükseklik vermeden flex-1 + overflow zinciri çalışmaz,
-  // bu yüzden html/body 100dvh'ye sabitlenip taşma gizleniyor.
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const prev = {
-      htmlHeight: html.style.height,
-      bodyHeight: body.style.height,
-      bodyOverflow: body.style.overflow,
-    };
-    html.style.height = "100dvh";
-    body.style.height = "100dvh";
-    body.style.overflow = "hidden";
-    return () => {
-      html.style.height = prev.htmlHeight;
-      body.style.height = prev.bodyHeight;
-      body.style.overflow = prev.bodyOverflow;
-    };
-  }, []);
+  // Klavye açıldığında mesaj yazma alanının arkada kalmaması için gerçek görünür
+  // viewport yüksekliği (visualViewport) baz alınır.
+  useEffect(() => setupChatViewportHeight(), []);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {

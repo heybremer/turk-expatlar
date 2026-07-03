@@ -49,6 +49,42 @@ export function scrollMessagesToBottom(container: HTMLElement | null, smooth = f
   container.scrollTo({ top: container.scrollHeight, behavior: smooth ? "smooth" : "auto" });
 }
 
+/**
+ * Sohbet sayfası yüksekliğini 100dvh yerine görsel viewport'a (visualViewport) göre sabitler.
+ * Mobil tarayıcılarda klavye açıldığında dvh her zaman güncellenmediği için mesaj yazma
+ * alanı klavyenin arkasında kalabiliyor; bu, useEffect içinde çağrılıp html/body yüksekliğini
+ * klavye açık/kapalı her durumda gerçek görünür alana eşitleyerek sabit bir düzen sağlar.
+ */
+export function setupChatViewportHeight() {
+  if (typeof window === "undefined") return () => {};
+  const html = document.documentElement;
+  const body = document.body;
+  const prev = {
+    htmlHeight: html.style.height,
+    bodyHeight: body.style.height,
+    bodyOverflow: body.style.overflow,
+  };
+
+  function applyHeight() {
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    html.style.height = `${vh}px`;
+    body.style.height = `${vh}px`;
+  }
+
+  body.style.overflow = "hidden";
+  applyHeight();
+  window.visualViewport?.addEventListener("resize", applyHeight);
+  window.addEventListener("resize", applyHeight);
+
+  return () => {
+    window.visualViewport?.removeEventListener("resize", applyHeight);
+    window.removeEventListener("resize", applyHeight);
+    html.style.height = prev.htmlHeight;
+    body.style.height = prev.bodyHeight;
+    body.style.overflow = prev.bodyOverflow;
+  };
+}
+
 export function markChatRead(
   chatId: string,
   token: string,

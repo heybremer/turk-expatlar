@@ -14,7 +14,7 @@ import { siteContentClass } from "@/lib/site-layout";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getSocket } from "@/lib/socket";
-import { scrollMessagesToBottom, isDeletedChatUser } from "@/components/sohbet/chat-utils";
+import { scrollMessagesToBottom, isDeletedChatUser, setupChatViewportHeight } from "@/components/sohbet/chat-utils";
 import { ChatMessageBubble } from "@/components/sohbet/ChatMessageBubble";
 import { formatTypingLabel, useChatTyping } from "@/components/sohbet/useChatTyping";
 import { ModerationNotice } from "@/components/sohbet/ModerationNotice";
@@ -365,25 +365,9 @@ export default function SohbetOdasiPage() {
   userIdRef.current = user?.id;
 
   // Sohbet sayfasında sayfayı sabit yükseklikte tut; yalnızca mesaj listesi scroll etsin.
-  // body'ye kesin (definite) yükseklik vermeden flex-1 + overflow zinciri çalışmaz,
-  // bu yüzden html/body 100dvh'ye sabitlenip taşma gizleniyor.
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const prev = {
-      htmlHeight: html.style.height,
-      bodyHeight: body.style.height,
-      bodyOverflow: body.style.overflow,
-    };
-    html.style.height = "100dvh";
-    body.style.height = "100dvh";
-    body.style.overflow = "hidden";
-    return () => {
-      html.style.height = prev.htmlHeight;
-      body.style.height = prev.bodyHeight;
-      body.style.overflow = prev.bodyOverflow;
-    };
-  }, []);
+  // Klavye açıldığında mesaj yazma alanının arkada kalmaması için gerçek görünür
+  // viewport yüksekliği (visualViewport) baz alınır.
+  useEffect(() => setupChatViewportHeight(), []);
 
   // Close mobile drawers when navigating to a different room
   useEffect(() => {
