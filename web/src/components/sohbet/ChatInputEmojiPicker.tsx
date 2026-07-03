@@ -18,10 +18,14 @@ export function ChatInputEmojiPicker({ open, anchorRef, onClose, onSelect }: Pro
   const pickerRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ bottom: 0, left: 0 });
   const [data, setData] = useState<object | null>(null);
+  const [i18n, setI18n] = useState<object | null>(null);
 
+  // Locale verisi CDN'den değil, paketle birlikte gelen dosyadan alınır: CSP connect-src
+  // kısıtlaması jsdelivr.net'e erişimi engellediği için picker sessizce hiç render olmuyordu.
   useEffect(() => {
     if (!open) return;
     void import("@emoji-mart/data").then((mod) => setData(mod.default));
+    void import("@emoji-mart/data/i18n/tr.json").then((mod) => setI18n(mod.default));
   }, [open]);
 
   useEffect(() => {
@@ -64,9 +68,10 @@ export function ChatInputEmojiPicker({ open, anchorRef, onClose, onSelect }: Pro
       className="fixed z-[200] shadow-xl rounded-xl overflow-hidden border border-border"
       style={{ bottom: pos.bottom, left: pos.left }}
     >
-      {data ? (
+      {data && i18n ? (
         <Picker
           data={data}
+          i18n={i18n}
           locale="tr"
           theme="light"
           previewPosition="none"

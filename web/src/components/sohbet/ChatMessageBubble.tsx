@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, FileText, Trash2 } from "lucide-react";
+import { Clock, FileText, SmilePlus, Trash2 } from "lucide-react";
 import { ChatAvatar } from "@/components/sohbet/ChatAvatar";
+import { ChatReactionBar } from "@/components/sohbet/ChatReactionBar";
 import { CountryFlagBadge } from "@/components/user/CountryFlagBadge";
 import type { PostalCountry } from "@/lib/postal-country";
 
@@ -32,8 +33,6 @@ function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
     </span>
   );
 }
-
-const EMOJI_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🙏', '🎉'];
 
 export type MessageReaction = { emoji: string; count: number };
 
@@ -72,16 +71,10 @@ export function ChatMessageBubble({
   onDelete,
   onReact,
 }: Props) {
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showReactionBar, setShowReactionBar] = useState(false);
   const [popEmoji, setPopEmoji] = useState(false);
   const popTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Emoji picker kapatıcı
-  useEffect(() => {
-    if (!showEmojiPicker) return;
-    const close = () => setShowEmojiPicker(false);
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, [showEmojiPicker]);
+  const reactionBtnRef = useRef<HTMLButtonElement>(null);
   useEffect(() => () => { if (popTimeoutRef.current) clearTimeout(popTimeoutRef.current); }, []);
 
   // WhatsApp'taki gibi bir mesaja çift tıklandığında hızlıca 👍 reaksiyonu eklenir.
@@ -132,7 +125,7 @@ export function ChatMessageBubble({
           </div>
         )}
 
-        <div className="flex items-end gap-1.5">
+        <div className={`flex items-end gap-1 ${isMe ? "flex-row" : "flex-row-reverse"}`}>
           {isMe && onDelete && (
             <button
               type="button"
@@ -140,6 +133,18 @@ export function ChatMessageBubble({
               className="mb-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-muted hover:bg-danger/10 hover:text-danger md:hidden md:group-hover:flex"
             >
               <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+
+          {onReact && (
+            <button
+              ref={reactionBtnRef}
+              type="button"
+              onClick={() => setShowReactionBar((v) => !v)}
+              aria-label="Reaksiyon ekle"
+              className="mb-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-muted opacity-0 transition-opacity hover:bg-background hover:text-primary group-hover:opacity-100 md:opacity-0"
+            >
+              <SmilePlus className="h-4 w-4" />
             </button>
           )}
 
@@ -204,11 +209,21 @@ export function ChatMessageBubble({
               {expiresAt && <ExpiryCountdown expiresAt={expiresAt} />}
             </div>
           </div>
+
+          {onReact && (
+            <ChatReactionBar
+              open={showReactionBar}
+              anchorRef={reactionBtnRef}
+              align={isMe ? "right" : "left"}
+              onClose={() => setShowReactionBar(false)}
+              onSelect={(emoji) => onReact(emoji)}
+            />
+          )}
         </div>
 
         {/* Reaksiyonlar */}
-        {(reactions.length > 0 || onReact) && (
-          <div className={`relative mt-1 flex flex-wrap items-center gap-1 px-1 ${isMe ? "justify-end" : "justify-start"}`}>
+        {reactions.length > 0 && (
+          <div className={`mt-1 flex flex-wrap items-center gap-1 px-1 ${isMe ? "justify-end" : "justify-start"}`}>
             {reactions.map((r) => (
               <button
                 key={r.emoji}
@@ -219,33 +234,6 @@ export function ChatMessageBubble({
                 {r.emoji} <span className="text-muted">{r.count}</span>
               </button>
             ))}
-            {onReact && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setShowEmojiPicker((p) => !p); }}
-                className="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-muted opacity-0 transition-opacity hover:border-primary group-hover:opacity-100"
-                aria-label="Reaksiyon ekle"
-              >
-                <span className="text-sm">+</span>
-              </button>
-            )}
-            {showEmojiPicker && (
-              <div
-                className={`absolute bottom-full z-50 mb-1 flex gap-1 rounded-xl border border-border bg-surface p-2 shadow-lg ${isMe ? "right-0" : "left-0"}`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {EMOJI_REACTIONS.map((em) => (
-                  <button
-                    key={em}
-                    type="button"
-                    onClick={() => { onReact?.(em); setShowEmojiPicker(false); }}
-                    className="rounded-lg p-1 text-lg hover:bg-background"
-                  >
-                    {em}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
