@@ -82,11 +82,18 @@ export const api = {
 export type AuthUser = {
   id: string;
   email: string;
+  phone?: string | null;
   role: string;
   emailVerified?: boolean;
+  createdAt?: string;
+  referralCode?: string | null;
   profile?: {
     displayName: string;
+    firstName?: string | null;
+    lastName?: string | null;
     avatarUrl?: string | null;
+    bio?: string | null;
+    occupation?: string | null;
     stateId?: string | null;
     cityId?: string | null;
     postalCode?: string | null;
@@ -94,8 +101,56 @@ export type AuthUser = {
     state?: { name: string; id: string } | null;
     city?: { name: string; id: string } | null;
     onboardingCompletedAt?: string | null;
+    languages?: string[];
     interests?: string[];
+    dmEnabled?: boolean;
   } | null;
+};
+
+export type UserStats = { topicCount: number; replyCount: number; eventCount: number };
+
+export type MembershipPlan = "USER_YEARLY" | "BUSINESS_YEARLY" | "FREE_PROMO";
+export type SubscriptionStatus = "ACTIVE" | "CANCELLED" | "EXPIRED";
+
+export type Subscription = {
+  id: string;
+  plan: MembershipPlan;
+  status: SubscriptionStatus;
+  startsAt: string;
+  expiresAt?: string | null;
+  cancelledAt?: string | null;
+  promoCode?: { code: string; label: string } | null;
+};
+
+export type MySubscription = {
+  subscription: Subscription | null;
+  plan: MembershipPlan | null;
+  status: SubscriptionStatus | null;
+  isActive: boolean;
+};
+
+export type ReferralUserRef = {
+  id: string;
+  referralCode?: string | null;
+  profile?: { displayName: string; postalCountry?: "DE" | "TR" | null } | null;
+};
+
+export type ReferralInfo = {
+  referralCode: string | null;
+  referralCount: number;
+  referredBy?: ReferralUserRef | null;
+  referrals: {
+    id: string;
+    email: string;
+    createdAt: string;
+    profile?: { displayName: string; postalCountry?: "DE" | "TR" | null } | null;
+  }[];
+};
+
+export type BlockedUser = {
+  id: string;
+  profile?: { displayName: string; avatarUrl?: string | null } | null;
+  blockedAt: string;
 };
 
 export type FederalState = {

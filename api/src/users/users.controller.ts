@@ -45,6 +45,11 @@ export class UsersController {
     return this.usersService.getMyReferrals(user.id);
   }
 
+  @Get('me/stats')
+  getMyStats(@CurrentUser() user: { id: string }) {
+    return this.usersService.getMyStats(user.id);
+  }
+
   @Get('search')
   searchUsers(
     @CurrentUser() user: { id: string },
