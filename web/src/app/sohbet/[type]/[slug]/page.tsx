@@ -361,6 +361,16 @@ export default function SohbetOdasiPage() {
   }, []);
   const scrollToBottomRef = useRef(scrollToBottom);
   scrollToBottomRef.current = scrollToBottom;
+
+  // Yeni mesaj DOM'a eklendiğinde (resim eki, uzun metin vb. yüzünden) içerik yüksekliği
+  // ilk anda tam ölçülemeyebiliyor; tek seferlik scrollTo bu durumda listeyi tam en alta
+  // indiremiyor. Birkaç kez tekrar deneyerek son mesajın kesin görünmesini sağlar.
+  const scrollToBottomReliably = useCallback((smooth = false) => {
+    scrollToBottomRef.current(smooth);
+    [50, 150, 300, 600].forEach((delay) => {
+      setTimeout(() => scrollToBottomRef.current(false), delay);
+    });
+  }, []);
   const userIdRef = useRef(user?.id);
   userIdRef.current = user?.id;
 
@@ -435,7 +445,7 @@ export default function SohbetOdasiPage() {
     function onHistory(msgs: Message[]) {
       setConnected(true);
       setMessages(msgs.filter((m) => !isDeletedChatUser(m.user.profile?.displayName)));
-      setTimeout(() => scrollToBottomRef.current(false), 0);
+      setTimeout(() => scrollToBottomReliably(false), 0);
     }
     function onNewMessage(msg: Message) {
       if (isDeletedChatUser(msg.user.profile?.displayName)) return;
@@ -447,7 +457,7 @@ export default function SohbetOdasiPage() {
         stopTypingRef.current();
       }
       setMessages((p) => [...p, msg]);
-      setTimeout(() => scrollToBottomRef.current(true), 0);
+      setTimeout(() => scrollToBottomReliably(true), 0);
     }
     function onUserTyping(data: { userId: string; displayName?: string }) {
       if (data.userId === userIdRef.current) return;
@@ -521,7 +531,7 @@ export default function SohbetOdasiPage() {
       sock.off("error", onSocketError);
       setTypingUsers({});
     };
-  }, [chatId, token, router]);
+  }, [chatId, token, router, scrollToBottomReliably]);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);

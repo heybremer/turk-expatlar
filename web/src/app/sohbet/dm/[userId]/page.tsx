@@ -114,6 +114,16 @@ export default function DmPage() {
   const scrollToBottomRef = useRef(scrollToBottom);
   scrollToBottomRef.current = scrollToBottom;
 
+  // Yeni mesaj DOM'a eklendiğinde (resim eki, uzun metin vb. yüzünden) içerik yüksekliği
+  // ilk anda tam ölçülemeyebiliyor; tek seferlik scrollTo bu durumda listeyi tam en alta
+  // indiremiyor. Birkaç kez tekrar deneyerek son mesajın kesin görünmesini sağlar.
+  const scrollToBottomReliably = useCallback((smooth = false) => {
+    scrollToBottomRef.current(smooth);
+    [50, 150, 300, 600].forEach((delay) => {
+      setTimeout(() => scrollToBottomRef.current(false), delay);
+    });
+  }, []);
+
   useEffect(() => {
     if (!token) { router.push("/giris"); return; }
     loadDms();
@@ -174,7 +184,7 @@ export default function DmPage() {
     function onHistory(msgs: Message[]) {
       setConnected(true);
       setMessages(msgs.filter((m) => !isDeletedChatUser(m.user.profile?.displayName)));
-      setTimeout(() => scrollToBottomRef.current(false), 0);
+      setTimeout(() => scrollToBottomReliably(false), 0);
       markChatRead(chatId, token!, true);
     }
     function onNewMessage(msg: Message) {
@@ -187,7 +197,7 @@ export default function DmPage() {
         stopTypingRef.current();
       }
       setMessages((prev) => [...prev, msg]);
-      setTimeout(() => scrollToBottomRef.current(true), 0);
+      setTimeout(() => scrollToBottomReliably(true), 0);
       markChatRead(chatId, token!, sock.connected);
       loadDmsRef.current();
     }
@@ -271,7 +281,7 @@ export default function DmPage() {
       sock.off("error", onSocketError);
       setPartnerTyping(false);
     };
-  }, [dm?.chatId, token, passwordUnlocked, router]);
+  }, [dm?.chatId, token, passwordUnlocked, router, scrollToBottomReliably]);
 
   function submitJoinPassword(password: string) {
     pendingPasswordRef.current = password;
