@@ -163,6 +163,20 @@ export class ChatController {
     return this.chatService.deleteMessage(messageId, user.id);
   }
 
+  // Odadaki tüm mesajları temizle (yalnızca admin)
+  @Delete(':chatId/messages')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  clearRoomMessages(
+    @CurrentUser() user: { id: string },
+    @Param('chatId') chatId: string,
+  ) {
+    return this.chatService.clearRoomMessages(chatId, user.id).then((result) => {
+      this.chatGateway.emitRoomCleared(chatId);
+      return result;
+    });
+  }
+
   // DM endpoints
   @Get('dm/list')
   @ApiBearerAuth()

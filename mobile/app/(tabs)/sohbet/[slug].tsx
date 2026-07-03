@@ -4,6 +4,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -40,6 +41,7 @@ import { DetailHeader } from "@/components/navigation/DetailHeader";
 import { ChatMessageBubble } from "@/components/chat/ChatMessageBubble";
 import { MessageActionSheet } from "@/components/chat/MessageActionSheet";
 import { ForwardModal } from "@/components/chat/ForwardModal";
+import { OnlineUsersModal } from "@/components/chat/OnlineUsersModal";
 import { DmPasswordModal } from "@/components/chat/DmPasswordModal";
 import { ImageViewerModal } from "@/components/chat/ImageViewerModal";
 import { TimerPicker } from "@/components/chat/TimerPicker";
@@ -53,6 +55,7 @@ export default function ChatRoomScreen() {
   const { token, user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isAdmin = user?.role === "ADMIN";
 
   const isDm = (slug ?? "").startsWith("dm-");
   const targetUserId = isDm ? slug!.replace("dm-", "") : null;
@@ -80,6 +83,7 @@ export default function ChatRoomScreen() {
 
   const [onlineUsers, setOnlineUsers] = useState<ChatOnlineUser[]>([]);
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
+  const [showOnlineUsers, setShowOnlineUsers] = useState(false);
 
   const [inputText, setInputText] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
@@ -104,6 +108,41 @@ export default function ChatRoomScreen() {
   const connectedRef = useRef(connected);
   connectedRef.current = connected;
   const pendingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const stickToBottomRef = useRef(true);
+  const [androidKeyboardHeight, setAndroidKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
+      setAndroidKeyboardHeight(e.endCoordinates?.height ?? 0);
+      if (stickToBottomRef.current) scrollToEndNow(true);
+    });
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setAndroidKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  function scrollToEndNow(animated: boolean) {
+    requestAnimationFrame(() => {
+      flatListRef.current?.scrollToEnd({ animated });
+    });
+  }
+
+  // Oda/DM geçmişi yüklendiğinde FlatList'in içerik yüksekliği (resimler, uzun mesajlar
+  // yüzünden) hemen ölçülemeyebiliyor; tek seferlik scrollToEnd bu durumda listeyi tam
+  // en alta indiremiyor. Birkaç kez tekrar deneyerek son mesajın kesin görünmesini sağlar.
+  function scrollToEndReliably() {
+    scrollToEndNow(false);
+    [50, 150, 300, 600].forEach((delay) => {
+      setTimeout(() => {
+        if (stickToBottomRef.current) flatListRef.current?.scrollToEnd({ animated: false });
+      }, delay);
+    });
+  }
 
   function markChatRead(connectedNow: boolean) {
     if (!isDm || !chatId || !token) return;
@@ -200,7 +239,8 @@ export default function ChatRoomScreen() {
       setMessages(msgs);
       oldestCreatedAtRef.current = msgs[0]?.createdAt ?? null;
       setHasMoreOlder(msgs.length >= 50);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 50);
+      stickToBottomRef.current = true;
+      scrollToEndReliably();
       markChatRead(true);
     }
     function onNewMessage(msg: ChatMessage) {
@@ -222,11 +262,15 @@ export default function ChatRoomScreen() {
         setMessages((prev) => [...prev, msg]);
         haptics.receive();
       }
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+      stickToBottomRef.current = true;
+      scrollToEndNow(true);
       markChatRead(socket.connected);
     }
     function onMessageDeleted({ messageId }: { messageId: string }) {
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    }
+    function onRoomCleared() {
+      setMessages([]);
     }
     function onMessageReaction(data: { messageId: string; reactions: { emoji: string; count: number }[] }) {
       setMessages((prev) => prev.map((m) => (m.id === data.messageId ? { ...m, reactions: data.reactions } : m)));
@@ -273,6 +317,7 @@ export default function ChatRoomScreen() {
     socket.on("history", onHistory);
     socket.on("new_message", onNewMessage);
     socket.on("message_deleted", onMessageDeleted);
+    socket.on("room_cleared", onRoomCleared);
     socket.on("message_reaction", onMessageReaction);
     socket.on("online_users", onOnlineUsers);
     socket.on("user_typing", onUserTyping);
@@ -297,6 +342,7 @@ export default function ChatRoomScreen() {
       socket.off("history", onHistory);
       socket.off("new_message", onNewMessage);
       socket.off("message_deleted", onMessageDeleted);
+      socket.off("room_cleared", onRoomCleared);
       socket.off("message_reaction", onMessageReaction);
       socket.off("online_users", onOnlineUsers);
       socket.off("user_typing", onUserTyping);
@@ -335,9 +381,12 @@ export default function ChatRoomScreen() {
   }, [chatId, token, loadingOlder, hasMoreOlder]);
 
   function handleScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
-    if (e.nativeEvent.contentOffset.y < SCROLL_TOP_THRESHOLD) {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    if (contentOffset.y < SCROLL_TOP_THRESHOLD) {
       void loadOlderMessages();
     }
+    const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    stickToBottomRef.current = distanceFromBottom < 120;
   }
 
   async function pickAndSendImage() {
@@ -404,7 +453,8 @@ export default function ChatRoomScreen() {
       ...(expiresInSeconds > 0 ? { expiresAt: new Date(Date.now() + expiresInSeconds * 1000).toISOString() } : {}),
     };
     setMessages((prev) => [...prev, optimistic]);
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+    stickToBottomRef.current = true;
+    scrollToEndNow(true);
 
     emitSendMessage(
       {
@@ -598,6 +648,40 @@ export default function ChatRoomScreen() {
     ]);
   }
 
+  function handleClearRoom() {
+    if (!chatId || !token) return;
+    Alert.alert(
+      "Sohbeti temizle",
+      "Bu odadaki tüm mesajlar herkes için silinecek. Bu işlem geri alınamaz.",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Temizle",
+          style: "destructive",
+          onPress: () => {
+            api
+              .delete(`/chat/${chatId}/messages`, token)
+              .then(() => {
+                haptics.success();
+                setMessages([]);
+              })
+              .catch(() => {
+                haptics.error();
+                Alert.alert("Hata", "Sohbet temizlenemedi");
+              });
+          },
+        },
+      ],
+    );
+  }
+
+  function openRoomOptions() {
+    Alert.alert(roomName || "Seçenekler", undefined, [
+      { text: "Vazgeç", style: "cancel" },
+      { text: "Sohbeti temizle", style: "destructive", onPress: handleClearRoom },
+    ]);
+  }
+
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const searchMatches = normalizedSearchQuery
     ? messages.reduce<number[]>((acc, m, i) => {
@@ -725,7 +809,11 @@ export default function ChatRoomScreen() {
   }
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : "height"}>
+    <KeyboardAvoidingView
+      className="flex-1 bg-background"
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={Platform.OS === "android" ? { paddingBottom: androidKeyboardHeight } : undefined}
+    >
       <View
         className="flex-row items-center gap-2.5 border-b border-border bg-surface px-3 pb-3"
         style={{ paddingTop: insets.top + 10 }}
@@ -741,19 +829,30 @@ export default function ChatRoomScreen() {
             </Text>
             {isMuted && <Ionicons name="notifications-off-outline" size={13} color="#9ca3af" />}
           </View>
-          <Text
-            className={`text-xs ${
-              partnerTyping || roomTypingNames.length > 0
-                ? "text-primary"
-                : isDm && partnerOnline
-                  ? "text-green-600"
-                  : "text-muted"
-            }`}
-            numberOfLines={1}
+          <TouchableOpacity
+            disabled={isDm}
+            onPress={() => setShowOnlineUsers(true)}
+            hitSlop={{ top: 4, bottom: 4 }}
           >
-            {!isDm && roomTypingNames.length > 0 ? formatTypingLabel(roomTypingNames) : statusLabel}
-          </Text>
+            <Text
+              className={`text-xs ${
+                partnerTyping || roomTypingNames.length > 0
+                  ? "text-primary"
+                  : isDm && partnerOnline
+                    ? "text-green-600"
+                    : "text-muted"
+              }`}
+              numberOfLines={1}
+            >
+              {!isDm && roomTypingNames.length > 0 ? formatTypingLabel(roomTypingNames) : statusLabel}
+            </Text>
+          </TouchableOpacity>
         </View>
+        {!isDm && (
+          <TouchableOpacity onPress={() => setShowOnlineUsers(true)} className="w-9 h-9 items-center justify-center">
+            <Ionicons name="people-outline" size={19} color="#6b7280" />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           onPress={() => {
             setSearchOpen((v) => !v);
@@ -773,6 +872,11 @@ export default function ChatRoomScreen() {
         )}
         {isDm && (
           <TouchableOpacity onPress={openDmOptions} className="w-9 h-9 items-center justify-center">
+            <Ionicons name="ellipsis-vertical" size={18} color="#6b7280" />
+          </TouchableOpacity>
+        )}
+        {!isDm && isAdmin && (
+          <TouchableOpacity onPress={openRoomOptions} className="w-9 h-9 items-center justify-center">
             <Ionicons name="ellipsis-vertical" size={18} color="#6b7280" />
           </TouchableOpacity>
         )}
@@ -813,6 +917,9 @@ export default function ChatRoomScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
           onScroll={handleScroll}
           scrollEventThrottle={100}
+          onContentSizeChange={() => {
+            if (stickToBottomRef.current) scrollToEndNow(true);
+          }}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
@@ -1010,6 +1117,17 @@ export default function ChatRoomScreen() {
         token={token}
         onClose={() => setForwardMessage(null)}
         onSelect={(target) => forwardMessage && handleForwardTo(forwardMessage, target.userId, target.name)}
+      />
+
+      <OnlineUsersModal
+        visible={showOnlineUsers}
+        users={onlineUsers}
+        currentUserId={user?.id}
+        onClose={() => setShowOnlineUsers(false)}
+        onSelectUser={(userId) => {
+          setShowOnlineUsers(false);
+          router.push(`/(tabs)/sohbet/dm-${userId}` as never);
+        }}
       />
 
       <DmPasswordModal

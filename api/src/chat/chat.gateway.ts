@@ -616,6 +616,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
 
 
+  emitRoomCleared(chatId: string) {
+
+    this.server.to(chatId).emit('room_cleared', { chatId });
+
+  }
+
+
+
   @SubscribeMessage('mark_read')
 
   async handleMarkRead(

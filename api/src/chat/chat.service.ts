@@ -391,6 +391,26 @@ export class ChatService {
     });
   }
 
+  /** Bir oda/genel sohbetteki tüm mesajları temizler. Yalnızca admin için, DM'lerde kullanılamaz. */
+  async clearRoomMessages(chatId: string, userId: string) {
+    const requester = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (requester?.role !== 'ADMIN') {
+      throw new ForbiddenException('Bu işlemi yalnızca yöneticiler yapabilir');
+    }
+
+    const chat = await this.prisma.chat.findUnique({ where: { id: chatId }, select: { type: true } });
+    if (!chat) throw new NotFoundException('Sohbet bulunamadı');
+    if (chat.type === ChatType.DIRECT) {
+      throw new ForbiddenException('Özel mesajlar bu şekilde temizlenemez');
+    }
+
+    const result = await this.prisma.message.updateMany({
+      where: { chatId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    return { chatId, deletedCount: result.count };
+  }
+
   /** DIRECT sohbette gönderenin karşı tarafının userId'sini döndürür (push bildirimi için). */
   async getDmRecipientId(chatId: string, senderId: string): Promise<string | null> {
     const chat = await this.prisma.chat.findUnique({
