@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getSocket } from "@/lib/socket";
 import { scrollMessagesToBottom, isDeletedChatUser, setupChatViewportHeight } from "@/components/sohbet/chat-utils";
+import { ChatInputEmojiPicker } from "@/components/sohbet/ChatInputEmojiPicker";
 import { ChatMessageBubble } from "@/components/sohbet/ChatMessageBubble";
 import { formatTypingLabel, useChatTyping } from "@/components/sohbet/useChatTyping";
 import { ModerationNotice } from "@/components/sohbet/ModerationNotice";
@@ -22,8 +22,6 @@ import { ChatRulesButton } from "@/components/sohbet/ChatRulesButton";
 import { ChatAvatar } from "@/components/sohbet/ChatAvatar";
 import { CountryFlagBadge } from "@/components/user/CountryFlagBadge";
 import type { PostalCountry } from "@/lib/postal-country";
-
-const EmojiPicker = dynamic(() => import("@emoji-mart/react"), { ssr: false });
 
 /* ─── Types ─────────────────────────────────────────────────────── */
 type Attachment = { url: string; name: string; size: number; type: "image" | "file"; mime: string };
@@ -355,7 +353,7 @@ export default function SohbetOdasiPage() {
 
   const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const emojiRef = useRef<HTMLDivElement>(null);
+  const emojiBtnRef = useRef<HTMLButtonElement>(null);
 
   const scrollToBottom = useCallback((smooth = false) => {
     scrollMessagesToBottom(messagesRef.current, smooth);
@@ -385,14 +383,6 @@ export default function SohbetOdasiPage() {
     setMobileChannelsOpen(false);
     setMobileMembersOpen(false);
   }, [params?.type, params?.slug]);
-
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setShowEmoji(false);
-    }
-    if (showEmoji) document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [showEmoji]);
 
   useEffect(() => {
     if (token) {
@@ -888,24 +878,24 @@ export default function SohbetOdasiPage() {
                     {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
                   </button>
 
-                  <div className="relative" ref={emojiRef}>
-                    <button type="button" title="Emoji"
-                      onClick={() => setShowEmoji((v) => !v)}
-                      className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary active:bg-background ${showEmoji ? "bg-background text-primary" : ""}`}>
-                      <Smile className="h-4 w-4" />
-                    </button>
-                    {showEmoji && (
-                      <div className="absolute bottom-10 left-0 z-50">
-                        <EmojiPicker
-                          data={async () => (await import("@emoji-mart/data")).default}
-                          locale="tr" theme="light" previewPosition="none" skinTonePosition="none"
-                          onEmojiSelect={(emoji: { native: string }) => {
-                            setInput((p) => p + emoji.native); setShowEmoji(false); inputRef.current?.focus();
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    ref={emojiBtnRef}
+                    type="button"
+                    title="Emoji"
+                    onClick={() => setShowEmoji((v) => !v)}
+                    className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary active:bg-background ${showEmoji ? "bg-background text-primary" : ""}`}
+                  >
+                    <Smile className="h-4 w-4" />
+                  </button>
+                  <ChatInputEmojiPicker
+                    open={showEmoji}
+                    anchorRef={emojiBtnRef}
+                    onClose={() => setShowEmoji(false)}
+                    onSelect={(emoji) => {
+                      setInput((p) => p + emoji);
+                      inputRef.current?.focus();
+                    }}
+                  />
 
                   <button type="button" title="Otomatik sil"
                     onClick={() => setShowTimer((v) => !v)}

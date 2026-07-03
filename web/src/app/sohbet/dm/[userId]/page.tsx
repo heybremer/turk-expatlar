@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -17,14 +16,13 @@ import { DmConversationList } from "@/components/sohbet/DmConversationList";
 import { DmJoinPasswordModal, DmPasswordModal } from "@/components/sohbet/DmPasswordModal";
 import { NewMessageModal } from "@/components/sohbet/NewMessageModal";
 import { DmEntry, isDeletedChatUser, markChatRead, scrollMessagesToBottom, setupChatViewportHeight } from "@/components/sohbet/chat-utils";
+import { ChatInputEmojiPicker } from "@/components/sohbet/ChatInputEmojiPicker";
 import { ChatMessageBubble, getLastReadOwnMessageId } from "@/components/sohbet/ChatMessageBubble";
 import { formatTypingLabel, useChatTyping } from "@/components/sohbet/useChatTyping";
 import { ModerationNotice } from "@/components/sohbet/ModerationNotice";
 import { ChatRulesButton } from "@/components/sohbet/ChatRulesButton";
 import { UserDisplayName } from "@/components/user/UserDisplayName";
 import type { PostalCountry } from "@/lib/postal-country";
-
-const EmojiPicker = dynamic(() => import("@emoji-mart/react"), { ssr: false });
 
 type Attachment = { url: string; name: string; size: number; type: "image" | "file"; mime: string };
 type Message = {
@@ -83,7 +81,7 @@ export default function DmPage() {
   const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const emojiRef = useRef<HTMLDivElement>(null);
+  const emojiBtnRef = useRef<HTMLButtonElement>(null);
   const pendingPasswordRef = useRef<string>("");
 
   const scrollToBottom = useCallback((smooth = false) => {
@@ -94,14 +92,6 @@ export default function DmPage() {
   // Klavye açıldığında mesaj yazma alanının arkada kalmaması için gerçek görünür
   // viewport yüksekliği (visualViewport) baz alınır.
   useEffect(() => setupChatViewportHeight(), []);
-
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) setShowEmoji(false);
-    }
-    if (showEmoji) document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [showEmoji]);
 
   const loadDms = useCallback(() => {
     if (!token) return;
@@ -562,23 +552,24 @@ export default function DmPage() {
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary disabled:opacity-40">
                       {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
                     </button>
-                    <div className="relative" ref={emojiRef}>
-                      <button type="button" title="Emoji" onClick={() => setShowEmoji((v) => !v)}
-                        className={`flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary ${showEmoji ? "bg-background text-primary" : ""}`}>
-                        <Smile className="h-4 w-4" />
-                      </button>
-                      {showEmoji && (
-                        <div className="absolute bottom-10 left-0 z-50">
-                          <EmojiPicker
-                            data={async () => (await import("@emoji-mart/data")).default}
-                            locale="tr" theme="light" previewPosition="none" skinTonePosition="none"
-                            onEmojiSelect={(emoji: { native: string }) => {
-                              setInput((p) => p + emoji.native); setShowEmoji(false); inputRef.current?.focus();
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      ref={emojiBtnRef}
+                      type="button"
+                      title="Emoji"
+                      onClick={() => setShowEmoji((v) => !v)}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary ${showEmoji ? "bg-background text-primary" : ""}`}
+                    >
+                      <Smile className="h-4 w-4" />
+                    </button>
+                    <ChatInputEmojiPicker
+                      open={showEmoji}
+                      anchorRef={emojiBtnRef}
+                      onClose={() => setShowEmoji(false)}
+                      onSelect={(emoji) => {
+                        setInput((p) => p + emoji);
+                        inputRef.current?.focus();
+                      }}
+                    />
                     <button type="button" title="Otomatik sil" onClick={() => setShowTimer((v) => !v)}
                       className={`flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary ${expiresInSeconds > 0 ? "text-warning" : ""}`}>
                       <Clock className="h-4 w-4" />
