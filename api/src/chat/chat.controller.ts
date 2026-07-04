@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Inject,
   Param,
@@ -18,7 +19,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -30,14 +31,27 @@ import { ChatService } from './chat.service';
 import { LinkPreviewService } from './link-preview.service';
 import type { Request } from 'express';
 
-const ALLOWED_MIME = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-  'audio/m4a', 'audio/x-m4a', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/aac', 'audio/webm',
-];
+// MIME -> güvenli dosya uzantısı eşlemesi. Uzantı istemcinin gönderdiği
+// dosya adından DEĞİL, doğrulanan MIME türünden türetilir (XSS/HTML yükleme koruması).
+const MIME_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    '.docx',
+  'audio/m4a': '.m4a',
+  'audio/x-m4a': '.m4a',
+  'audio/mp4': '.m4a',
+  'audio/mpeg': '.mp3',
+  'audio/wav': '.wav',
+  'audio/x-wav': '.wav',
+  'audio/aac': '.aac',
+  'audio/webm': '.webm',
+};
+const ALLOWED_MIME = Object.keys(MIME_EXT);
 const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
 @ApiTags('chat')
@@ -82,7 +96,12 @@ export class ChatController {
   @Get(':chatId/region-users')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  getRegionUsers(@Param('chatId') chatId: string) {
+  async getRegionUsers(
+    @CurrentUser() user: { id: string },
+    @Param('chatId') chatId: string,
+  ) {
+    const denied = await this.chatService.checkRoomAccess(chatId, user.id);
+    if (denied) throw new ForbiddenException('Bu odaya erişiminiz yok');
     return this.chatService.getRegionUsers(chatId);
   }
 
@@ -90,10 +109,13 @@ export class ChatController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiQuery({ name: 'before', required: false })
-  getMessages(
+  async getMessages(
+    @CurrentUser() user: { id: string },
     @Param('chatId') chatId: string,
     @Query('before') before?: string,
   ) {
+    const denied = await this.chatService.checkRoomAccess(chatId, user.id);
+    if (denied) throw new ForbiddenException('Bu odaya erişiminiz yok');
     return this.chatService.getMessages(chatId, 50, before);
   }
 
@@ -111,7 +133,8 @@ export class ChatController {
         },
         filename: (_req, file, cb) => {
           const unique = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          cb(null, `${unique}${extname(file.originalname)}`);
+          const ext = MIME_EXT[file.mimetype] ?? '.bin';
+          cb(null, `${unique}${ext}`);
         },
       }),
       limits: { fileSize: MAX_SIZE },
@@ -121,10 +144,7 @@ export class ChatController {
       },
     }),
   )
-  uploadFile(
-    @UploadedFile() file: Express.Multer.File,
-    @Req() req: Request,
-  ) {
+  uploadFile(@UploadedFile() file: Express.Multer.File, @Req() req: Request) {
     if (!file) throw new BadRequestException('Dosya bulunamadı');
     const protocol = req.protocol;
     const host = req.get('host');
@@ -149,7 +169,11 @@ export class ChatController {
     @Param('chatId') chatId: string,
     @Body() body: { password?: string },
   ) {
-    return this.chatService.setRoomPassword(chatId, user.id, body.password ?? null);
+    return this.chatService.setRoomPassword(
+      chatId,
+      user.id,
+      body.password ?? null,
+    );
   }
 
   // Mesaj silme (kendi mesajı veya admin)
@@ -157,10 +181,14 @@ export class ChatController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   deleteMessage(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: { id: string; role?: string },
     @Param('messageId') messageId: string,
   ) {
-    return this.chatService.deleteMessage(messageId, user.id);
+    return this.chatService.deleteMessage(
+      messageId,
+      user.id,
+      user.role === 'ADMIN',
+    );
   }
 
   // Odadaki tüm mesajları temizle (yalnızca admin)
@@ -171,10 +199,12 @@ export class ChatController {
     @CurrentUser() user: { id: string },
     @Param('chatId') chatId: string,
   ) {
-    return this.chatService.clearRoomMessages(chatId, user.id).then((result) => {
-      this.chatGateway.emitRoomCleared(chatId);
-      return result;
-    });
+    return this.chatService
+      .clearRoomMessages(chatId, user.id)
+      .then((result) => {
+        this.chatGateway.emitRoomCleared(chatId);
+        return result;
+      });
   }
 
   // DM endpoints
@@ -189,7 +219,9 @@ export class ChatController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   getDmUnreadCount(@CurrentUser() user: { id: string }) {
-    return this.chatService.getDmUnreadCount(user.id).then((count) => ({ count }));
+    return this.chatService
+      .getDmUnreadCount(user.id)
+      .then((count) => ({ count }));
   }
 
   @Patch('dm/:chatId/read')
@@ -208,10 +240,7 @@ export class ChatController {
   @Delete('dm/:chatId')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  hideDm(
-    @CurrentUser() user: { id: string },
-    @Param('chatId') chatId: string,
-  ) {
+  hideDm(@CurrentUser() user: { id: string }, @Param('chatId') chatId: string) {
     return this.chatService.hideDmConversation(chatId, user.id);
   }
 

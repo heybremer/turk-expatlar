@@ -41,6 +41,7 @@ type SearchParams = {
   category?: string;
   verified?: string;
   page?: string;
+  onay?: string;
 };
 
 export default async function RehberPage({
@@ -52,7 +53,8 @@ export default async function RehberPage({
   const q = params.q?.trim() ?? "";
   const categorySlug = params.category ?? "";
   const verified = params.verified === "true";
-  const page = Math.max(1, parseInt(params.page ?? "1", 10));
+  const parsedPage = parseInt(params.page ?? "1", 10);
+  const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
 
   const categories = await getCategories();
   const activeCat = categories.find((c) => c.slug === categorySlug);
@@ -87,6 +89,13 @@ export default async function RehberPage({
           {total > 0 && <span className="ml-1">— {total} işletme</span>}
         </p>
       </div>
+
+      {params.onay === "bekliyor" && (
+        <div className="mt-4 rounded-lg border border-success/30 bg-success/5 p-4 text-sm text-text">
+          İşletme kaydınız alındı. Moderasyon onayından sonra rehberde
+          görünecektir.
+        </div>
+      )}
 
       {/* Arama formu */}
       <form method="GET" action="/rehber" className="mt-6">

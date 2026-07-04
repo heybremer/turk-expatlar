@@ -17,7 +17,7 @@ import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
-import { extname, join } from 'path';
+import { join } from 'path';
 import type { Request } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -26,7 +26,14 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { UsersService } from './users.service';
 
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
-const AVATAR_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+// Uzantı doğrulanmış MIME türünden türetilir (istemci dosya adına güvenilmez)
+const AVATAR_MIME_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+};
+const AVATAR_MIME = Object.keys(AVATAR_MIME_EXT);
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -85,7 +92,8 @@ export class UsersController {
         },
         filename: (_req, file, cb) => {
           const unique = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          cb(null, `${unique}${extname(file.originalname)}`);
+          const ext = AVATAR_MIME_EXT[file.mimetype] ?? '.bin';
+          cb(null, `${unique}${ext}`);
         },
       }),
       limits: { fileSize: MAX_AVATAR_SIZE },

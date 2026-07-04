@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -117,9 +118,16 @@ export class BusinessesController {
   requestVerification(
     @Param('id') businessId: string,
     @CurrentUser() user: { id: string },
-    @Body('docUrls') docUrls: string[],
+    @Body('docUrls') docUrls?: string[],
   ) {
-    return this.businessesService.submitVerification(businessId, user.id, docUrls);
+    if (!Array.isArray(docUrls) || docUrls.length === 0) {
+      throw new BadRequestException('En az bir belge yüklemeniz gerekiyor');
+    }
+    return this.businessesService.submitVerification(
+      businessId,
+      user.id,
+      docUrls,
+    );
   }
 
   @Get('admin/pending-verification')
@@ -139,6 +147,10 @@ export class BusinessesController {
     @Param('id') businessId: string,
     @Body() body: { approved: boolean; note?: string },
   ) {
-    return this.businessesService.reviewVerification(businessId, body.approved, body.note);
+    return this.businessesService.reviewVerification(
+      businessId,
+      body.approved,
+      body.note,
+    );
   }
 }

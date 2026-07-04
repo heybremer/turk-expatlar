@@ -27,13 +27,17 @@ const PAYMENT_LABEL: Record<string, string> = {
 
 export function TravelRequestList({ announcementId, requests, isOwner, onUpdate }: Props) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   async function respond(reqId: string, accept: boolean) {
     setLoadingId(reqId);
+    setError("");
     try {
       const endpoint = accept ? "accept" : "decline";
       await api.patch(`/travel-announcements/${announcementId}/requests/${reqId}/${endpoint}`, {});
       onUpdate?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "İşlem başarısız oldu, lütfen tekrar deneyin.");
     } finally {
       setLoadingId(null);
     }
@@ -45,6 +49,11 @@ export function TravelRequestList({ announcementId, requests, isOwner, onUpdate 
 
   return (
     <div className="space-y-3">
+      {error && (
+        <p className="rounded-lg border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
+          {error}
+        </p>
+      )}
       {requests.map((req) => {
         const status = STATUS_LABEL[req.status] ?? STATUS_LABEL.PENDING;
         return (

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { EventStatus } from '@prisma/client';
+import { EventStatus, TravelStatus } from '@prisma/client';
 import { GamificationService } from '../gamification/gamification.service';
 
 @Injectable()
@@ -40,6 +40,23 @@ export class TasksService {
     this.logger.log(
       `${toComplete.length} etkinlik COMPLETED olarak işaretlendi ve puan verildi`,
     );
+  }
+
+  /**
+   * Her gece 02:30'da kalkış tarihi geçmiş açık yolculuk ilanlarını kapat
+   */
+  @Cron('30 2 * * *')
+  async closeExpiredTravelAnnouncements() {
+    const result = await this.prisma.travelAnnouncement.updateMany({
+      where: {
+        status: TravelStatus.OPEN,
+        departureDate: { lt: new Date() },
+      },
+      data: { status: TravelStatus.CLOSED },
+    });
+    if (result.count > 0) {
+      this.logger.log(`${result.count} süresi geçmiş yolculuk ilanı kapatıldı`);
+    }
   }
 
   /**

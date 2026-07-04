@@ -357,10 +357,10 @@ export class AdminService {
   }
 
   // Rol değiştir (ADMIN, MODERATOR, USER)
-  async changeUserRole(id: string, role: string) {
+  async changeUserRole(id: string, role: UserRole) {
     return this.prisma.user.update({
       where: { id },
-      data: { role: role as never },
+      data: { role },
     });
   }
 

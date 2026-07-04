@@ -17,19 +17,23 @@ import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JobListingType, JobType, WorkMode } from '@prisma/client';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
-import { extname, join } from 'path';
+import { join } from 'path';
 import type { Request } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt.guard';
 import { CreateJobDto } from './dto/create-job.dto';
 import { JobsService } from './jobs.service';
 
-const CV_ALLOWED_MIME = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain',
-];
+// Uzantı, istemcinin dosya adından değil doğrulanmış MIME türünden türetilir
+// (HTML/script yükleme koruması).
+const CV_MIME_EXT: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    '.docx',
+};
+const CV_ALLOWED_MIME = Object.keys(CV_MIME_EXT);
 const CV_MAX_SIZE = 10 * 1024 * 1024;
 
 @ApiTags('jobs')
@@ -86,13 +90,20 @@ export class JobsController {
         },
         filename: (_req, file, cb) => {
           const unique = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          cb(null, `${unique}${extname(file.originalname)}`);
+          const ext = CV_MIME_EXT[file.mimetype] ?? '.bin';
+          cb(null, `${unique}${ext}`);
         },
       }),
       limits: { fileSize: CV_MAX_SIZE },
       fileFilter: (_req, file, cb) => {
         if (CV_ALLOWED_MIME.includes(file.mimetype)) cb(null, true);
-        else cb(new BadRequestException('Sadece PDF, Word veya metin dosyası yüklenebilir'), false);
+        else
+          cb(
+            new BadRequestException(
+              'Sadece PDF veya Word dosyası yüklenebilir',
+            ),
+            false,
+          );
       },
     }),
   )
@@ -109,27 +120,22 @@ export class JobsController {
   }
 
   @Get(':id')
-  findJob(@Param('id') id: string) {
-    return this.jobsService.findJob(id);
+  @UseGuards(OptionalJwtAuthGuard)
+  findJob(@Param('id') id: string, @CurrentUser() user?: { id: string }) {
+    return this.jobsService.findJob(id, user?.id);
   }
 
   @Post()
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  createJob(
-    @CurrentUser() user: { id: string },
-    @Body() dto: CreateJobDto,
-  ) {
+  createJob(@CurrentUser() user: { id: string }, @Body() dto: CreateJobDto) {
     return this.jobsService.createJob(user.id, dto);
   }
 
   @Patch(':id/close')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  closeJob(
-    @Param('id') id: string,
-    @CurrentUser() user: { id: string },
-  ) {
+  closeJob(@Param('id') id: string, @CurrentUser() user: { id: string }) {
     return this.jobsService.closeJob(id, user.id);
   }
 }

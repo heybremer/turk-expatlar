@@ -79,6 +79,7 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.password);
   }
@@ -171,7 +172,9 @@ export class AuthController {
       }
       res.cookie('token', result.accessToken, COOKIE_OPTIONS);
       res.cookie('s', '1', { ...COOKIE_OPTIONS, httpOnly: false });
-      res.redirect(`${webUrl}/oauth/callback?token=${encodeURIComponent(result.accessToken)}`);
+      // Token URL fragment ile taşınır: fragment sunucuya gönderilmez,
+      // loglara ve Referer başlığına sızmaz (query string sızıyordu).
+      res.redirect(`${webUrl}/oauth/callback#token=${encodeURIComponent(result.accessToken)}`);
     } catch (err) {
       console.error('[Google OAuth callback]', err);
       if (!res.headersSent) {

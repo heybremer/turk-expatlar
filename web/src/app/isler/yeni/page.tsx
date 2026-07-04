@@ -26,7 +26,6 @@ export default function YeniIlanPage() {
   const { token } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [states, setStates] = useState<FederalState[]>([]);
-  const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
   const [listingType, setListingType] = useState<JobListingType>("EMPLOYER");
   const [cvFile, setCvFile] = useState<{ url: string; name: string } | null>(null);
   const [cvUploading, setCvUploading] = useState(false);
@@ -59,10 +58,8 @@ export default function YeniIlanPage() {
     api.get<FederalState[]>("/locations/states").then(setStates).catch(() => {});
   }, [token, router]);
 
-  useEffect(() => {
-    const s = states.find((x) => x.id === form.stateId);
-    setCities(s?.cities ?? []);
-  }, [form.stateId, states]);
+  // Şehir listesi seçili eyaletten türetilir (ayrı state/effect gerekmez)
+  const cities = states.find((x) => x.id === form.stateId)?.cities ?? [];
 
   async function handleCvSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -118,7 +115,7 @@ export default function YeniIlanPage() {
         },
         token,
       );
-      router.push("/isler");
+      router.push("/isler?onay=bekliyor");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gönderilemedi");
     } finally {
@@ -301,7 +298,9 @@ export default function YeniIlanPage() {
             <select
               className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
               value={form.stateId}
-              onChange={(e) => setForm({ ...form, stateId: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, stateId: e.target.value, cityId: "" })
+              }
             >
               <option value="">—</option>
               {states.map((s) => (

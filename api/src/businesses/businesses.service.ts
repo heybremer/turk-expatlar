@@ -5,7 +5,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BusinessStatus, ReviewStatus, VerificationStatus } from '@prisma/client';
+import {
+  BusinessStatus,
+  ReviewStatus,
+  VerificationStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../redis/cache.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
@@ -21,7 +25,10 @@ export class BusinessesService {
   getCategories() {
     return this.cache.wrap(
       'businesses:categories',
-      () => this.prisma.businessCategory.findMany({ orderBy: { sortOrder: 'asc' } }),
+      () =>
+        this.prisma.businessCategory.findMany({
+          orderBy: { sortOrder: 'asc' },
+        }),
       600, // 10 dakika cache
     );
   }
@@ -36,8 +43,15 @@ export class BusinessesService {
     verified?: boolean;
     search?: string;
   }) {
-    const page = params.page ?? 1;
-    const limit = Math.min(params.limit ?? 20, 50);
+    const page =
+      params.page && Number.isFinite(params.page) && params.page > 0
+        ? Math.floor(params.page)
+        : 1;
+    const rawLimit =
+      params.limit && Number.isFinite(params.limit) && params.limit > 0
+        ? Math.floor(params.limit)
+        : 20;
+    const limit = Math.min(rawLimit, 50);
     const skip = (page - 1) * limit;
 
     const where = {
@@ -51,7 +65,12 @@ export class BusinessesService {
       ...(params.search && {
         OR: [
           { name: { contains: params.search, mode: 'insensitive' as const } },
-          { description: { contains: params.search, mode: 'insensitive' as const } },
+          {
+            description: {
+              contains: params.search,
+              mode: 'insensitive' as const,
+            },
+          },
         ],
       }),
     };
@@ -115,7 +134,7 @@ export class BusinessesService {
 
   async createReview(businessId: string, userId: string, dto: CreateReviewDto) {
     const business = await this.prisma.business.findFirst({
-      where: { id: businessId, status: BusinessStatus.ACTIVE },
+      where: { id: businessId, deletedAt: null, status: BusinessStatus.ACTIVE },
     });
     if (!business) throw new NotFoundException();
 
@@ -123,7 +142,13 @@ export class BusinessesService {
       where: { businessId_userId: { businessId, userId } },
     });
 
-    if (existing && !existing.deletedAt) {
+    // Reddedilmiş yorum yeni gönderime engel olmasın; yalnızca
+    // bekleyen veya onaylanmış aktif yorum varsa engelle
+    if (
+      existing &&
+      !existing.deletedAt &&
+      existing.status !== ReviewStatus.REJECTED
+    ) {
       throw new ConflictException('Bu işletmeye zaten yorum yaptınız');
     }
 
@@ -188,13 +213,19 @@ export class BusinessesService {
     });
   }
 
-  async updateMyReview(businessId: string, userId: string, dto: CreateReviewDto) {
+  async updateMyReview(
+    businessId: string,
+    userId: string,
+    dto: CreateReviewDto,
+  ) {
     const review = await this.prisma.businessReview.findFirst({
       where: { businessId, userId, deletedAt: null },
     });
     if (!review) throw new NotFoundException('Yorum bulunamadı');
     if (review.status !== ReviewStatus.PENDING) {
-      throw new BadRequestException('Yalnızca onay bekleyen yorumlar düzenlenebilir');
+      throw new BadRequestException(
+        'Yalnızca onay bekleyen yorumlar düzenlenebilir',
+      );
     }
     if (review.editCount >= 1) {
       throw new ForbiddenException('Yorum yalnızca bir kez düzenlenebilir');
@@ -218,7 +249,11 @@ export class BusinessesService {
     });
   }
 
-  async submitVerification(businessId: string, userId: string, docUrls: string[]) {
+  async submitVerification(
+    businessId: string,
+    userId: string,
+    docUrls: string[],
+  ) {
     const biz = await this.prisma.business.findFirst({
       where: { id: businessId, ownerId: userId, deletedAt: null },
     });
@@ -226,7 +261,8 @@ export class BusinessesService {
     if (biz.verificationStatus === VerificationStatus.VERIFIED) {
       throw new BadRequestException('İşletme zaten doğrulanmış');
     }
-    if (docUrls.length === 0) throw new BadRequestException('En az bir belge gereklidir');
+    if (docUrls.length === 0)
+      throw new BadRequestException('En az bir belge gereklidir');
 
     return this.prisma.business.update({
       where: { id: businessId },
@@ -256,10 +292,22 @@ export class BusinessesService {
 
   async getPendingVerifications() {
     return this.prisma.business.findMany({
-      where: { verificationStatus: VerificationStatus.PENDING_REVIEW, deletedAt: null },
+      where: {
+        verificationStatus: VerificationStatus.PENDING_REVIEW,
+        deletedAt: null,
+      },
       select: {
-        id: true, name: true, verificationDocs: true, verificationStatus: true,
-        owner: { select: { id: true, email: true, profile: { select: { displayName: true } } } },
+        id: true,
+        name: true,
+        verificationDocs: true,
+        verificationStatus: true,
+        owner: {
+          select: {
+            id: true,
+            email: true,
+            profile: { select: { displayName: true } },
+          },
+        },
         city: { select: { name: true } },
         state: { select: { name: true } },
       },

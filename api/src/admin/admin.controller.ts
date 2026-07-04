@@ -35,8 +35,8 @@ class BanUserDto {
 }
 
 class ChangeRoleDto {
-  @IsString()
-  role: string;
+  @IsEnum(UserRole)
+  role: UserRole;
 }
 
 class UpdateTrDefaultPagesDto {
@@ -180,11 +180,13 @@ export class AdminController {
   }
 
   @Patch('users/:id/role')
+  @Roles(UserRole.ADMIN)
   changeUserRole(@Param('id') id: string, @Body() dto: ChangeRoleDto) {
     return this.adminService.changeUserRole(id, dto.role);
   }
 
   @Delete('users/:id')
+  @Roles(UserRole.ADMIN)
   deleteUser(@Param('id') id: string) {
     return this.adminService.deleteUser(id);
   }

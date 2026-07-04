@@ -14,11 +14,16 @@ function OAuthCallbackContent() {
   const { setAuth } = useAuth();
 
   useEffect(() => {
-    const token = searchParams.get("token");
+    // Token URL fragment'inde gelir (#token=...): sunucu loglarına sızmaz.
+    // Eski query param yolu geriye dönük uyumluluk için korunur.
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const token = hashParams.get("token") ?? searchParams.get("token");
     if (!token) {
       router.replace("/giris?error=oauth");
       return;
     }
+    // Token'ı adres çubuğundan ve tarayıcı geçmişinden temizle
+    window.history.replaceState(null, "", window.location.pathname);
 
     // Token ile kullanıcı bilgisini çek ve store'a kaydet
     fetch(`${API_URL}/api/users/me`, {

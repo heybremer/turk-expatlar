@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ChatType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -8,8 +12,11 @@ export class ChatService {
 
   async getOrCreateRoomChat(type: 'STATE' | 'CITY', id: string) {
     const where = type === 'STATE' ? { stateId: id } : { cityId: id };
-    const chatType: ChatType = type === 'STATE' ? ChatType.STATE : ChatType.CITY;
-    const existing = await this.prisma.chat.findFirst({ where: { type: chatType, ...where } });
+    const chatType: ChatType =
+      type === 'STATE' ? ChatType.STATE : ChatType.CITY;
+    const existing = await this.prisma.chat.findFirst({
+      where: { type: chatType, ...where },
+    });
     if (existing) return existing;
     return this.prisma.chat.create({ data: { type: chatType, ...where } });
   }
@@ -19,8 +26,7 @@ export class ChatService {
       where: { type: ChatType.GLOBAL, isPublic: true },
       orderBy: { createdAt: 'asc' },
     });
-    const global =
-      globalChats[0] ?? (await this.getOrCreateGlobalChat());
+    const global = globalChats[0] ?? (await this.getOrCreateGlobalChat());
     const extraGlobals = globalChats.filter((c) => c.id !== global.id);
 
     const states = await this.prisma.federalState.findMany({
@@ -118,7 +124,10 @@ export class ChatService {
     });
 
     if (profile?.stateId) {
-      const stateChat = await this.getOrCreateRoomChat('STATE', profile.stateId);
+      const stateChat = await this.getOrCreateRoomChat(
+        'STATE',
+        profile.stateId,
+      );
       ids.push(stateChat.id);
     }
     if (profile?.cityId) {
@@ -150,7 +159,13 @@ export class ChatService {
           select: {
             id: true,
             role: true,
-            profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } },
+            profile: {
+              select: {
+                displayName: true,
+                avatarUrl: true,
+                postalCountry: true,
+              },
+            },
           },
         },
         replyTo: {
@@ -172,7 +187,10 @@ export class ChatService {
       where: { messageId: { in: messages.map((m) => m.id) } },
       _count: { emoji: true },
     });
-    const reactionsByMessage = new Map<string, { emoji: string; count: number }[]>();
+    const reactionsByMessage = new Map<
+      string,
+      { emoji: string; count: number }[]
+    >();
     for (const row of reactionRows) {
       const list = reactionsByMessage.get(row.messageId) ?? [];
       list.push({ emoji: row.emoji, count: row._count.emoji });
@@ -200,6 +218,9 @@ export class ChatService {
     });
 
     if (chat?.type === ChatType.DIRECT) {
+      // DM: yalnızca üyeler erişebilir
+      const isMember = chat.members.some((m) => m.userId === userId);
+      if (!isMember) return { reason: 'not_member' };
       const partner = chat.members.find((m) => m.userId !== userId);
       if (partner && (await this.isBlockedEitherWay(userId, partner.userId))) {
         return { reason: 'blocked' };
@@ -208,7 +229,11 @@ export class ChatService {
     }
 
     // GLOBAL veya EVENT odaları herkese açık
-    if (!chat || chat.type === ChatType.GLOBAL || chat.type === ChatType.EVENT) {
+    if (
+      !chat ||
+      chat.type === ChatType.GLOBAL ||
+      chat.type === ChatType.EVENT
+    ) {
       return null;
     }
 
@@ -221,8 +246,8 @@ export class ChatService {
     if (!profile?.stateId) {
       const locationName =
         chat.type === ChatType.STATE
-          ? chat.state?.name ?? 'bu eyalet'
-          : chat.city?.name ?? 'bu şehir';
+          ? (chat.state?.name ?? 'bu eyalet')
+          : (chat.city?.name ?? 'bu şehir');
       return {
         reason: 'no_location',
         requiredLocation: locationName,
@@ -318,7 +343,13 @@ export class ChatService {
     chatId: string,
     userId: string,
     body: string,
-    attachments: { url: string; name: string; size: number; type: string; mime: string }[] = [],
+    attachments: {
+      url: string;
+      name: string;
+      size: number;
+      type: string;
+      mime: string;
+    }[] = [],
     expiresAt?: Date,
     replyToId?: string | null,
   ) {
@@ -346,7 +377,13 @@ export class ChatService {
           select: {
             id: true,
             role: true,
-            profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } },
+            profile: {
+              select: {
+                displayName: true,
+                avatarUrl: true,
+                postalCountry: true,
+              },
+            },
           },
         },
         replyTo: {
@@ -384,7 +421,8 @@ export class ChatService {
     if (msg.chat.type === ChatType.DIRECT && !isAdmin) {
       throw new ForbiddenException('Özel mesajlarda mesaj silinemez');
     }
-    if (!isAdmin && msg.userId !== userId) throw new ForbiddenException('Bu mesajı silemezsiniz');
+    if (!isAdmin && msg.userId !== userId)
+      throw new ForbiddenException('Bu mesajı silemezsiniz');
     return this.prisma.message.update({
       where: { id: messageId },
       data: { deletedAt: new Date() },
@@ -393,12 +431,18 @@ export class ChatService {
 
   /** Bir oda/genel sohbetteki tüm mesajları temizler. Yalnızca admin için, DM'lerde kullanılamaz. */
   async clearRoomMessages(chatId: string, userId: string) {
-    const requester = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
     if (requester?.role !== 'ADMIN') {
       throw new ForbiddenException('Bu işlemi yalnızca yöneticiler yapabilir');
     }
 
-    const chat = await this.prisma.chat.findUnique({ where: { id: chatId }, select: { type: true } });
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: { type: true },
+    });
     if (!chat) throw new NotFoundException('Sohbet bulunamadı');
     if (chat.type === ChatType.DIRECT) {
       throw new ForbiddenException('Özel mesajlar bu şekilde temizlenemez');
@@ -412,7 +456,10 @@ export class ChatService {
   }
 
   /** DIRECT sohbette gönderenin karşı tarafının userId'sini döndürür (push bildirimi için). */
-  async getDmRecipientId(chatId: string, senderId: string): Promise<string | null> {
+  async getDmRecipientId(
+    chatId: string,
+    senderId: string,
+  ): Promise<string | null> {
     const chat = await this.prisma.chat.findUnique({
       where: { id: chatId },
       select: { type: true },
@@ -426,13 +473,30 @@ export class ChatService {
     return otherMember?.userId ?? null;
   }
 
-  async setRoomPassword(chatId: string, userId: string, password: string | null) {
+  async setRoomPassword(
+    chatId: string,
+    userId: string,
+    password: string | null,
+  ) {
     const chat = await this.prisma.chat.findUnique({ where: { id: chatId } });
     if (!chat) throw new NotFoundException('Sohbet bulunamadı');
 
     if (chat.type === ChatType.DIRECT) {
-      const member = await this.prisma.chatMember.findFirst({ where: { chatId, userId } });
+      const member = await this.prisma.chatMember.findFirst({
+        where: { chatId, userId },
+      });
       if (!member) throw new ForbiddenException('Bu sohbete erişiminiz yok');
+    } else {
+      // Genel/bölge odalarında şifreyi yalnızca yöneticiler değiştirebilir
+      const requester = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      if (requester?.role !== 'ADMIN') {
+        throw new ForbiddenException(
+          'Oda şifresini yalnızca yöneticiler değiştirebilir',
+        );
+      }
     }
 
     return this.prisma.chat.update({
@@ -455,7 +519,9 @@ export class ChatService {
       return { chatId: chat.id, name: chat.name ?? 'Genel Sohbet' };
     }
     if (type === 'state') {
-      const state = await this.prisma.federalState.findFirst({ where: { slug } });
+      const state = await this.prisma.federalState.findFirst({
+        where: { slug },
+      });
       if (!state) throw new NotFoundException();
       const chat = await this.getOrCreateRoomChat('STATE', state.id);
       return { chatId: chat.id, name: `${state.name} Genel Sohbet` };
@@ -469,11 +535,16 @@ export class ChatService {
 
   // DM: iki kullanıcı arasında DIRECT chat bul veya oluştur
   async getOrCreateDirectChat(userAId: string, userBId: string) {
-    // Her iki kullanıcının da üye olduğu DIRECT odayı bul
+    // Her iki kullanıcının da üye olduğu DIRECT odayı bul.
+    // `some` + `some` kullanılır; `every` tek üyeli bozuk kayıtları da eşleştirip
+    // yinelenen DM oluşmasına yol açıyordu.
     const existing = await this.prisma.chat.findFirst({
       where: {
         type: ChatType.DIRECT,
-        members: { every: { userId: { in: [userAId, userBId] } } },
+        AND: [
+          { members: { some: { userId: userAId } } },
+          { members: { some: { userId: userBId } } },
+        ],
       },
       include: { members: true },
     });
@@ -511,10 +582,13 @@ export class ChatService {
         id: true,
         role: true,
         deletedAt: true,
-        profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } },
+        profile: {
+          select: { displayName: true, avatarUrl: true, postalCountry: true },
+        },
       },
     });
-    if (!targetUser || targetUser.deletedAt) throw new NotFoundException('Kullanıcı bulunamadı');
+    if (!targetUser || targetUser.deletedAt)
+      throw new NotFoundException('Kullanıcı bulunamadı');
 
     if (await this.isBlockedEitherWay(myId, targetUserId)) {
       throw new ForbiddenException('Bu kullanıcıyla mesajlaşamazsınız');
@@ -538,7 +612,9 @@ export class ChatService {
   }
 
   async setMute(chatId: string, userId: string, muted: boolean) {
-    const member = await this.prisma.chatMember.findFirst({ where: { chatId, userId } });
+    const member = await this.prisma.chatMember.findFirst({
+      where: { chatId, userId },
+    });
     if (!member) throw new NotFoundException('Sohbet bulunamadı');
     await this.prisma.chatMember.update({
       where: { id: member.id },
@@ -588,7 +664,13 @@ export class ChatService {
                     id: true,
                     role: true,
                     deletedAt: true,
-                    profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } },
+                    profile: {
+                      select: {
+                        displayName: true,
+                        avatarUrl: true,
+                        postalCountry: true,
+                      },
+                    },
                   },
                 },
               },
@@ -664,10 +746,14 @@ export class ChatService {
 
   async markDmRead(chatId: string, userId: string) {
     const now = new Date();
-    await this.prisma.chatMember.updateMany({
+    const result = await this.prisma.chatMember.updateMany({
       where: { chatId, userId },
       data: { lastReadAt: now },
     });
+    // Üye değilse okundu bilgisi yayınlanmasın (sahte okundu bildirimi koruması)
+    if (result.count === 0) {
+      throw new ForbiddenException('Bu sohbete erişiminiz yok');
+    }
     return { lastReadAt: now.toISOString() };
   }
 
@@ -685,7 +771,9 @@ export class ChatService {
     if (existing) {
       await this.prisma.messageReaction.delete({ where: { id: existing.id } });
     } else {
-      await this.prisma.messageReaction.create({ data: { messageId, userId, emoji } });
+      await this.prisma.messageReaction.create({
+        data: { messageId, userId, emoji },
+      });
     }
 
     // Mesajın güncel reaksiyon özetini döndür
@@ -697,7 +785,10 @@ export class ChatService {
 
     return {
       chatId: message.chatId,
-      reactions: reactions.map((r) => ({ emoji: r.emoji, count: r._count.emoji })),
+      reactions: reactions.map((r) => ({
+        emoji: r.emoji,
+        count: r._count.emoji,
+      })),
     };
   }
 }

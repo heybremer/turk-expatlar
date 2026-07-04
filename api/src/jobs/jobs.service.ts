@@ -24,8 +24,15 @@ export class JobsService {
     turkishFriendly?: boolean;
     search?: string;
   }) {
-    const page = params.page ?? 1;
-    const limit = Math.min(params.limit ?? 20, 50);
+    const page =
+      params.page && Number.isFinite(params.page) && params.page > 0
+        ? Math.floor(params.page)
+        : 1;
+    const rawLimit =
+      params.limit && Number.isFinite(params.limit) && params.limit > 0
+        ? Math.floor(params.limit)
+        : 20;
+    const limit = Math.min(rawLimit, 50);
     const skip = (page - 1) * limit;
 
     const where = {
@@ -41,9 +48,21 @@ export class JobsService {
       ...(params.search && {
         OR: [
           { title: { contains: params.search, mode: 'insensitive' as const } },
-          { company: { contains: params.search, mode: 'insensitive' as const } },
-          { description: { contains: params.search, mode: 'insensitive' as const } },
-          { briefInfo: { contains: params.search, mode: 'insensitive' as const } },
+          {
+            company: { contains: params.search, mode: 'insensitive' as const },
+          },
+          {
+            description: {
+              contains: params.search,
+              mode: 'insensitive' as const,
+            },
+          },
+          {
+            briefInfo: {
+              contains: params.search,
+              mode: 'insensitive' as const,
+            },
+          },
         ],
       }),
     };
@@ -62,7 +81,7 @@ export class JobsService {
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async findJob(id: string) {
+  async findJob(id: string, viewerId?: string) {
     const job = await this.prisma.jobPosting.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -78,10 +97,18 @@ export class JobsService {
     });
     if (!job) throw new NotFoundException('İlan bulunamadı');
 
-    await this.prisma.jobPosting.update({
-      where: { id },
-      data: { viewCount: { increment: 1 } },
-    });
+    // Yayında olmayan ilanları yalnızca sahibi görebilir
+    if (job.status !== JobStatus.PUBLISHED && job.ownerId !== viewerId) {
+      throw new NotFoundException('İlan bulunamadı');
+    }
+
+    // Görüntülenme sayısını yalnızca yayındaki ilanlar için artır
+    if (job.status === JobStatus.PUBLISHED) {
+      await this.prisma.jobPosting.update({
+        where: { id },
+        data: { viewCount: { increment: 1 } },
+      });
+    }
 
     return job;
   }
@@ -105,9 +132,27 @@ export class JobsService {
       }
     }
 
+    // İletişim yöntemi doğrulaması (PLATFORM dışı yöntemler değer gerektirir)
+    if (dto.contactMethod === 'EMAIL') {
+      const value = dto.contactValue?.trim() ?? '';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        throw new BadRequestException('Geçerli bir e-posta adresi girin');
+      }
+    } else if (dto.contactMethod === 'EXTERNAL_URL') {
+      const value = dto.contactValue?.trim() ?? '';
+      try {
+        const parsed = new URL(value);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          throw new Error();
+        }
+      } catch {
+        throw new BadRequestException('Geçerli bir başvuru adresi (URL) girin');
+      }
+    }
+
     const description =
       listingType === JobListingType.SEEKER
-        ? (dto.description?.trim() || dto.briefInfo!.trim())
+        ? dto.description?.trim() || dto.briefInfo!.trim()
         : dto.description!.trim();
 
     return this.prisma.jobPosting.create({
@@ -130,7 +175,9 @@ export class JobsService {
         germanLevel: dto.germanLevel,
         contactMethod: dto.contactMethod,
         contactValue: dto.contactValue,
-        status: JobStatus.PUBLISHED,
+        // İlanlar yayınlanmadan önce yönetici onayından geçer
+        // (etkinlik ve işletme kayıtlarıyla aynı moderasyon akışı)
+        status: JobStatus.PENDING,
       },
       include: { city: true, state: true },
     });

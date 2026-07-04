@@ -15,6 +15,19 @@ export function useChatTyping(
   chatIdRef.current = chatId;
   tokenRef.current = token;
 
+  // Bileşen kaldırıldığında veya oda değiştiğinde "yazıyor…" durumunu kapat
+  // (aksi halde diğer kullanıcılarda gösterge takılı kalıyordu)
+  useEffect(() => {
+    return () => {
+      if (isTypingRef.current && chatIdRef.current && tokenRef.current) {
+        getSocket(tokenRef.current).emit("typing_stop", {
+          chatId: chatIdRef.current,
+        });
+        isTypingRef.current = false;
+      }
+    };
+  }, [chatId]);
+
   useEffect(() => {
     if (!chatId || !token || !enabled) return;
 

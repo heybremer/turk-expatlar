@@ -260,7 +260,9 @@ export class UsersService {
           { profile: { displayName: { contains: q, mode: 'insensitive' } } },
           { profile: { firstName: { contains: q, mode: 'insensitive' } } },
           { profile: { lastName: { contains: q, mode: 'insensitive' } } },
-          { email: { contains: q, mode: 'insensitive' } },
+          // E-posta yalnızca tam eşleşmeyle aranabilir (kısmi aramayla
+          // e-posta adresi keşfetmeyi engeller)
+          { email: { equals: q, mode: 'insensitive' } },
         ],
       },
       select: {

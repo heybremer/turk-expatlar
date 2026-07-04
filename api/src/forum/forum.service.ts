@@ -580,11 +580,18 @@ export class ForumService {
     if (!isOwner && !isAdmin)
       throw new ForbiddenException('Bu konuyu düzenleme yetkiniz yok');
 
+    if (
+      (dto.title && this.moderation.isSpam(dto.title)) ||
+      (dto.body && this.moderation.isSpam(dto.body))
+    ) {
+      throw new BadRequestException('İçerik spam olarak algılandı');
+    }
+
     return this.prisma.forumTopic.update({
       where: { id: topicId },
       data: {
-        ...(dto.title && { title: dto.title }),
-        ...(dto.body && { body: dto.body }),
+        ...(dto.title && { title: this.moderation.sanitize(dto.title) }),
+        ...(dto.body && { body: this.moderation.sanitize(dto.body) }),
       },
       include: { category: true, state: true, city: true },
     });
@@ -630,9 +637,13 @@ export class ForumService {
     if (!isOwner && !isAdmin)
       throw new ForbiddenException('Bu cevabı düzenleme yetkiniz yok');
 
+    if (this.moderation.isSpam(dto.body)) {
+      throw new BadRequestException('İçerik spam olarak algılandı');
+    }
+
     return this.prisma.forumReply.update({
       where: { id: replyId },
-      data: { body: dto.body },
+      data: { body: this.moderation.sanitize(dto.body) },
       include: {
         user: { select: replyUserSelect },
         _count: { select: { votes: true, children: true } },
@@ -669,6 +680,13 @@ export class ForumService {
       where: { id: topicId, userId, deletedAt: null },
     });
     if (!topic) throw new NotFoundException();
+
+    // Yanıt bu konuya ait ve silinmemiş olmalı
+    const reply = await this.prisma.forumReply.findFirst({
+      where: { id: replyId, topicId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!reply) throw new NotFoundException('Cevap bulunamadı');
 
     await this.prisma.forumReply.updateMany({
       where: { topicId },

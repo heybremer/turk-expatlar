@@ -5,7 +5,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CourierDirection, TravelRequestStatus, TravelStatus } from '@prisma/client';
+import {
+  CourierDirection,
+  TravelRequestStatus,
+  TravelStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTravelAnnouncementDto } from './dto/create-travel-announcement.dto';
 import { CreateTravelRequestDto } from './dto/create-travel-request.dto';
@@ -31,8 +35,15 @@ export class TravelAnnouncementsService {
     page?: number;
     limit?: number;
   }) {
-    const page = params.page ?? 1;
-    const limit = Math.min(params.limit ?? 20, 50);
+    const page =
+      params.page && Number.isFinite(params.page) && params.page > 0
+        ? Math.floor(params.page)
+        : 1;
+    const rawLimit =
+      params.limit && Number.isFinite(params.limit) && params.limit > 0
+        ? Math.floor(params.limit)
+        : 20;
+    const limit = Math.min(rawLimit, 50);
     const skip = (page - 1) * limit;
 
     const where = {
@@ -107,13 +118,21 @@ export class TravelAnnouncementsService {
     });
   }
 
-  async createRequest(announcementId: string, requesterId: string, dto: CreateTravelRequestDto) {
+  async createRequest(
+    announcementId: string,
+    requesterId: string,
+    dto: CreateTravelRequestDto,
+  ) {
     const ann = await this.prisma.travelAnnouncement.findUnique({
       where: { id: announcementId },
     });
     if (!ann) throw new NotFoundException('İlan bulunamadı');
     if (ann.status !== TravelStatus.OPEN) {
       throw new ConflictException('Bu ilan artık açık değil');
+    }
+    // Kalkış tarihi geçmiş ilanlara teklif verilemez
+    if (ann.departureDate <= new Date()) {
+      throw new ConflictException('Bu yolculuğun kalkış tarihi geçti');
     }
     if (ann.userId === requesterId) {
       throw new ForbiddenException('Kendi ilanınıza teklif veremezsiniz');
@@ -164,11 +183,16 @@ export class TravelAnnouncementsService {
       where: { id: requestId, announcementId },
     });
     if (!req) throw new NotFoundException('Teklif bulunamadı');
+    if (req.status !== TravelRequestStatus.PENDING) {
+      throw new ConflictException('Bu teklif zaten yanıtlanmış');
+    }
 
     const updated = await this.prisma.travelRequest.update({
       where: { id: requestId },
       data: {
-        status: accept ? TravelRequestStatus.ACCEPTED : TravelRequestStatus.DECLINED,
+        status: accept
+          ? TravelRequestStatus.ACCEPTED
+          : TravelRequestStatus.DECLINED,
       },
     });
 
@@ -187,7 +211,9 @@ export class TravelAnnouncementsService {
   }
 
   async closeAnnouncement(id: string, userId: string) {
-    const ann = await this.prisma.travelAnnouncement.findUnique({ where: { id } });
+    const ann = await this.prisma.travelAnnouncement.findUnique({
+      where: { id },
+    });
     if (!ann) throw new NotFoundException();
     if (ann.userId !== userId) throw new ForbiddenException();
 

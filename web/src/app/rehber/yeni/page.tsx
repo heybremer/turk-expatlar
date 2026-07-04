@@ -15,7 +15,6 @@ export default function YeniIsletmePage() {
   const { token } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [states, setStates] = useState<FederalState[]>([]);
-  const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
     categoryId: "",
     stateId: "",
@@ -47,10 +46,8 @@ export default function YeniIsletmePage() {
       .catch(() => {});
   }, [token, router]);
 
-  useEffect(() => {
-    const s = states.find((x) => x.id === form.stateId);
-    setCities(s?.cities ?? []);
-  }, [form.stateId, states]);
+  // Şehir listesi seçili eyaletten türetilir (ayrı state/effect gerekmez)
+  const cities = states.find((x) => x.id === form.stateId)?.cities ?? [];
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -123,7 +120,9 @@ export default function YeniIsletmePage() {
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             required
+            minLength={20}
           />
+          <p className="mt-1 text-xs text-muted">En az 20 karakter</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -132,7 +131,9 @@ export default function YeniIsletmePage() {
             <select
               className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
               value={form.stateId}
-              onChange={(e) => setForm({ ...form, stateId: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, stateId: e.target.value, cityId: "" })
+              }
               required
             >
               <option value="">Seçin</option>
