@@ -79,11 +79,22 @@ export const api = {
 
 // ─── Shared Types ─────────────────────────────────────────────────────────────
 
+export type LevelProgress = {
+  level: number;
+  points: number;
+  maxLevel: number;
+  currentLevelPoints: number;
+  nextLevelPoints: number | null;
+  pointsToNextLevel: number;
+  progress: number;
+};
+
 export type AuthUser = {
   id: string;
   email: string;
   role: string;
   emailVerified?: boolean;
+  levelProgress?: LevelProgress;
   profile?: {
     displayName: string;
     avatarUrl?: string | null;
@@ -127,14 +138,31 @@ export type ForumReply = {
   parentId?: string | null;
   voteCount?: number;
   userVoted?: boolean;
+  _optimistic?: boolean;
   children?: ForumReply[];
   user?: { id: string; role?: string; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null } | null;
+};
+
+export type ForumPoll = {
+  id: string;
+  question: string;
+  totalVotes: number;
+  endsAt?: string | null;
+  userVotedOptionId?: string | null;
+  options: {
+    id: string;
+    text: string;
+    voteCount: number;
+    percent: number;
+    userVoted: boolean;
+  }[];
 };
 
 export type ForumTopicDetail = ForumTopic & {
   replies: ForumReply[];
   solvedReplyId?: string | null;
   userInterested?: boolean;
+  poll?: ForumPoll | null;
 };
 
 export type Event = {

@@ -29,6 +29,7 @@ import { SiteSettingsModule } from './site-settings/site-settings.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 import { TasksModule } from './tasks/tasks.module';
 import { TravelAnnouncementsModule } from './travel-announcements/travel-announcements.module';
+import { GamificationModule } from './gamification/gamification.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { TravelAnnouncementsModule } from './travel-announcements/travel-announc
     NewsletterModule,
     TasksModule,
     TravelAnnouncementsModule,
+    GamificationModule,
   ],
   providers: [
     {

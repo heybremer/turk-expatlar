@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { SearchBar } from "@/components/ui/SearchBar";
 import { BackButton } from "@/components/ui/BackButton";
 
 type JobsResponse = { items: JobPosting[]; total: number; page: number; totalPages: number };
@@ -82,10 +83,7 @@ export default function IslerIndex() {
             <Text className="text-white text-sm font-semibold">+ İlan Ver</Text>
           </TouchableOpacity>
         </View>
-        <View className="bg-background rounded-xl px-3 py-2 border border-border flex-row items-center">
-          <Ionicons name="search-outline" size={16} color="#6b7280" style={{ marginRight: 8 }} />
-          <TextInput value={search} onChangeText={(v) => { setSearch(v); setPage(1); }} placeholder="İş ilanı ara…" placeholderTextColor="#9ca3af" className="flex-1 text-sm text-text" />
-        </View>
+        <SearchBar value={search} onChangeText={(v) => { setSearch(v); setPage(1); }} placeholder="İş ilanı ara…" />
       </View>
 
       {isLoading ? <LoadingScreen /> : (

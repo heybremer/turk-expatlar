@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { api, ApiError, UserSearchResult } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { SearchBar } from "@/components/ui/SearchBar";
 import { DetailHeader } from "@/components/navigation/DetailHeader";
 
 export default function NewMessageScreen() {
@@ -55,22 +56,7 @@ export default function NewMessageScreen() {
       <DetailHeader title="Yeni Mesaj" subtitle="Bir kullanıcı seçin" onBack={() => router.back()} />
 
       <View className="px-4 py-3">
-        <View className="flex-row items-center gap-2 bg-surface rounded-full px-3.5 py-2.5 border border-border">
-          <Ionicons name="search-outline" size={16} color="#9ca3af" />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="İsim veya e-posta ara…"
-            placeholderTextColor="#9ca3af"
-            autoFocus
-            className="flex-1 text-sm text-text"
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery("")}>
-              <Ionicons name="close-circle" size={16} color="#9ca3af" />
-            </TouchableOpacity>
-          )}
-        </View>
+        <SearchBar value={query} onChangeText={setQuery} placeholder="İsim veya e-posta ara…" autoFocus />
       </View>
 
       {query.trim().length < 2 ? (

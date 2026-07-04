@@ -10,11 +10,14 @@ import { UserDisplayName } from "@/components/user/UserDisplayName";
 import type { PostalCountry } from "@/lib/postal-country";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { Card } from "@/components/ui/Card";
+import { LevelCard } from "@/components/user/LevelCard";
+import type { LevelProgress } from "@/lib/auth";
 
 type PublicUser = {
   id: string;
   role?: string;
   createdAt: string;
+  levelProgress?: LevelProgress;
   profile: {
     displayName: string;
     avatarUrl?: string | null;
@@ -80,6 +83,11 @@ export default function KullaniciProfilPage() {
           />
         </div>
         {p.occupation && <p className="mt-1 text-sm text-muted">{p.occupation}</p>}
+        {user.levelProgress && (
+          <div className="mt-3 flex justify-center">
+            <LevelCard levelProgress={user.levelProgress} compact />
+          </div>
+        )}
         {location && (
           <p className="mt-2 inline-flex items-center gap-1 text-sm text-muted">
             <MapPin className="h-4 w-4" />

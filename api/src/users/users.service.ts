@@ -9,12 +9,11 @@ import { PostalCountry } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { createUniqueReferralCode } from '../common/referral.util';
-import {
-  resolveAllowedPages,
-} from '../common/page-permissions';
+import { resolveAllowedPages } from '../common/page-permissions';
 import { validatePostalForCountry } from '../common/postal-country.util';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { getLevelProgress } from '../gamification/level.util';
 
 @Injectable()
 export class UsersService {
@@ -53,6 +52,7 @@ export class UsersService {
 
     return {
       ...safe,
+      levelProgress: getLevelProgress(safe.points),
       pageAccess: {
         allowedPages: resolvedAllowedPages,
         isRestricted: safe.profile?.postalCountry === PostalCountry.TR,
@@ -307,10 +307,14 @@ export class UsersService {
   async getBlockStatus(userId: string, otherUserId: string) {
     const [blockedByMe, blockedMe] = await Promise.all([
       this.prisma.block.findUnique({
-        where: { blockerId_blockedId: { blockerId: userId, blockedId: otherUserId } },
+        where: {
+          blockerId_blockedId: { blockerId: userId, blockedId: otherUserId },
+        },
       }),
       this.prisma.block.findUnique({
-        where: { blockerId_blockedId: { blockerId: otherUserId, blockedId: userId } },
+        where: {
+          blockerId_blockedId: { blockerId: otherUserId, blockedId: userId },
+        },
       }),
     ]);
     return { blockedByMe: !!blockedByMe, blockedMe: !!blockedMe };
@@ -329,7 +333,11 @@ export class UsersService {
         },
       },
     });
-    return blocks.map((b) => ({ id: b.blocked.id, profile: b.blocked.profile, blockedAt: b.createdAt }));
+    return blocks.map((b) => ({
+      id: b.blocked.id,
+      profile: b.blocked.profile,
+      blockedAt: b.createdAt,
+    }));
   }
 
   async getPublicProfile(userId: string) {
@@ -339,6 +347,7 @@ export class UsersService {
         id: true,
         createdAt: true,
         role: true,
+        points: true,
         profile: {
           select: {
             displayName: true,
@@ -355,6 +364,32 @@ export class UsersService {
       },
     });
     if (!user?.profile) throw new NotFoundException('Kullanıcı bulunamadı');
-    return user;
+    const { points, ...rest } = user;
+    return { ...rest, levelProgress: getLevelProgress(points) };
+  }
+
+  /** Seviye/puan liderlik tablosu — herkese açık, ilk N kullanıcı. */
+  async getLeaderboard(limit = 50) {
+    const users = await this.prisma.user.findMany({
+      where: { deletedAt: null, status: 'ACTIVE' },
+      orderBy: { points: 'desc' },
+      take: Math.min(limit, 100),
+      select: {
+        id: true,
+        points: true,
+        level: true,
+        profile: {
+          select: { displayName: true, avatarUrl: true, postalCountry: true },
+        },
+      },
+    });
+    return users.map((u) => ({
+      id: u.id,
+      points: u.points,
+      level: u.level,
+      displayName: u.profile?.displayName ?? 'Kullanıcı',
+      avatarUrl: u.profile?.avatarUrl ?? null,
+      postalCountry: u.profile?.postalCountry ?? null,
+    }));
   }
 }

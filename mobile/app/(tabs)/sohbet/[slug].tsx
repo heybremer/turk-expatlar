@@ -144,6 +144,19 @@ export default function ChatRoomScreen() {
     });
   }
 
+  // Mesaj gönderilirken/alınırken de aynı sorun (klavye animasyonu, resim eki, grup
+  // değişimi yüzünden geç ölçülen içerik yüksekliği) yüzünden liste son mesajın biraz
+  // üstünde takılabiliyor. WhatsApp'taki gibi her zaman en son mesajı göstermek için
+  // ilk animasyonlu scrollToEnd'in ardından birkaç kez sessizce düzeltme yapılır.
+  function scrollToEndAfterMessage() {
+    scrollToEndNow(true);
+    [80, 200, 400, 700].forEach((delay) => {
+      setTimeout(() => {
+        if (stickToBottomRef.current) flatListRef.current?.scrollToEnd({ animated: false });
+      }, delay);
+    });
+  }
+
   function markChatRead(connectedNow: boolean) {
     if (!isDm || !chatId || !token) return;
     if (connectedNow) {
@@ -263,7 +276,7 @@ export default function ChatRoomScreen() {
         haptics.receive();
       }
       stickToBottomRef.current = true;
-      scrollToEndNow(true);
+      scrollToEndAfterMessage();
       markChatRead(socket.connected);
     }
     function onMessageDeleted({ messageId }: { messageId: string }) {
@@ -454,7 +467,7 @@ export default function ChatRoomScreen() {
     };
     setMessages((prev) => [...prev, optimistic]);
     stickToBottomRef.current = true;
-    scrollToEndNow(true);
+    scrollToEndAfterMessage();
 
     emitSendMessage(
       {

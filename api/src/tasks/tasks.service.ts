@@ -2,28 +2,44 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventStatus } from '@prisma/client';
+import { GamificationService } from '../gamification/gamification.service';
 
 @Injectable()
 export class TasksService {
   private readonly logger = new Logger(TasksService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private gamification: GamificationService,
+  ) {}
 
   /**
-   * Her gece 02:00'de tamamlanan etkinlikleri COMPLETED olarak işaretle
+   * Her gece 02:00'de tamamlanan etkinlikleri COMPLETED olarak işaretle ve
+   * organizatör/katılımcılara puan ver.
    */
   @Cron('0 2 * * *')
   async markCompletedEvents() {
-    const result = await this.prisma.event.updateMany({
+    const toComplete = await this.prisma.event.findMany({
       where: {
         status: EventStatus.PUBLISHED,
         endsAt: { lt: new Date() },
       },
+      select: { id: true },
+    });
+    if (!toComplete.length) return;
+
+    await this.prisma.event.updateMany({
+      where: { id: { in: toComplete.map((e) => e.id) } },
       data: { status: EventStatus.COMPLETED },
     });
-    if (result.count > 0) {
-      this.logger.log(`${result.count} etkinlik COMPLETED olarak işaretlendi`);
+
+    for (const event of toComplete) {
+      await this.gamification.awardEventCompleted(event.id);
     }
+
+    this.logger.log(
+      `${toComplete.length} etkinlik COMPLETED olarak işaretlendi ve puan verildi`,
+    );
   }
 
   /**
@@ -38,7 +54,9 @@ export class TasksService {
       },
     });
     if (result.count > 0) {
-      this.logger.log(`${result.count} süresi dolmuş e-posta doğrulama tokeni silindi`);
+      this.logger.log(
+        `${result.count} süresi dolmuş e-posta doğrulama tokeni silindi`,
+      );
     }
   }
 
@@ -54,7 +72,9 @@ export class TasksService {
       },
     });
     if (result.count > 0) {
-      this.logger.log(`${result.count} süresi dolmuş şifre sıfırlama tokeni silindi`);
+      this.logger.log(
+        `${result.count} süresi dolmuş şifre sıfırlama tokeni silindi`,
+      );
     }
   }
 

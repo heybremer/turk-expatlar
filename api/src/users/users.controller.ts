@@ -45,11 +45,15 @@ export class UsersController {
     return this.usersService.getMyReferrals(user.id);
   }
 
+  @Get('leaderboard')
+  getLeaderboard(@Query('limit') limit?: string) {
+    return this.usersService.getLeaderboard(
+      limit ? parseInt(limit, 10) : undefined,
+    );
+  }
+
   @Get('search')
-  searchUsers(
-    @CurrentUser() user: { id: string },
-    @Query('q') q: string,
-  ) {
+  searchUsers(@CurrentUser() user: { id: string }, @Query('q') q: string) {
     return this.usersService.searchUsers(q ?? '', user.id);
   }
 
@@ -87,7 +91,11 @@ export class UsersController {
       limits: { fileSize: MAX_AVATAR_SIZE },
       fileFilter: (_req, file, cb) => {
         if (AVATAR_MIME.includes(file.mimetype)) cb(null, true);
-        else cb(new BadRequestException('Yalnızca JPEG, PNG, WebP veya GIF'), false);
+        else
+          cb(
+            new BadRequestException('Yalnızca JPEG, PNG, WebP veya GIF'),
+            false,
+          );
       },
     }),
   )

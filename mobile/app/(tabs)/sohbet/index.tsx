@@ -11,6 +11,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { SearchBar } from "@/components/ui/SearchBar";
 import { AppHeader } from "@/components/navigation/AppHeader";
 
 type Tab = "odalar" | "dm";
@@ -252,21 +253,7 @@ export default function SohbetIndex() {
         </View>
         {tab === "odalar" && (
           <View className="px-4 py-2.5">
-            <View className="flex-row items-center gap-2 bg-background rounded-full px-3.5 py-2.5 border border-border">
-              <Ionicons name="search-outline" size={16} color="#9ca3af" />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Eyalet veya şehir ara…"
-                placeholderTextColor="#9ca3af"
-                className="flex-1 text-sm text-text"
-              />
-              {query.length > 0 && (
-                <TouchableOpacity onPress={() => setQuery("")}>
-                  <Ionicons name="close-circle" size={16} color="#9ca3af" />
-                </TouchableOpacity>
-              )}
-            </View>
+            <SearchBar value={query} onChangeText={setQuery} placeholder="Eyalet veya şehir ara…" />
           </View>
         )}
       </View>

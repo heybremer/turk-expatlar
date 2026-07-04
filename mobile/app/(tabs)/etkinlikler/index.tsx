@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
+import { SearchBar } from "@/components/ui/SearchBar";
 import { AppHeader } from "@/components/navigation/AppHeader";
 
 type EventsResponse = { items: Event[]; total: number; page: number; totalPages: number };
@@ -80,16 +81,7 @@ export default function EtkinliklerIndex() {
           }
         />
         <View className="px-4 pb-3">
-        <View className="bg-background rounded-xl px-3 py-2 border border-border flex-row items-center">
-          <Ionicons name="search-outline" size={16} color="#6b7280" style={{ marginRight: 8 }} />
-          <TextInput
-            value={search}
-            onChangeText={(v) => { setSearch(v); setPage(1); }}
-            placeholder="Etkinlik ara…"
-            placeholderTextColor="#9ca3af"
-            className="flex-1 text-sm text-text"
-          />
-        </View>
+          <SearchBar value={search} onChangeText={(v) => { setSearch(v); setPage(1); }} placeholder="Etkinlik ara…" />
         </View>
       </View>
 

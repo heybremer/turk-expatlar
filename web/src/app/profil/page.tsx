@@ -26,6 +26,7 @@ import { Card } from "@/components/ui/Card";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { ChatAvatar } from "@/components/sohbet/ChatAvatar";
 import { UserDisplayName } from "@/components/user/UserDisplayName";
+import { LevelCard } from "@/components/user/LevelCard";
 import type { PostalCountry } from "@/lib/postal-country";
 import { formatDate } from "@/lib/utils";
 
@@ -219,7 +220,7 @@ export default function ProfilPage() {
               nameClassName="font-semibold"
             />
             <p className="text-sm text-muted">{user?.email}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <Badge variant="muted">{user?.role ?? "USER"}</Badge>
               {mySub?.isActive && (
                 <Badge variant="default">
@@ -227,6 +228,7 @@ export default function ProfilPage() {
                   Premium
                 </Badge>
               )}
+              {user?.levelProgress && <LevelCard levelProgress={user.levelProgress} compact />}
             </div>
           </div>
           <div className="flex gap-2">
@@ -244,6 +246,21 @@ export default function ProfilPage() {
           </div>
         </div>
       </Card>
+
+      {/* Seviye ve puan */}
+      {user?.levelProgress && (
+        <div className="mt-6">
+          <h2 className="font-semibold">Seviyem</h2>
+          <div className="mt-3">
+            <LevelCard levelProgress={user.levelProgress} />
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            Forum konusu açarak (+5), cevap yazarak (+3), etkinlik oluşturarak (+10) ve
+            etkinliklere katılarak (+5) puan kazanırsın. Etkinlik gerçekleştiğinde
+            organizatöre +100, katılımcılara +75 bonus puan verilir.
+          </p>
+        </div>
+      )}
 
       {/* Üyelik durumu */}
       <div className="mt-6">

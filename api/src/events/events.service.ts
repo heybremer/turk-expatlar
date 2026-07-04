@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationGateway } from '../notifications/notification.gateway';
+import { GamificationService } from '../gamification/gamification.service';
 
 @Injectable()
 export class EventsService {
@@ -15,6 +16,7 @@ export class EventsService {
     private prisma: PrismaService,
     private notifications: NotificationsService,
     private notifGateway: NotificationGateway,
+    private gamification: GamificationService,
   ) {}
 
   async findEvents(params: {
@@ -49,7 +51,11 @@ export class EventsService {
       status: EventStatus.PUBLISHED,
       ...(params.stateId && { stateId: params.stateId }),
       ...(params.cityId && { cityId: params.cityId }),
-      ...(thisWeekFilter ? { startsAt: thisWeekFilter } : params.upcoming !== false ? { startsAt: { gte: new Date() } } : {}),
+      ...(thisWeekFilter
+        ? { startsAt: thisWeekFilter }
+        : params.upcoming !== false
+          ? { startsAt: { gte: new Date() } }
+          : {}),
       ...(params.priceType && { priceType: params.priceType as any }),
       ...(params.category && { category: params.category }),
     };
@@ -66,7 +72,13 @@ export class EventsService {
           organizer: {
             select: {
               id: true,
-              profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } },
+              profile: {
+                select: {
+                  displayName: true,
+                  avatarUrl: true,
+                  postalCountry: true,
+                },
+              },
             },
           },
           _count: { select: { attendees: true } },
@@ -87,7 +99,14 @@ export class EventsService {
         organizer: {
           select: {
             id: true,
-            profile: { select: { displayName: true, avatarUrl: true, postalCountry: true, trustScore: true } },
+            profile: {
+              select: {
+                displayName: true,
+                avatarUrl: true,
+                postalCountry: true,
+                trustScore: true,
+              },
+            },
           },
         },
         attendees: {
@@ -95,7 +114,13 @@ export class EventsService {
             user: {
               select: {
                 id: true,
-                profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } },
+                profile: {
+                  select: {
+                    displayName: true,
+                    avatarUrl: true,
+                    postalCountry: true,
+                  },
+                },
               },
             },
           },
@@ -107,8 +132,8 @@ export class EventsService {
     return event;
   }
 
-  createEvent(organizerId: string, dto: CreateEventDto) {
-    return this.prisma.event.create({
+  async createEvent(organizerId: string, dto: CreateEventDto) {
+    const event = await this.prisma.event.create({
       data: {
         organizerId,
         stateId: dto.stateId,
@@ -126,9 +151,22 @@ export class EventsService {
       },
       include: { state: true, city: true },
     });
+
+    void this.gamification.award(
+      organizerId,
+      'EVENT_CREATED',
+      event.id,
+      'Event',
+    );
+
+    return event;
   }
 
-  async attend(eventId: string, userId: string, status: AttendeeStatus = AttendeeStatus.GOING) {
+  async attend(
+    eventId: string,
+    userId: string,
+    status: AttendeeStatus = AttendeeStatus.GOING,
+  ) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, deletedAt: null, status: EventStatus.PUBLISHED },
       include: { _count: { select: { attendees: true } } },
@@ -149,7 +187,11 @@ export class EventsService {
       create: { eventId, userId, status },
     });
 
-    if (!existing && event.organizerId !== userId && status === AttendeeStatus.GOING) {
+    if (
+      !existing &&
+      event.organizerId !== userId &&
+      status === AttendeeStatus.GOING
+    ) {
       const notif = await this.notifications.create({
         userId: event.organizerId,
         title: 'Etkinliğine yeni katılımcı',
@@ -157,6 +199,10 @@ export class EventsService {
         link: `/etkinlikler/${eventId}`,
       });
       this.notifGateway.pushToUser(event.organizerId, notif);
+    }
+
+    if (!existing && status === AttendeeStatus.GOING) {
+      void this.gamification.award(userId, 'EVENT_JOINED', eventId, 'Event');
     }
 
     return result;

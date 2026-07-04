@@ -29,6 +29,17 @@ export type AuthUser = {
     allowedPages: string[];
     isRestricted: boolean;
   };
+  levelProgress?: LevelProgress;
+};
+
+export type LevelProgress = {
+  level: number;
+  points: number;
+  maxLevel: number;
+  currentLevelPoints: number;
+  nextLevelPoints: number | null;
+  pointsToNextLevel: number;
+  progress: number;
 };
 
 type AuthState = {

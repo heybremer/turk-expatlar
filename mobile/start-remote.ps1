@@ -11,8 +11,8 @@ $env:CI = "0"
 
 $cloudflared = (Get-Command cloudflared -ErrorAction SilentlyContinue).Source
 if (-not $cloudflared) {
-  $wingetPath = "$env:LOCALAPPDATA\Microsoft\WinGet\Links\cloudflared.exe"
-  if (Test-Path $wingetPath) { $cloudflared = $wingetPath }
+  $wingetPkg = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Cloudflare.cloudflared_Microsoft.Winget.Source_8wekyb3d8bbwe\cloudflared.exe"
+  if (Test-Path $wingetPkg) { $cloudflared = $wingetPkg }
 }
 if (-not $cloudflared) {
   Write-Host "cloudflared bulunamadi. Kurun:" -ForegroundColor Yellow
@@ -35,7 +35,6 @@ Write-Host "Cloudflare tunnel baslatiliyor..." -ForegroundColor Gray
 $cfProc = Start-Process -FilePath $cloudflared `
   -ArgumentList "tunnel", "--url", "http://127.0.0.1:8081" `
   -RedirectStandardError $cfLog `
-  -RedirectStandardOutput $cfLog `
   -PassThru `
   -WindowStyle Hidden
 

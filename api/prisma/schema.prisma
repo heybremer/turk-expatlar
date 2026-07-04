@@ -91,6 +91,16 @@ enum AttendeeStatus {
   INTERESTED
 }
 
+enum PointAction {
+  FORUM_TOPIC_CREATED
+  FORUM_REPLY_CREATED
+  FORUM_REPLY_MARKED_BEST
+  EVENT_CREATED
+  EVENT_JOINED
+  EVENT_COMPLETED_ORGANIZER
+  EVENT_COMPLETED_ATTENDEE
+}
+
 enum ChatType {
   GLOBAL
   STATE
@@ -117,6 +127,8 @@ model User {
   deletedAt    DateTime?  @map("deleted_at")
   referralCode String?    @unique @map("referral_code")
   referredById String?    @map("referred_by_id")
+  points       Int        @default(0)
+  level        Int        @default(1)
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -153,6 +165,7 @@ model User {
   pushSubscriptions      PushSubscription[]
   pollVotes              ForumPollVote[]
   messageReactions       MessageReaction[]
+  pointLogs              PointLog[]
 
   @@index([email])
   @@index([status])
@@ -233,6 +246,24 @@ model Profile {
   city  City?         @relation(fields: [cityId], references: [id])
 
   @@map("profiles")
+}
+
+/// Kullanıcının kazandığı her puanın denetim kaydı — aynı olay için tekrar puan
+/// verilmesini önlemek (idempotency) ve puan geçmişini göstermek için kullanılır.
+model PointLog {
+  id         String      @id @default(cuid())
+  userId     String      @map("user_id")
+  action     PointAction
+  points     Int
+  refType    String?     @map("ref_type")
+  refId      String?     @map("ref_id")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, action, refId])
+  @@index([userId])
+  @@map("point_logs")
 }
 
 model FederalState {

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ForumTopicStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReplyDto } from './dto/create-reply.dto';
@@ -8,11 +13,14 @@ import { UpdateReplyDto } from './dto/update-reply.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationGateway } from '../notifications/notification.gateway';
 import { ContentModerationService } from '../common/content-moderation.service';
+import { GamificationService } from '../gamification/gamification.service';
 
 const replyUserSelect = {
   id: true,
   role: true,
-  profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } },
+  profile: {
+    select: { displayName: true, avatarUrl: true, postalCountry: true },
+  },
 } as const;
 
 const childReplyInclude = {
@@ -37,9 +45,15 @@ function resolveTopicOrderBy(sort?: ForumTopicSort) {
     case 'views':
       return [{ viewCount: 'desc' as const }, { createdAt: 'desc' as const }];
     case 'replies':
-      return [{ replies: { _count: 'desc' as const } }, { createdAt: 'desc' as const }];
+      return [
+        { replies: { _count: 'desc' as const } },
+        { createdAt: 'desc' as const },
+      ];
     case 'likes':
-      return [{ interests: { _count: 'desc' as const } }, { createdAt: 'desc' as const }];
+      return [
+        { interests: { _count: 'desc' as const } },
+        { createdAt: 'desc' as const },
+      ];
     default:
       return [{ createdAt: 'desc' as const }];
   }
@@ -52,10 +66,13 @@ export class ForumService {
     private notifications: NotificationsService,
     private notifGateway: NotificationGateway,
     private moderation: ContentModerationService,
+    private gamification: GamificationService,
   ) {}
 
   getCategories() {
-    return this.prisma.topicCategory.findMany({ orderBy: { sortOrder: 'asc' } });
+    return this.prisma.topicCategory.findMany({
+      orderBy: { sortOrder: 'asc' },
+    });
   }
 
   async findTopics(params: {
@@ -96,7 +113,18 @@ export class ForumService {
           category: true,
           state: true,
           city: true,
-          user: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } } } },
+          user: {
+            select: {
+              id: true,
+              profile: {
+                select: {
+                  displayName: true,
+                  avatarUrl: true,
+                  postalCountry: true,
+                },
+              },
+            },
+          },
           _count: { select: { replies: true, interests: true } },
         },
       }),
@@ -116,7 +144,9 @@ export class ForumService {
     });
     if (!topic) throw new ForbiddenException('Bu konuya anket ekleyemezsiniz');
     if (dto.options.length < 2 || dto.options.length > 10) {
-      throw new BadRequestException('Anket en az 2, en fazla 10 seçenek içerebilir');
+      throw new BadRequestException(
+        'Anket en az 2, en fazla 10 seçenek içerebilir',
+      );
     }
 
     return this.prisma.forumPoll.create({
@@ -165,7 +195,8 @@ export class ForumService {
       options: poll.options.map((o) => ({
         ...o,
         voteCount: o._count.votes,
-        percent: totalVotes > 0 ? Math.round((o._count.votes / totalVotes) * 100) : 0,
+        percent:
+          totalVotes > 0 ? Math.round((o._count.votes / totalVotes) * 100) : 0,
         userVoted: o.id === userVotedOptionId,
       })),
       userVotedOptionId,
@@ -229,7 +260,18 @@ export class ForumService {
         category: true,
         state: true,
         city: true,
-        user: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } } } },
+        user: {
+          select: {
+            id: true,
+            profile: {
+              select: {
+                displayName: true,
+                avatarUrl: true,
+                postalCountry: true,
+              },
+            },
+          },
+        },
         _count: { select: { replies: true, interests: true } },
       },
     });
@@ -245,7 +287,11 @@ export class ForumService {
     replies: Array<{
       id: string;
       _count?: { votes?: number; children?: number };
-      children?: Array<{ id: string; _count?: { votes?: number }; [key: string]: unknown }>;
+      children?: Array<{
+        id: string;
+        _count?: { votes?: number };
+        [key: string]: unknown;
+      }>;
       [key: string]: unknown;
     }>,
     currentUserId?: string,
@@ -263,7 +309,9 @@ export class ForumService {
           _count: { replyId: true },
         })
       : [];
-    const countMap = new Map(voteCounts.map((v) => [v.replyId, v._count.replyId]));
+    const countMap = new Map(
+      voteCounts.map((v) => [v.replyId, v._count.replyId]),
+    );
 
     let votedSet = new Set<string>();
     if (currentUserId && allIds.length) {
@@ -293,7 +341,18 @@ export class ForumService {
         category: true,
         state: true,
         city: true,
-        user: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true, postalCountry: true } } } },
+        user: {
+          select: {
+            id: true,
+            profile: {
+              select: {
+                displayName: true,
+                avatarUrl: true,
+                postalCountry: true,
+              },
+            },
+          },
+        },
         replies: {
           where: { deletedAt: null, parentId: null },
           orderBy: [{ isBest: 'desc' }, { createdAt: 'asc' }],
@@ -318,7 +377,10 @@ export class ForumService {
       userInterested = !!interest;
     }
 
-    const enrichedReplies = await this.enrichRepliesWithVotes(topic.replies, currentUserId);
+    const enrichedReplies = await this.enrichRepliesWithVotes(
+      topic.replies,
+      currentUserId,
+    );
 
     return { ...topic, replies: enrichedReplies, userInterested };
   }
@@ -329,24 +391,30 @@ export class ForumService {
     });
 
     if (existing) {
-      await this.prisma.forumTopicInterest.delete({ where: { id: existing.id } });
-      const count = await this.prisma.forumTopicInterest.count({ where: { topicId } });
+      await this.prisma.forumTopicInterest.delete({
+        where: { id: existing.id },
+      });
+      const count = await this.prisma.forumTopicInterest.count({
+        where: { topicId },
+      });
       return { interested: false, count };
     }
 
     await this.prisma.forumTopicInterest.create({ data: { topicId, userId } });
-    const count = await this.prisma.forumTopicInterest.count({ where: { topicId } });
+    const count = await this.prisma.forumTopicInterest.count({
+      where: { topicId },
+    });
     return { interested: true, count };
   }
 
-  createTopic(userId: string, dto: CreateTopicDto) {
+  async createTopic(userId: string, dto: CreateTopicDto) {
     if (this.moderation.isSpam(dto.title) || this.moderation.isSpam(dto.body)) {
       throw new BadRequestException('İçerik spam olarak algılandı');
     }
     const sanitizedTitle = this.moderation.sanitize(dto.title);
     const sanitizedBody = this.moderation.sanitize(dto.body);
 
-    return this.prisma.forumTopic.create({
+    const topic = await this.prisma.forumTopic.create({
       data: {
         userId,
         categoryId: dto.categoryId,
@@ -358,10 +426,20 @@ export class ForumService {
       },
       include: { category: true, state: true, city: true },
     });
+
+    void this.gamification.award(
+      userId,
+      'FORUM_TOPIC_CREATED',
+      topic.id,
+      'ForumTopic',
+    );
+
+    return topic;
   }
 
   private extractMentions(body: string): string[] {
-    const matches = body.match(/@([\p{L}\p{N}_.-]+(?:\s[\p{L}\p{N}_.-]+)*)/gu) ?? [];
+    const matches =
+      body.match(/@([\p{L}\p{N}_.-]+(?:\s[\p{L}\p{N}_.-]+)*)/gu) ?? [];
     return [...new Set(matches.map((m) => m.slice(1).trim()))];
   }
 
@@ -444,12 +522,22 @@ export class ForumService {
     }
 
     await this.notifyMentions(dto.body, userId, topicId, topic.title);
+    void this.gamification.award(
+      userId,
+      'FORUM_REPLY_CREATED',
+      reply.id,
+      'ForumReply',
+    );
 
     return {
       ...reply,
       voteCount: 0,
       userVoted: false,
-      children: reply.children.map((c) => ({ ...c, voteCount: 0, userVoted: false })),
+      children: reply.children.map((c) => ({
+        ...c,
+        voteCount: 0,
+        userVoted: false,
+      })),
     };
   }
 
@@ -469,7 +557,9 @@ export class ForumService {
       await this.prisma.forumReplyVote.create({ data: { replyId, userId } });
     }
 
-    const count = await this.prisma.forumReplyVote.count({ where: { replyId } });
+    const count = await this.prisma.forumReplyVote.count({
+      where: { replyId },
+    });
     return { voted: !existing, count };
   }
 
@@ -479,15 +569,23 @@ export class ForumService {
     });
     if (!topic) throw new NotFoundException('Konu bulunamadı');
 
-    const requester = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
     const isOwner = topic.userId === userId;
-    const isAdmin = requester?.role === 'ADMIN' || requester?.role === 'MODERATOR';
+    const isAdmin =
+      requester?.role === 'ADMIN' || requester?.role === 'MODERATOR';
 
-    if (!isOwner && !isAdmin) throw new ForbiddenException('Bu konuyu düzenleme yetkiniz yok');
+    if (!isOwner && !isAdmin)
+      throw new ForbiddenException('Bu konuyu düzenleme yetkiniz yok');
 
     return this.prisma.forumTopic.update({
       where: { id: topicId },
-      data: { ...(dto.title && { title: dto.title }), ...(dto.body && { body: dto.body }) },
+      data: {
+        ...(dto.title && { title: dto.title }),
+        ...(dto.body && { body: dto.body }),
+      },
       include: { category: true, state: true, city: true },
     });
   }
@@ -498,11 +596,16 @@ export class ForumService {
     });
     if (!topic) throw new NotFoundException('Konu bulunamadı');
 
-    const requester = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
     const isOwner = topic.userId === userId;
-    const isAdmin = requester?.role === 'ADMIN' || requester?.role === 'MODERATOR';
+    const isAdmin =
+      requester?.role === 'ADMIN' || requester?.role === 'MODERATOR';
 
-    if (!isOwner && !isAdmin) throw new ForbiddenException('Bu konuyu silme yetkiniz yok');
+    if (!isOwner && !isAdmin)
+      throw new ForbiddenException('Bu konuyu silme yetkiniz yok');
 
     return this.prisma.forumTopic.update({
       where: { id: topicId },
@@ -516,11 +619,16 @@ export class ForumService {
     });
     if (!reply) throw new NotFoundException('Cevap bulunamadı');
 
-    const requester = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
     const isOwner = reply.userId === userId;
-    const isAdmin = requester?.role === 'ADMIN' || requester?.role === 'MODERATOR';
+    const isAdmin =
+      requester?.role === 'ADMIN' || requester?.role === 'MODERATOR';
 
-    if (!isOwner && !isAdmin) throw new ForbiddenException('Bu cevabı düzenleme yetkiniz yok');
+    if (!isOwner && !isAdmin)
+      throw new ForbiddenException('Bu cevabı düzenleme yetkiniz yok');
 
     return this.prisma.forumReply.update({
       where: { id: replyId },
@@ -539,11 +647,16 @@ export class ForumService {
     });
     if (!reply) throw new NotFoundException('Cevap bulunamadı');
 
-    const requester = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    const requester = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
     const isOwner = reply.userId === userId;
-    const isAdmin = requester?.role === 'ADMIN' || requester?.role === 'MODERATOR';
+    const isAdmin =
+      requester?.role === 'ADMIN' || requester?.role === 'MODERATOR';
 
-    if (!isOwner && !isAdmin) throw new ForbiddenException('Bu cevabı silme yetkiniz yok');
+    if (!isOwner && !isAdmin)
+      throw new ForbiddenException('Bu cevabı silme yetkiniz yok');
 
     return this.prisma.forumReply.update({
       where: { id: replyId },
@@ -561,10 +674,16 @@ export class ForumService {
       where: { topicId },
       data: { isBest: false },
     });
-    await this.prisma.forumReply.update({
+    const bestReply = await this.prisma.forumReply.update({
       where: { id: replyId },
       data: { isBest: true },
     });
+    void this.gamification.award(
+      bestReply.userId,
+      'FORUM_REPLY_MARKED_BEST',
+      replyId,
+      'ForumReply',
+    );
 
     return this.prisma.forumTopic.update({
       where: { id: topicId },

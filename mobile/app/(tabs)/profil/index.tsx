@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { LevelCard } from "@/components/ui/LevelCard";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { COUNTRY_FLAG } from "@/lib/utils";
 
@@ -64,11 +65,19 @@ export default function ProfilScreen() {
                 <Text className="text-sm text-muted">{profile.city?.name ?? ""}{profile.city ? ", " : ""}{profile.state.name}</Text>
               </View>
             )}
-            <View className="flex-row gap-2 mt-3">
+            <View className="flex-row flex-wrap items-center justify-center gap-2 mt-3">
               <Badge label={user.role === "ADMIN" ? "Admin" : user.role === "MODERATOR" ? "Moderatör" : "Üye"} color={user.role === "ADMIN" ? "danger" : user.role === "MODERATOR" ? "warning" : "primary"} />
               {!user.emailVerified && <Badge label="Email doğrulanmamış" color="warning" />}
+              {user.levelProgress && <LevelCard levelProgress={user.levelProgress} compact />}
             </View>
           </View>
+
+          {/* Seviye ve puan */}
+          {user.levelProgress && (
+            <View className="w-full mt-5">
+              <LevelCard levelProgress={user.levelProgress} />
+            </View>
+          )}
 
           {/* İstatistikler */}
           {stats && (

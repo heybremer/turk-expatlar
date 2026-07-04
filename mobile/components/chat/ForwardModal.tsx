@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Modal, Text, TextInput, TouchableOpacity, 
 import { Ionicons } from "@expo/vector-icons";
 import { api, DmListEntry, UserSearchResult } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
+import { SearchBar } from "@/components/ui/SearchBar";
 
 type Target = { userId: string; name: string; avatarUrl?: string | null };
 
@@ -64,20 +65,8 @@ export function ForwardModal({ visible, token, onClose, onSelect }: Props) {
           <View className="self-center w-10 h-1 rounded-full bg-border mb-3" />
           <Text className="text-base font-bold text-text text-center mb-3">Mesajı İlet</Text>
 
-          <View className="flex-row items-center gap-2 bg-background rounded-full px-3.5 py-2.5 border border-border mb-2">
-            <Ionicons name="search-outline" size={16} color="#9ca3af" />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Kişi ara…"
-              placeholderTextColor="#9ca3af"
-              className="flex-1 text-sm text-text"
-            />
-            {query.length > 0 && (
-              <TouchableOpacity onPress={() => setQuery("")}>
-                <Ionicons name="close-circle" size={16} color="#9ca3af" />
-              </TouchableOpacity>
-            )}
+          <View className="mb-2">
+            <SearchBar value={query} onChangeText={setQuery} placeholder="Kişi ara…" />
           </View>
 
           {searching ? (
