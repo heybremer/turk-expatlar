@@ -122,11 +122,20 @@ export class FriendsService {
       );
     }
 
-    const target = await this.prisma.user.findFirst({
-      where: { id: receiverId, deletedAt: null },
-      select: { id: true },
-    });
+    const [target, sender] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: { id: receiverId, deletedAt: null },
+        select: { id: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: senderId },
+        select: PROFILE_SELECT,
+      }),
+    ]);
     if (!target) throw new NotFoundException('Kullanıcı bulunamadı');
+    const senderName = sender
+      ? mapProfile(sender).displayName
+      : 'Bir kullanıcı';
 
     const existing = await this.prisma.friendRequest.findFirst({
       where: {
@@ -155,7 +164,7 @@ export class FriendsService {
     const notif = await this.notifications.create({
       userId: receiverId,
       title: 'Yeni arkadaşlık isteği',
-      body: 'Birisi size arkadaşlık isteği gönderdi.',
+      body: `${senderName} size arkadaşlık isteği gönderdi.`,
       link: `/kullanici/${senderId}`,
     });
     this.notifGateway.pushToUser(receiverId, notif);
@@ -173,15 +182,24 @@ export class FriendsService {
       throw new BadRequestException('Bu istek zaten yanıtlanmış');
     }
 
-    const updated = await this.prisma.friendRequest.update({
-      where: { id: requestId },
-      data: { status: 'ACCEPTED' },
-    });
+    const [updated, accepter] = await Promise.all([
+      this.prisma.friendRequest.update({
+        where: { id: requestId },
+        data: { status: 'ACCEPTED' },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: PROFILE_SELECT,
+      }),
+    ]);
+    const accepterName = accepter
+      ? mapProfile(accepter).displayName
+      : 'Bir kullanıcı';
 
     const notif = await this.notifications.create({
       userId: request.senderId,
       title: 'Arkadaşlık isteğiniz kabul edildi',
-      body: 'Artık arkadaşsınız.',
+      body: `${accepterName} arkadaşlık isteğinizi kabul etti. Artık arkadaşsınız.`,
       link: `/kullanici/${userId}`,
     });
     this.notifGateway.pushToUser(request.senderId, notif);
