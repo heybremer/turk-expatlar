@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Clock, FileText, ImageIcon, KeyRound, Loader2, Lock, Send, Smile, WifiOff, X,
+  ArrowLeft, ChevronDown, Clock, FileText, ImageIcon, KeyRound, Loader2, Lock, Reply, Send, Smile, WifiOff, X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -17,7 +17,7 @@ import { DmJoinPasswordModal, DmPasswordModal } from "@/components/sohbet/DmPass
 import { NewMessageModal } from "@/components/sohbet/NewMessageModal";
 import { DmEntry, isDeletedChatUser, markChatRead, scrollMessagesToBottom, setupChatViewportHeight } from "@/components/sohbet/chat-utils";
 import { ChatInputEmojiPicker } from "@/components/sohbet/ChatInputEmojiPicker";
-import { ChatMessageBubble, getLastReadOwnMessageId } from "@/components/sohbet/ChatMessageBubble";
+import { ChatMessageBubble, getLastReadOwnMessageId, type MessageReplyTo } from "@/components/sohbet/ChatMessageBubble";
 import { formatTypingLabel, useChatTyping } from "@/components/sohbet/useChatTyping";
 import { ModerationNotice } from "@/components/sohbet/ModerationNotice";
 import { ChatRulesButton } from "@/components/sohbet/ChatRulesButton";
@@ -32,6 +32,7 @@ type Message = {
   expiresAt?: string | null;
   createdAt: string;
   reactions?: { emoji: string; count: number }[];
+  replyTo?: MessageReplyTo | null;
   user: { id: string; role?: string; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null };
 };
 type DmResolve = {
@@ -71,6 +72,9 @@ export default function DmPage() {
   const [showEmoji, setShowEmoji] = useState(false);
   const [expiresInSeconds, setExpiresInSeconds] = useState(0);
   const [showTimer, setShowTimer] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [newMsgCount, setNewMsgCount] = useState(0);
+  const [showScrollDown, setShowScrollDown] = useState(false);
   const [channelsOpen, setChannelsOpen] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [showPasswordSettings, setShowPasswordSettings] = useState(false);
@@ -114,6 +118,22 @@ export default function DmPage() {
     });
   }, []);
 
+  // Alt kenara yakın mıyız? (yeni mesajda otomatik kaydırma kararı için)
+  const isNearBottom = useCallback(() => {
+    const el = messagesRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+  }, []);
+
+  // Alıntıya tıklanınca orijinal mesaja atla ve kısa süre vurgula
+  const scrollToMessage = useCallback((messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("chat-highlight");
+    setTimeout(() => el.classList.remove("chat-highlight"), 1300);
+  }, []);
+
   useEffect(() => {
     if (!token) { router.push("/giris"); return; }
     loadDms();
@@ -125,6 +145,9 @@ export default function DmPage() {
     setMessages([]);
     setConnected(false);
     setPasswordUnlocked(false);
+    setReplyingTo(null);
+    setNewMsgCount(0);
+    setShowScrollDown(false);
     pendingPasswordRef.current = "";
     api.post<DmResolve>(`/chat/dm/${params.userId}`, {}, token)
       .then((resolved) => {
@@ -145,9 +168,6 @@ export default function DmPage() {
     input,
     passwordUnlocked && connected,
   );
-  const stopTypingRef = useRef(stopTypingNow);
-  stopTypingRef.current = stopTypingNow;
-
   const lastReadOwnMessageId = useMemo(
     () => getLastReadOwnMessageId(messages, user?.id, partnerLastReadAt),
     [messages, user?.id, partnerLastReadAt],
@@ -179,15 +199,16 @@ export default function DmPage() {
     }
     function onNewMessage(msg: Message) {
       if (isDeletedChatUser(msg.user.profile?.displayName)) return;
-      if (msg.user?.id === userIdRef.current) {
-        setInput("");
-        setPendingAttachments([]);
-        setExpiresInSeconds(0);
-        setShowTimer(false);
-        stopTypingRef.current();
+      const isOwn = msg.user?.id === userIdRef.current;
+      // Aynı mesajın (yeniden bağlanma anında) iki kez eklenmesini önle
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      // Kendi mesajında her zaman, diğerlerinde yalnızca zaten alttaysak kaydır
+      if (isOwn || isNearBottom()) {
+        setTimeout(() => scrollToBottomReliably(true), 0);
+      } else {
+        setNewMsgCount((c) => c + 1);
+        setShowScrollDown(true);
       }
-      setMessages((prev) => [...prev, msg]);
-      setTimeout(() => scrollToBottomReliably(true), 0);
       markChatRead(chatId, token!, sock.connected);
       loadDmsRef.current();
     }
@@ -271,7 +292,25 @@ export default function DmPage() {
       sock.off("error", onSocketError);
       setPartnerTyping(false);
     };
-  }, [dm?.chatId, token, passwordUnlocked, router, scrollToBottomReliably]);
+  }, [dm?.chatId, token, passwordUnlocked, router, scrollToBottomReliably, isNearBottom]);
+
+  // Scroll takibi: alta inince "yeni mesaj" sayacını sıfırla
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    function onScroll() {
+      if (!el) return;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+      if (nearBottom) {
+        setNewMsgCount(0);
+        setShowScrollDown(false);
+      } else {
+        setShowScrollDown(true);
+      }
+    }
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [dm?.chatId, passwordUnlocked]);
 
   function submitJoinPassword(password: string) {
     pendingPasswordRef.current = password;
@@ -301,16 +340,30 @@ export default function DmPage() {
     setUploading(true);
     try {
       const uploaded: Attachment[] = [];
+      let failed = 0;
       for (const file of files) {
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3201"}/api/chat/${dm.chatId}/upload`,
-          { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd },
-        );
-        if (res.ok) uploaded.push(await res.json());
+        try {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3201"}/api/chat/${dm.chatId}/upload`,
+            { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd },
+          );
+          if (res.ok) uploaded.push(await res.json());
+          else failed++;
+        } catch {
+          failed++;
+        }
       }
       setPendingAttachments((p) => [...p, ...uploaded]);
+      if (failed > 0) {
+        setModerationNotice(
+          failed === files.length
+            ? "Dosya yüklenemedi. Desteklenen bir resim seçtiğinizden ve boyutun 10 MB altında olduğundan emin olun."
+            : `${failed} dosya yüklenemedi, diğerleri eklendi.`,
+        );
+        setModerationCode("UPLOAD");
+      }
     } finally {
       setUploading(false);
     }
@@ -324,10 +377,19 @@ export default function DmPage() {
       body: input.trim(),
       attachments: pendingAttachments,
       ...(expiresInSeconds > 0 ? { expiresInSeconds } : {}),
+      ...(replyingTo ? { replyToId: replyingTo.id } : {}),
     });
     setInput("");
     setPendingAttachments([]);
+    setReplyingTo(null);
+    setExpiresInSeconds(0);
+    setShowTimer(false);
     stopTypingNow();
+    inputRef.current?.focus();
+  }
+
+  function startReply(msg: Message) {
+    setReplyingTo(msg);
     inputRef.current?.focus();
   }
 
@@ -467,6 +529,7 @@ export default function DmPage() {
                 </div>
               </div>
 
+              <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <div ref={messagesRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-4 md:py-4">
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center gap-3 pt-16 text-center">
@@ -484,28 +547,49 @@ export default function DmPage() {
                       (new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime()) < 5 * 60 * 1000;
 
                     return (
-                      <ChatMessageBubble
-                        key={msg.id}
-                        isMe={isMe}
-                        grouped={grouped}
-                        body={msg.body}
-                        attachments={msg.attachments}
-                        expiresAt={msg.expiresAt}
-                        createdAt={msg.createdAt}
-                        displayName={isMe ? "Sen" : name}
-                        avatarUrl={msg.user.profile?.avatarUrl}
-                        role={msg.user.role}
-                        postalCountry={msg.user.profile?.postalCountry as PostalCountry | undefined}
-                        showReadReceipt={isMe && msg.id === lastReadOwnMessageId}
-                        reactions={msg.reactions}
-                        onReact={(emoji) => {
-                          const sock = getSocket(token!);
-                          sock.emit("react_message", { messageId: msg.id, emoji });
-                        }}
-                      />
+                      <div key={msg.id} id={`msg-${msg.id}`}>
+                        <ChatMessageBubble
+                          isMe={isMe}
+                          grouped={grouped}
+                          body={msg.body}
+                          attachments={msg.attachments}
+                          expiresAt={msg.expiresAt}
+                          createdAt={msg.createdAt}
+                          displayName={isMe ? "Sen" : name}
+                          avatarUrl={msg.user.profile?.avatarUrl}
+                          role={msg.user.role}
+                          postalCountry={msg.user.profile?.postalCountry as PostalCountry | undefined}
+                          showReadReceipt={isMe && msg.id === lastReadOwnMessageId}
+                          reactions={msg.reactions}
+                          replyTo={msg.replyTo}
+                          onReply={() => startReply(msg)}
+                          onQuoteClick={scrollToMessage}
+                          onReact={(emoji) => {
+                            const sock = getSocket(token!);
+                            sock.emit("react_message", { messageId: msg.id, emoji });
+                          }}
+                        />
+                      </div>
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Aşağı in / yeni mesaj butonu */}
+              {showScrollDown && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewMsgCount(0);
+                    setShowScrollDown(false);
+                    scrollToBottomReliably(true);
+                  }}
+                  className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text shadow-lg transition-colors hover:border-primary hover:text-primary"
+                >
+                  {newMsgCount > 0 ? `${newMsgCount} yeni mesaj` : "En alta in"}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              )}
               </div>
 
               <form onSubmit={sendMessage} className="border-t border-border bg-surface px-2 py-2 md:px-4 md:py-3">
@@ -515,6 +599,27 @@ export default function DmPage() {
                   onDismiss={() => { setModerationNotice(""); setModerationCode(""); }}
                 />
                 <div className="space-y-2">
+                  {replyingTo && (
+                    <div className="flex items-center gap-2 rounded-lg border-l-2 border-primary bg-background px-3 py-1.5 text-xs">
+                      <Reply className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-primary">
+                          {replyingTo.user.id === user?.id
+                            ? "Kendine yanıt"
+                            : `${replyingTo.user.profile?.displayName ?? "Kullanıcı"} kişisine yanıt`}
+                        </p>
+                        <p className="truncate text-muted">{replyingTo.body || "📎 Ek"}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setReplyingTo(null)}
+                        className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-text"
+                        aria-label="Yanıtı iptal et"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {showTimer && (
                     <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-background px-3 py-2 text-xs">
                       <Clock className="h-3.5 w-3.5 text-muted" />

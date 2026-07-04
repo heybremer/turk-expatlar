@@ -51,6 +51,20 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* Alıntıya tıklanınca orijinal mesajı kısa süre vurgular */
+@keyframes chat-flash {
+  0% {
+    background-color: color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.chat-highlight {
+  animation: chat-flash 1.2s ease-out;
+  border-radius: 12px;
+}
+
 @keyframes chat-reaction-pop {
   from {
     opacity: 0;

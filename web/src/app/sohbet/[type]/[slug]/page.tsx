@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Ban, ChevronDown, ChevronRight, Clock, FileText, Globe,
   Hash, ImageIcon, KeyRound, Loader2, Lock, MapPin, Menu,
-  MessageCircle, Send, Smile, Trash2, Users, X,
+  MessageCircle, Reply, Send, Smile, Trash2, Users, X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { siteContentClass } from "@/lib/site-layout";
@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { getSocket } from "@/lib/socket";
 import { scrollMessagesToBottom, isDeletedChatUser, setupChatViewportHeight } from "@/components/sohbet/chat-utils";
 import { ChatInputEmojiPicker } from "@/components/sohbet/ChatInputEmojiPicker";
-import { ChatMessageBubble } from "@/components/sohbet/ChatMessageBubble";
+import { ChatMessageBubble, type MessageReplyTo } from "@/components/sohbet/ChatMessageBubble";
 import { formatTypingLabel, useChatTyping } from "@/components/sohbet/useChatTyping";
 import { ModerationNotice } from "@/components/sohbet/ModerationNotice";
 import { ChatRulesButton } from "@/components/sohbet/ChatRulesButton";
@@ -31,6 +31,7 @@ type Message = {
   expiresAt?: string | null;
   createdAt: string;
   reactions?: { emoji: string; count: number }[];
+  replyTo?: MessageReplyTo | null;
   user: { id: string; role?: string; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null };
 };
 type OnlineUser = { userId: string; displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null; socketId: string };
@@ -342,6 +343,10 @@ export default function SohbetOdasiPage() {
   const [showEmoji, setShowEmoji] = useState(false);
   const [expiresInSeconds, setExpiresInSeconds] = useState(0);
   const [showTimer, setShowTimer] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  // Kullanıcı yukarıda gezerken gelen mesaj sayısı + aşağı in butonu görünürlüğü
+  const [newMsgCount, setNewMsgCount] = useState(0);
+  const [showScrollDown, setShowScrollDown] = useState(false);
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const pendingPasswordRef = useRef<string>("");
@@ -377,6 +382,22 @@ export default function SohbetOdasiPage() {
   }, []);
   const userIdRef = useRef(user?.id);
   userIdRef.current = user?.id;
+
+  // Alt kenara yakın mıyız? (yeni mesajda otomatik kaydırma kararı için)
+  const isNearBottom = useCallback(() => {
+    const el = messagesRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+  }, []);
+
+  // Alıntıya tıklanınca orijinal mesaja atla ve kısa süre vurgula
+  const scrollToMessage = useCallback((messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("chat-highlight");
+    setTimeout(() => el.classList.remove("chat-highlight"), 1300);
+  }, []);
 
   // Sohbet sayfasında sayfayı sabit yükseklikte tut; yalnızca mesaj listesi scroll etsin.
   // Klavye açıldığında mesaj yazma alanının arkada kalmaması için gerçek görünür
@@ -414,6 +435,9 @@ export default function SohbetOdasiPage() {
     setRegionUsers([]);
     setLoadingOlder(false);
     setHasMoreOlder(true);
+    setReplyingTo(null);
+    setNewMsgCount(0);
+    setShowScrollDown(false);
     oldestCreatedAtRef.current = null;
     pendingPasswordRef.current = "";
     const apiType =
@@ -435,8 +459,6 @@ export default function SohbetOdasiPage() {
   }, [params?.type, params?.slug, token]);
 
   const stopTypingNow = useChatTyping(chatId, token, input, !!token && connected);
-  const stopTypingRef = useRef(stopTypingNow);
-  stopTypingRef.current = stopTypingNow;
 
   // Daha eski mesajları REST üzerinden yükle (scroll konumunu koruyarak başa ekle)
   const loadOlderMessages = useCallback(async () => {
@@ -495,15 +517,17 @@ export default function SohbetOdasiPage() {
     }
     function onNewMessage(msg: Message) {
       if (isDeletedChatUser(msg.user.profile?.displayName)) return;
-      if (msg.user?.id === userIdRef.current) {
-        setInput("");
-        setPendingAttachments([]);
-        setExpiresInSeconds(0);
-        setShowTimer(false);
-        stopTypingRef.current();
+      const isOwn = msg.user?.id === userIdRef.current;
+      // Aynı mesajın (yeniden bağlanma anında) iki kez eklenmesini önle
+      setMessages((p) => (p.some((m) => m.id === msg.id) ? p : [...p, msg]));
+      // Kendi mesajında her zaman, diğerlerinde yalnızca zaten alttaysak kaydır;
+      // yukarıda okuma yapan kullanıcıyı zorla aşağı çekme
+      if (isOwn || isNearBottom()) {
+        setTimeout(() => scrollToBottomReliably(true), 0);
+      } else {
+        setNewMsgCount((c) => c + 1);
+        setShowScrollDown(true);
       }
-      setMessages((p) => [...p, msg]);
-      setTimeout(() => scrollToBottomReliably(true), 0);
     }
     function onUserTyping(data: { userId: string; displayName?: string }) {
       if (data.userId === userIdRef.current) return;
@@ -582,7 +606,27 @@ export default function SohbetOdasiPage() {
       sock.off("error", onSocketError);
       setTypingUsers({});
     };
-  }, [chatId, token, router, scrollToBottomReliably]);
+  }, [chatId, token, router, scrollToBottomReliably, isNearBottom]);
+
+  // Scroll takibi: en üste yaklaşınca eski mesajları otomatik yükle,
+  // alta inince "yeni mesaj" sayacını sıfırla
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (!el) return;
+    function onScroll() {
+      if (!el) return;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+      if (nearBottom) {
+        setNewMsgCount(0);
+        setShowScrollDown(false);
+      } else {
+        setShowScrollDown(true);
+      }
+      if (el.scrollTop < 60) void loadOlderMessages();
+    }
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [chatId, accessDenied, passwordRequired, error, loadOlderMessages]);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -591,16 +635,30 @@ export default function SohbetOdasiPage() {
     setUploading(true);
     try {
       const uploaded: Attachment[] = [];
+      let failed = 0;
       for (const file of files) {
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3201"}/api/chat/${chatId}/upload`,
-          { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd },
-        );
-        if (res.ok) uploaded.push(await res.json());
+        try {
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3201"}/api/chat/${chatId}/upload`,
+            { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd },
+          );
+          if (res.ok) uploaded.push(await res.json());
+          else failed++;
+        } catch {
+          failed++;
+        }
       }
       setPendingAttachments((p) => [...p, ...uploaded]);
+      if (failed > 0) {
+        setModerationNotice(
+          failed === files.length
+            ? "Dosya yüklenemedi. Desteklenen bir resim seçtiğinizden ve boyutun 10 MB altında olduğundan emin olun."
+            : `${failed} dosya yüklenemedi, diğerleri eklendi.`,
+        );
+        setModerationCode("UPLOAD");
+      }
     } finally { setUploading(false); }
   }
 
@@ -611,10 +669,19 @@ export default function SohbetOdasiPage() {
     getSocket(token).emit("send_message", {
       chatId, body: input.trim(), attachments: pendingAttachments,
       ...(expiresInSeconds > 0 ? { expiresInSeconds } : {}),
+      ...(replyingTo ? { replyToId: replyingTo.id } : {}),
     });
     setInput("");
     setPendingAttachments([]);
+    setReplyingTo(null);
+    setExpiresInSeconds(0);
+    setShowTimer(false);
     stopTypingNow();
+    inputRef.current?.focus();
+  }
+
+  function startReply(msg: Message) {
+    setReplyingTo(msg);
     inputRef.current?.focus();
   }
 
@@ -839,6 +906,7 @@ export default function SohbetOdasiPage() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background md:rounded-xl md:border md:border-border">
 
           {/* Mesaj akışı */}
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           <div ref={messagesRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-4 md:py-4">
             {messages.length > 0 && hasMoreOlder && (
               <div className="flex justify-center pb-2">
@@ -869,29 +937,50 @@ export default function SohbetOdasiPage() {
                 const grouped = prevMsg?.user.id === msg.user.id &&
                   (new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime()) < 5 * 60 * 1000;
                 return (
-                  <ChatMessageBubble
-                    key={msg.id}
-                    isMe={isMe}
-                    grouped={grouped}
-                    body={msg.body}
-                    attachments={msg.attachments}
-                    expiresAt={msg.expiresAt}
-                    createdAt={msg.createdAt}
-                    displayName={isMe ? "Sen" : name}
-                    avatarUrl={msg.user.profile?.avatarUrl}
-                    role={msg.user.role}
-                    postalCountry={msg.user.profile?.postalCountry as PostalCountry | undefined}
-                    reactions={msg.reactions}
-                    onNameClick={!isMe ? () => openDm(msg.user.id) : undefined}
-                    onDelete={isMe ? () => deleteMsg(msg.id) : undefined}
-                    onReact={(emoji) => {
-                      if (!token) return;
-                      getSocket(token).emit("react_message", { messageId: msg.id, emoji });
-                    }}
-                  />
+                  <div key={msg.id} id={`msg-${msg.id}`}>
+                    <ChatMessageBubble
+                      isMe={isMe}
+                      grouped={grouped}
+                      body={msg.body}
+                      attachments={msg.attachments}
+                      expiresAt={msg.expiresAt}
+                      createdAt={msg.createdAt}
+                      displayName={isMe ? "Sen" : name}
+                      avatarUrl={msg.user.profile?.avatarUrl}
+                      role={msg.user.role}
+                      postalCountry={msg.user.profile?.postalCountry as PostalCountry | undefined}
+                      reactions={msg.reactions}
+                      replyTo={msg.replyTo}
+                      onNameClick={!isMe ? () => openDm(msg.user.id) : undefined}
+                      onDelete={isMe ? () => deleteMsg(msg.id) : undefined}
+                      onReply={token ? () => startReply(msg) : undefined}
+                      onQuoteClick={scrollToMessage}
+                      onReact={(emoji) => {
+                        if (!token) return;
+                        getSocket(token).emit("react_message", { messageId: msg.id, emoji });
+                      }}
+                    />
+                  </div>
                 );
               })}
             </div>
+          </div>
+
+          {/* Aşağı in / yeni mesaj butonu */}
+          {showScrollDown && (
+            <button
+              type="button"
+              onClick={() => {
+                setNewMsgCount(0);
+                setShowScrollDown(false);
+                scrollToBottomReliably(true);
+              }}
+              className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text shadow-lg transition-colors hover:border-primary hover:text-primary"
+            >
+              {newMsgCount > 0 ? `${newMsgCount} yeni mesaj` : "En alta in"}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          )}
           </div>
 
           {/* Mesaj giriş alanı */}
@@ -933,6 +1022,27 @@ export default function SohbetOdasiPage() {
                   code={moderationCode}
                   onDismiss={() => { setModerationNotice(""); setModerationCode(""); }}
                 />
+                {replyingTo && (
+                  <div className="flex items-center gap-2 rounded-lg border-l-2 border-primary bg-background px-3 py-1.5 text-xs">
+                    <Reply className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-primary">
+                        {replyingTo.user.id === user?.id
+                          ? "Kendine yanıt"
+                          : `${replyingTo.user.profile?.displayName ?? "Kullanıcı"} kişisine yanıt`}
+                      </p>
+                      <p className="truncate text-muted">{replyingTo.body || "📎 Ek"}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingTo(null)}
+                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-text"
+                      aria-label="Yanıtı iptal et"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
                 {Object.keys(typingUsers).length > 0 && (
                   <p className="text-xs text-primary">{formatTypingLabel(Object.values(typingUsers))}</p>
                 )}

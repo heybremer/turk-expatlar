@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, FileText, SmilePlus, Trash2 } from "lucide-react";
+import { Clock, FileText, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { ChatAvatar } from "@/components/sohbet/ChatAvatar";
 import { ChatReactionBar } from "@/components/sohbet/ChatReactionBar";
 import { CountryFlagBadge } from "@/components/user/CountryFlagBadge";
@@ -36,6 +36,13 @@ function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
 
 export type MessageReaction = { emoji: string; count: number };
 
+export type MessageReplyTo = {
+  id: string;
+  body: string;
+  deletedAt?: string | null;
+  user?: { profile?: { displayName?: string | null } | null } | null;
+};
+
 type Props = {
   isMe: boolean;
   grouped: boolean;
@@ -49,9 +56,12 @@ type Props = {
   postalCountry?: PostalCountry | null;
   showReadReceipt?: boolean;
   reactions?: MessageReaction[];
+  replyTo?: MessageReplyTo | null;
   onNameClick?: () => void;
   onDelete?: () => void;
   onReact?: (emoji: string) => void;
+  onReply?: () => void;
+  onQuoteClick?: (messageId: string) => void;
 };
 
 export function ChatMessageBubble({
@@ -67,9 +77,12 @@ export function ChatMessageBubble({
   postalCountry,
   showReadReceipt,
   reactions = [],
+  replyTo,
   onNameClick,
   onDelete,
   onReact,
+  onReply,
+  onQuoteClick,
 }: Props) {
   const [showReactionBar, setShowReactionBar] = useState(false);
   const [popEmoji, setPopEmoji] = useState(false);
@@ -148,6 +161,18 @@ export function ChatMessageBubble({
             </button>
           )}
 
+          {onReply && (
+            <button
+              type="button"
+              onClick={onReply}
+              aria-label="Yanıtla"
+              title="Yanıtla"
+              className="mb-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-muted opacity-0 transition-opacity hover:bg-background hover:text-primary group-hover:opacity-100 md:opacity-0"
+            >
+              <Reply className="h-4 w-4" />
+            </button>
+          )}
+
           <div
             onDoubleClick={handleDoubleClick}
             className={`relative select-none rounded-2xl px-3 py-2 ${onReact ? "cursor-pointer" : ""} ${
@@ -160,6 +185,27 @@ export function ChatMessageBubble({
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-3xl animate-[ping_0.6s_ease-out]">
                 👍
               </span>
+            )}
+            {replyTo && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuoteClick?.(replyTo.id);
+                }}
+                className={`mb-1.5 block w-full rounded-lg border-l-2 px-2 py-1 text-left text-xs ${
+                  isMe
+                    ? "border-white/60 bg-white/10 text-white/90"
+                    : "border-primary bg-primary/5 text-muted"
+                }`}
+              >
+                <span className={`block truncate font-semibold ${isMe ? "text-white" : "text-primary"}`}>
+                  {replyTo.user?.profile?.displayName ?? "Kullanıcı"}
+                </span>
+                <span className="line-clamp-2 break-words">
+                  {replyTo.deletedAt ? "Silinen mesaj" : replyTo.body || "📎 Ek"}
+                </span>
+              </button>
             )}
             {body && (
               <p className={`whitespace-pre-wrap break-words text-sm leading-relaxed ${isMe ? "text-white" : ""}`}>
