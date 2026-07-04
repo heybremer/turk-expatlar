@@ -34,3 +34,33 @@ export function disconnectSocket() {
   socket = null;
   currentToken = undefined;
 }
+
+// ── Yolculuk Telsiz (walkie-talkie) — ayrı namespace ─────────────────────────
+let telsizSocket: Socket | null = null;
+let telsizToken: string | null | undefined = undefined;
+
+export function getTelsizSocket(token?: string | null): Socket {
+  if (telsizSocket && telsizToken !== token) {
+    telsizSocket.disconnect();
+    telsizSocket = null;
+  }
+  if (telsizSocket) return telsizSocket;
+
+  telsizToken = token;
+  telsizSocket = io(`${API_URL}/telsiz`, {
+    auth: token ? { token } : {},
+    transports: ["websocket", "polling"],
+    autoConnect: true,
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    timeout: 10000,
+  });
+  return telsizSocket;
+}
+
+export function disconnectTelsizSocket() {
+  telsizSocket?.disconnect();
+  telsizSocket = null;
+  telsizToken = undefined;
+}

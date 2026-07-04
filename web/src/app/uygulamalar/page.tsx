@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Building2, CalendarDays, CalendarOff, Compass, Flag, Landmark, Newspaper } from "lucide-react";
+import { ArrowRight, Building2, CalendarDays, CalendarOff, Compass, Flag, Landmark, Newspaper, Radio } from "lucide-react";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { fetchPublicSiteSettingsLive } from "@/lib/site-settings";
 import { isAppRouteEnabled } from "@/lib/uygulamalar-config";
@@ -53,6 +53,13 @@ const APPS = [
     label: "Gezgin Rehberi",
     desc: "16 eyalet için gezilecek yerler, kısa açıklamalar ve gezi ipuçları.",
     badge: "Keşfet",
+  },
+  {
+    href: "/uygulamalar/yolculuk-telsiz",
+    icon: <Radio className="h-7 w-7 text-accent" />,
+    label: "Yolculuk Telsiz",
+    desc: "Bas-konuş telsiz özelliği ile yoldaki gezginlerle kanal üzerinden canlı sesli iletişim kurun.",
+    badge: "Canlı",
   },
 ];
 

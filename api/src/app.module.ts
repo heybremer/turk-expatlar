@@ -30,6 +30,7 @@ import { NewsletterModule } from './newsletter/newsletter.module';
 import { TasksModule } from './tasks/tasks.module';
 import { TravelAnnouncementsModule } from './travel-announcements/travel-announcements.module';
 import { GamificationModule } from './gamification/gamification.module';
+import { TelsizModule } from './telsiz/telsiz.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { GamificationModule } from './gamification/gamification.module';
     TasksModule,
     TravelAnnouncementsModule,
     GamificationModule,
+    TelsizModule,
   ],
   providers: [
     {
