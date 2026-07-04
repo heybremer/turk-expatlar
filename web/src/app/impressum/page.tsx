@@ -21,13 +21,14 @@ export default function ImpressumPage() {
         <section>
           <h2 className="text-xl font-semibold">Plattformbetreiber / Platform İşleticisi</h2>
           <div className="mt-3 space-y-1 text-muted">
-            <p className="font-medium text-text">[Ad Soyad veya Şirket Adı]</p>
-            <p>[Adres Satırı 1]</p>
-            <p>[PLZ] [Şehir], Deutschland</p>
+            <p className="font-medium text-text">Nexcon Global GmbH</p>
+            <p>Beelertstiege 5-6</p>
+            <p>48143 Münster, Deutschland</p>
           </div>
-          <p className="mt-3 text-xs text-muted italic">
-            Bu alanları gerçek iletişim bilgilerinizle doldurun. Almanya'da tüm ticari web siteleri
-            için Impressum zorunludur (§&nbsp;5 TMG).
+          <p className="mt-3 text-muted">
+            Amtsgericht Münster, HRB 23455
+            <br />
+            Geschäftsführer: Onur Celikgün
           </p>
         </section>
 
@@ -58,10 +59,7 @@ export default function ImpressumPage() {
           <h2 className="text-xl font-semibold">Umsatzsteuer-ID / KDV Kimlik No</h2>
           <p className="mt-2 text-muted">
             Umsatzsteuer-Identifikationsnummer gemäß §&nbsp;27a UStG:{" "}
-            <span className="font-medium text-text">[Varsa USt-IdNr. buraya]</span>
-          </p>
-          <p className="mt-1 text-xs text-muted italic">
-            Şirket olarak kayıtlıysanız vergi numaranızı ekleyin.
+            <span className="font-medium text-text">DE308026621</span>
           </p>
         </section>
 
@@ -71,8 +69,8 @@ export default function ImpressumPage() {
             İçerikten Sorumlu Kişi (§&nbsp;18 Abs. 2 MStV)
           </h2>
           <div className="mt-3 space-y-1 text-muted">
-            <p className="font-medium text-text">[Ad Soyad]</p>
-            <p>[Adres — yukarıdakiyle aynı olabilir]</p>
+            <p className="font-medium text-text">Onur Celikgün</p>
+            <p>Beelertstiege 5-6, 48143 Münster</p>
           </div>
         </section>
 
@@ -127,8 +125,6 @@ export default function ImpressumPage() {
         </section>
 
         <p className="border-t border-border pt-6 text-xs text-muted">
-          Bu Impressum metni genel bilgilendirme amacıyla hazırlanmıştır. Hukuki geçerlilik için
-          bir avukat veya Alman hukuku uzmanıyla çalışmanızı tavsiye ederiz.{" "}
           <Link href="/gizlilik" className="text-primary hover:underline">
             Gizlilik Politikası
           </Link>{" "}
