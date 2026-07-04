@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { cityMatchesFilter, FEATURED_CITIES, normalizeCityName } from './city-map';
+import {
+  cityMatchesFilter,
+  FEATURED_CITIES,
+  normalizeCityName,
+} from './city-map';
 import { getCacheConfig } from '../site-settings/runtime-config.store';
 
 export type CalendarEvent = {
@@ -20,7 +24,7 @@ export type CalendarEvent = {
   ticketUrl?: string;
   detailUrl: string;
   artist?: string;
-  source: 'vasistdas' | 'platform';
+  source: 'eventturk' | 'platform';
 };
 
 type CacheEntry = {
@@ -28,30 +32,33 @@ type CacheEntry = {
   fetchedAt: number;
 };
 
-const VASISTDAS_API = 'https://vasistdas.de/wp-json/tribe/events/v1/events';
+const EVENTTURK_API = 'https://eventturk.de/wp-json/eventturk/v1/events';
 const FETCH_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (compatible; TurkExpatlar/1.0; +https://turkexpatlar.de)',
   Accept: 'application/json',
 };
 
-type VasistdasEvent = {
+type EventTurkEvent = {
   id: number;
   title: string;
-  url: string;
-  website?: string;
-  start_date: string;
-  end_date?: string;
-  cost?: string;
-  cost_details?: { values?: string[] };
-  image?: { url?: string } | false;
-  categories?: { name: string; slug: string }[];
+  excerpt?: string;
+  permalink: string;
+  start: string;
+  end?: string | null;
+  image?: { medium?: string; large?: string; full?: string } | null;
   venue?: {
-    venue?: string;
+    name?: string;
     address?: string;
-    city?: string;
+    location?: { city?: { name?: string }; state?: { name?: string } };
+  } | null;
+  location?: { city?: { name?: string }; state?: { name?: string } };
+  artists?: { name: string }[];
+  categories?: { name: string; slug: string }[];
+  ticketing?: {
+    mode?: string;
+    links?: { provider?: string; price?: string; url?: string }[];
   };
-  organizer?: { organizer?: string; image?: { url?: string } }[];
 };
 
 @Injectable()
@@ -66,7 +73,12 @@ export class EventCalendarService {
     category?: string;
     search?: string;
     limit?: number;
-  }): Promise<{ items: CalendarEvent[]; total: number; cities: string[]; categories: string[] }> {
+  }): Promise<{
+    items: CalendarEvent[];
+    total: number;
+    cities: string[];
+    categories: string[];
+  }> {
     const all = await this.getAllEvents();
     const cities = this.extractCities(all);
     const categories = this.extractCategories(all);
@@ -80,7 +92,9 @@ export class EventCalendarService {
     if (params.category?.trim()) {
       const cat = params.category.trim().toLowerCase();
       filtered = filtered.filter((e) =>
-        e.categories.some((c) => c.toLowerCase() === cat || e.category?.toLowerCase() === cat),
+        e.categories.some(
+          (c) => c.toLowerCase() === cat || e.category?.toLowerCase() === cat,
+        ),
       );
     }
 
@@ -121,56 +135,62 @@ export class EventCalendarService {
       return this.cache.items;
     }
 
-    const [vasistdas, platform] = await Promise.allSettled([
-      this.fetchVasistdasEvents(),
+    const [eventturk, platform] = await Promise.allSettled([
+      this.fetchEventTurkEvents(),
       this.fetchPlatformEvents(),
     ]);
 
     const items = [
-      ...(vasistdas.status === 'fulfilled' ? vasistdas.value : []),
+      ...(eventturk.status === 'fulfilled' ? eventturk.value : []),
       ...(platform.status === 'fulfilled' ? platform.value : []),
     ];
 
     items.sort(
-      (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
+      (a, b) =>
+        new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
     );
 
     this.cache = { items, fetchedAt: Date.now() };
     return items;
   }
 
-  private async fetchVasistdasEvents(): Promise<CalendarEvent[]> {
+  private async fetchEventTurkEvents(): Promise<CalendarEvent[]> {
     const all: CalendarEvent[] = [];
-    const today = new Date().toISOString().slice(0, 10);
+    const dateFrom = new Date().toISOString().slice(0, 10);
     let page = 1;
 
-    while (page <= 6) {
+    while (page <= 10) {
       try {
-        const url = `${VASISTDAS_API}?per_page=50&page=${page}&start_date=${today}`;
+        const url = `${EVENTTURK_API}?per_page=50&page=${page}&date_from=${dateFrom}&status=scheduled&orderby=start_asc`;
         const res = await fetch(url, {
           headers: FETCH_HEADERS,
           signal: AbortSignal.timeout(15000),
         });
         if (!res.ok) break;
 
-        const data = (await res.json()) as { events?: VasistdasEvent[] };
-        const events = data.events ?? [];
+        const data = (await res.json()) as {
+          items?: EventTurkEvent[];
+          total_pages?: number;
+        };
+        const events = data.items ?? [];
         if (!events.length) break;
 
         for (const ev of events) {
-          const mapped = this.mapVasistdasEvent(ev);
+          const mapped = this.mapEventTurkEvent(ev);
           if (mapped) all.push(mapped);
         }
 
-        if (events.length < 50) break;
+        if (!data.total_pages || page >= data.total_pages) break;
         page++;
       } catch (err) {
-        this.logger.warn(`Vasistdas fetch page ${page}: ${(err as Error).message}`);
+        this.logger.warn(
+          `EventTurk fetch page ${page}: ${(err as Error).message}`,
+        );
         break;
       }
     }
 
-    this.logger.log(`Vasistdas: ${all.length} etkinlik yüklendi`);
+    this.logger.log(`EventTurk: ${all.length} etkinlik yüklendi`);
     return all;
   }
 
@@ -194,7 +214,12 @@ export class EventCalendarService {
       city: ev.city?.name ?? ev.state?.name ?? 'Almanya',
       venue: ev.location ?? undefined,
       address: ev.location ?? undefined,
-      cost: ev.priceType === 'FREE' ? 'Ücretsiz' : ev.priceAmount ? `${ev.priceAmount}€` : undefined,
+      cost:
+        ev.priceType === 'FREE'
+          ? 'Ücretsiz'
+          : ev.priceAmount
+            ? `${ev.priceAmount}€`
+            : undefined,
       costValue: ev.priceAmount ?? undefined,
       category: 'Topluluk',
       categories: ['Topluluk'],
@@ -205,38 +230,39 @@ export class EventCalendarService {
     }));
   }
 
-  private mapVasistdasEvent(ev: VasistdasEvent): CalendarEvent | null {
-    if (!ev.start_date || !ev.title) return null;
+  private mapEventTurkEvent(ev: EventTurkEvent): CalendarEvent | null {
+    if (!ev.start || !ev.title) return null;
 
-    const city = normalizeCityName(ev.venue?.city) || 'Almanya';
+    const cityName = ev.venue?.location?.city?.name ?? ev.location?.city?.name;
+    const city = normalizeCityName(cityName) || 'Almanya';
     const categories = (ev.categories ?? []).map((c) => c.name);
     const category = categories[0];
-    const artist = ev.organizer?.[0]?.organizer;
-    const imageUrl =
-      (ev.image && typeof ev.image === 'object' ? ev.image.url : undefined) ??
-      ev.organizer?.[0]?.image?.url;
+    const artist = ev.artists?.[0]?.name;
+    const imageUrl = ev.image?.large ?? ev.image?.medium ?? ev.image?.full;
 
-    const costValue = ev.cost_details?.values?.[0]
-      ? parseFloat(ev.cost_details.values[0].replace(',', '.'))
+    const firstLink = ev.ticketing?.links?.[0];
+    const cost = firstLink?.price ? `${firstLink.price}€` : undefined;
+    const costValue = firstLink?.price
+      ? parseFloat(firstLink.price.replace('.', '').replace(',', '.'))
       : undefined;
 
     return {
-      id: `vasistdas-${ev.id}`,
+      id: `eventturk-${ev.id}`,
       title: this.decodeHtml(ev.title),
-      startDate: ev.start_date.replace(' ', 'T'),
-      endDate: ev.end_date?.replace(' ', 'T'),
+      startDate: ev.start,
+      endDate: ev.end ?? undefined,
       city,
-      venue: ev.venue?.venue,
+      venue: ev.venue?.name,
       address: ev.venue?.address,
-      cost: ev.cost?.trim() || (costValue ? `${costValue}€` : undefined),
+      cost,
       costValue,
       category,
       categories,
       imageUrl,
-      ticketUrl: ev.website || undefined,
-      detailUrl: ev.url,
+      ticketUrl: firstLink?.url,
+      detailUrl: ev.permalink,
       artist: artist ? this.decodeHtml(artist) : undefined,
-      source: 'vasistdas',
+      source: 'eventturk',
     };
   }
 

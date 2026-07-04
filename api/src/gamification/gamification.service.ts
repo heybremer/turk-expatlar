@@ -14,6 +14,7 @@ export const POINT_VALUES: Record<PointAction, number> = {
   EVENT_JOINED: 5,
   EVENT_COMPLETED_ORGANIZER: 100,
   EVENT_COMPLETED_ATTENDEE: 75,
+  USER_REVIEW_CREATED: 5,
 };
 
 @Injectable()

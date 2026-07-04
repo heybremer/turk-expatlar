@@ -27,6 +27,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { ChatAvatar } from "@/components/sohbet/ChatAvatar";
 import { UserDisplayName } from "@/components/user/UserDisplayName";
 import { LevelCard } from "@/components/user/LevelCard";
+import { FriendsSection } from "@/components/user/FriendsSection";
 import type { PostalCountry } from "@/lib/postal-country";
 import { formatDate } from "@/lib/utils";
 
@@ -261,6 +262,9 @@ export default function ProfilPage() {
           </p>
         </div>
       )}
+
+      {/* Arkadaşlarım */}
+      <FriendsSection />
 
       {/* Üyelik durumu */}
       <div className="mt-6">

@@ -346,6 +346,7 @@ export class UsersService {
       select: {
         id: true,
         createdAt: true,
+        lastLoginAt: true,
         role: true,
         points: true,
         profile: {
@@ -356,6 +357,9 @@ export class UsersService {
             avatarUrl: true,
             bio: true,
             occupation: true,
+            languages: true,
+            interests: true,
+            userStatus: true,
             postalCountry: true,
             state: { select: { name: true } },
             city: { select: { name: true } },
@@ -364,8 +368,22 @@ export class UsersService {
       },
     });
     if (!user?.profile) throw new NotFoundException('Kullanıcı bulunamadı');
+
+    const reviewStats = await this.prisma.userReview.aggregate({
+      where: { targetUserId: userId, deletedAt: null },
+      _avg: { rating: true },
+      _count: true,
+    });
+
     const { points, ...rest } = user;
-    return { ...rest, levelProgress: getLevelProgress(points) };
+    return {
+      ...rest,
+      levelProgress: getLevelProgress(points),
+      reviewStats: {
+        averageRating: reviewStats._avg.rating ?? 0,
+        reviewCount: reviewStats._count,
+      },
+    };
   }
 
   /** Seviye/puan liderlik tablosu — herkese açık, ilk N kullanıcı. */

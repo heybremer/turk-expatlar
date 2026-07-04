@@ -84,6 +84,7 @@ enum ReportTargetType {
   MESSAGE
   JOB_POSTING
   COURIER_REQUEST
+  USER_REVIEW
 }
 
 enum AttendeeStatus {
@@ -99,6 +100,7 @@ enum PointAction {
   EVENT_JOINED
   EVENT_COMPLETED_ORGANIZER
   EVENT_COMPLETED_ATTENDEE
+  USER_REVIEW_CREATED
 }
 
 enum ChatType {
@@ -129,6 +131,7 @@ model User {
   referredById String?    @map("referred_by_id")
   points       Int        @default(0)
   level        Int        @default(1)
+  lastLoginAt  DateTime?  @map("last_login_at")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -166,6 +169,10 @@ model User {
   pollVotes              ForumPollVote[]
   messageReactions       MessageReaction[]
   pointLogs              PointLog[]
+  reviewsWritten         UserReview[]      @relation("UserReviewAuthor")
+  reviewsReceived        UserReview[]      @relation("UserReviewTarget")
+  friendRequestsSent     FriendRequest[]   @relation("FriendRequestSender")
+  friendRequestsReceived FriendRequest[]   @relation("FriendRequestReceiver")
 
   @@index([email])
   @@index([status])
@@ -264,6 +271,50 @@ model PointLog {
   @@unique([userId, action, refId])
   @@index([userId])
   @@map("point_logs")
+}
+
+/// Kullanıcıların birbirinin profiline bıraktığı puanlı yorum (referans/tavsiye niteliğinde).
+model UserReview {
+  id           String    @id @default(cuid())
+  targetUserId String    @map("target_user_id")
+  authorId     String    @map("author_id")
+  rating       Int
+  comment      String
+  editCount    Int       @default(0) @map("edit_count")
+  deletedAt    DateTime? @map("deleted_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  targetUser User @relation("UserReviewTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  author     User @relation("UserReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([targetUserId, authorId])
+  @@index([targetUserId])
+  @@map("user_reviews")
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+/// Kullanıcılar arası arkadaşlık isteği/ilişkisi. Kabul edilince ilişki kaydı silinmez, status ACCEPTED olarak tutulur.
+model FriendRequest {
+  id         String              @id @default(cuid())
+  senderId   String              @map("sender_id")
+  receiverId String              @map("receiver_id")
+  status     FriendRequestStatus @default(PENDING)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  sender   User @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status])
+  @@index([senderId, status])
+  @@map("friend_requests")
 }
 
 model FederalState {

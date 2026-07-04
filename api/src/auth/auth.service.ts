@@ -132,6 +132,11 @@ export class AuthService {
       throw new UnauthorizedException('Geçersiz giriş bilgileri');
     }
 
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
     return this.buildAuthResponse(user);
   }
 
@@ -147,7 +152,13 @@ export class AuthService {
       include: { profile: { include: { state: true, city: true } } },
     });
 
-    if (user) return user;
+    if (user) {
+      return this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+        include: { profile: { include: { state: true, city: true } } },
+      });
+    }
 
     // 2. Aynı e-posta ile var mı? (hesapları birleştir)
     user = await this.prisma.user.findUnique({
@@ -158,7 +169,11 @@ export class AuthService {
     if (user) {
       user = await this.prisma.user.update({
         where: { id: user.id },
-        data: { googleId: dto.googleId, emailVerified: true },
+        data: {
+          googleId: dto.googleId,
+          emailVerified: true,
+          lastLoginAt: new Date(),
+        },
         include: { profile: { include: { state: true, city: true } } },
       });
       return user;
@@ -172,6 +187,7 @@ export class AuthService {
         googleId: dto.googleId,
         emailVerified: true,
         gdprConsentAt: new Date(),
+        lastLoginAt: new Date(),
         referralCode,
         profile: {
           create: {

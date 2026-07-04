@@ -1,22 +1,21 @@
 import Link from "next/link";
-import { UserAvatar } from "@/components/user/UserAvatar";
+import { UserAvatar, type UserAvatarSize } from "@/components/user/UserAvatar";
 
 type Props = {
   name: string;
   userId?: string;
   avatarUrl?: string | null;
   role?: string | null;
-  size?: "sm" | "md" | "lg";
+  size?: UserAvatarSize;
 };
 
 export function ForumAvatar({ name, userId, avatarUrl, role, size = "md" }: Props) {
-  const avatarSize = size === "sm" ? "sm" : size === "lg" ? "lg" : "md";
   const inner = (
     <UserAvatar
       name={name}
       avatarUrl={avatarUrl}
       role={role}
-      size={avatarSize}
+      size={size}
     />
   );
 

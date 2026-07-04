@@ -35,7 +35,7 @@ export type CalendarEvent = {
   ticketUrl?: string;
   detailUrl: string;
   artist?: string;
-  source: "vasistdas" | "platform";
+  source: "eventturk" | "platform";
 };
 
 type EventsResponse = {
@@ -269,7 +269,7 @@ export function EventCalendarPage() {
                 {events.map((ev) => {
                   const d = new Date(ev.startDate);
                   const href = ev.source === "platform" ? ev.detailUrl : (ev.ticketUrl || ev.detailUrl);
-                  const external = ev.source === "vasistdas";
+                  const external = ev.source === "eventturk";
 
                   return (
                     <article
@@ -377,12 +377,12 @@ export function EventCalendarPage() {
       <p className="mt-10 border-t border-border pt-6 text-center text-xs text-muted">
         Konser ve etkinlik verileri{" "}
         <a
-          href="https://vasistdas.de/koln-konser-etkinlik-takvimi/"
+          href="https://eventturk.de/"
           target="_blank"
           rel="noopener noreferrer"
           className="text-primary hover:underline"
         >
-          Vasistdas.de
+          EventTürk.de
         </a>{" "}
         üzerinden derlenmektedir. Platform etkinlikleri de listeye dahildir.
       </p>

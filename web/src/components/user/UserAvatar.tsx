@@ -1,13 +1,14 @@
 import { Crown } from "lucide-react";
 import { cn, resolveMediaUrl } from "@/lib/utils";
 
-export type UserAvatarSize = "sm" | "md" | "lg" | "xl";
+export type UserAvatarSize = "sm" | "md" | "lg" | "xl" | "2xl";
 
 const SIZE: Record<UserAvatarSize, string> = {
   sm: "h-7 w-7 text-xs",
   md: "h-8 w-8 text-sm",
   lg: "h-10 w-10 text-base",
   xl: "h-14 w-14 text-xl",
+  "2xl": "h-24 w-24 text-3xl",
 };
 
 const CROWN: Record<UserAvatarSize, string> = {
@@ -15,6 +16,7 @@ const CROWN: Record<UserAvatarSize, string> = {
   md: "h-4 w-4 -bottom-0.5 -right-1 p-0.5",
   lg: "h-4 w-4 -bottom-1 -right-1 p-0.5",
   xl: "h-6 w-6 -bottom-1 -right-1 p-1",
+  "2xl": "h-8 w-8 -bottom-1 -right-1 p-1.5",
 };
 
 export function isAdminRole(role?: string | null) {
