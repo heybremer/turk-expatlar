@@ -1,5 +1,5 @@
 /**
- * Sadece API deploy (OAuth fix vb.)
+ * Sadece API deploy (OAuth fix vb.) + bekleyen Prisma migration'larını uygular.
  */
 const { Client } = require("ssh2");
 const { execSync } = require("child_process");
@@ -58,13 +58,14 @@ cd /opt/turkexpatlar/api
 grep -q '^GOOGLE_CLIENT_ID=' .env && sed -i 's|^GOOGLE_CLIENT_ID=.*|GOOGLE_CLIENT_ID=${google.id}|' .env || echo 'GOOGLE_CLIENT_ID=${google.id}' >> .env
 grep -q '^GOOGLE_CLIENT_SECRET=' .env && sed -i 's|^GOOGLE_CLIENT_SECRET=.*|GOOGLE_CLIENT_SECRET=${google.secret}|' .env || echo 'GOOGLE_CLIENT_SECRET=${google.secret}' >> .env
 npm ci --legacy-peer-deps
+npx prisma migrate deploy
 npm run build
 cd /opt/turkexpatlar
 pm2 restart turkexpatlar-api
 sleep 3
 tail -5 /opt/turkexpatlar/api/logs/api-error-0.log
 `;
-      await exec(conn, envPatch, "Build + restart");
+      await exec(conn, envPatch, "Migration + Build + restart");
     } catch (e) {
       console.error("\nHATA:", e.message);
       process.exitCode = 1;
