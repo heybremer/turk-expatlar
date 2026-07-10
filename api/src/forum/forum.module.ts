@@ -9,5 +9,6 @@ import { GamificationModule } from '../gamification/gamification.module';
   imports: [NotificationsModule, GamificationModule],
   controllers: [ForumController],
   providers: [ForumService, ContentModerationService],
+  exports: [ForumService],
 })
 export class ForumModule {}
