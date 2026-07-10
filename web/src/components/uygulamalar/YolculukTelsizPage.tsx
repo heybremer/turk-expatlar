@@ -12,6 +12,8 @@ import {
   Wifi,
   WifiOff,
   ChevronRight,
+  Flag,
+  Hand,
 } from "lucide-react";
 import type { Socket } from "socket.io-client";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -89,6 +91,12 @@ export function YolculukTelsizPage() {
   const [muted, setMuted] = useState(false);
   const [micError, setMicError] = useState("");
   const [busyNotice, setBusyNotice] = useState("");
+  // El kaldıranların userId seti
+  const [handRaises, setHandRaises] = useState<Set<string>>(new Set());
+  // Şikayet bildirimi
+  const [reportNotice, setReportNotice] = useState("");
+  // Aktif şikayet gönderimi (debounce için)
+  const reportingRef = useRef<Set<string>>(new Set());
 
   const socketRef = useRef<Socket | null>(null);
   const channelIdRef = useRef<string | null>(null);
@@ -363,6 +371,15 @@ export function YolculukTelsizPage() {
       if (isMe(data.userId)) return;
       playChunk(data.pcm, data.rate ?? TARGET_RATE);
     };
+    const onHandRaises = (data: { channelId: string; userIds: string[] }) => {
+      if (data.channelId !== channelIdRef.current) return;
+      setHandRaises(new Set(data.userIds));
+    };
+    const onReportResult = (data: { success: boolean; message: string }) => {
+      setReportNotice(data.message);
+      setTimeout(() => setReportNotice(""), 3500);
+    };
+
     const onPttGranted = () => {
       grantedRef.current = true;
       // Onay beklerken biriken parçaları sırayla gönder
@@ -388,6 +405,8 @@ export function YolculukTelsizPage() {
     sock.on("voice_chunk", onVoiceChunk);
     sock.on("ptt_granted", onPttGranted);
     sock.on("ptt_denied", onPttDenied);
+    sock.on("hand_raises", onHandRaises);
+    sock.on("report_result", onReportResult);
     if (sock.connected) onConnect();
 
     return () => {
@@ -399,6 +418,8 @@ export function YolculukTelsizPage() {
       sock.off("voice_chunk", onVoiceChunk);
       sock.off("ptt_granted", onPttGranted);
       sock.off("ptt_denied", onPttDenied);
+      sock.off("hand_raises", onHandRaises);
+      sock.off("report_result", onReportResult);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, isMe, playChunk]);
@@ -419,14 +440,23 @@ export function YolculukTelsizPage() {
   }, []);
 
   function selectChannel(ch: TelsizChannel) {
-    // Kanal seçimi bir kullanıcı dokunuşu — ses çıkış kilidini burada aç
     unlockAudio();
     channelIdRef.current = ch.id;
     setChannel(ch);
     setMembers([]);
     setSpeaker(null);
     setBusyNotice("");
+    setHandRaises(new Set());
     socketRef.current?.emit("join_channel", { channelId: ch.id });
+  }
+
+  function sendReport(reportedUserId: string) {
+    const id = channelIdRef.current;
+    const sock = socketRef.current;
+    if (!id || !sock || reportingRef.current.has(reportedUserId)) return;
+    reportingRef.current.add(reportedUserId);
+    sock.emit("telsiz_report", { channelId: id, reportedUserId });
+    setTimeout(() => reportingRef.current.delete(reportedUserId), 5000);
   }
 
   function leaveChannel() {
@@ -638,7 +668,7 @@ export function YolculukTelsizPage() {
               <Users className="h-4 w-4 text-primary" />
               Kanaldakiler ({members.length})
             </div>
-            <div className="mt-3 space-y-1.5">
+            <div className="mt-3 space-y-1">
               {members.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted">
                   Şu an kanalda kimse yok. İlk siz konuşun!
@@ -646,32 +676,55 @@ export function YolculukTelsizPage() {
               ) : (
                 members.map((m) => {
                   const talking = speaker?.userId === m.userId;
+                  const raisingHand = handRaises.has(m.userId);
+                  const mine = isMe(m.userId);
                   return (
                     <div
                       key={m.userId}
-                      className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm ${
+                      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors ${
                         talking ? "bg-primary/10" : ""
                       }`}
                     >
                       <span
-                        className={`h-2 w-2 rounded-full ${
+                        className={`h-2 w-2 shrink-0 rounded-full ${
                           talking ? "animate-pulse bg-danger" : "bg-success"
                         }`}
                       />
-                      <span className="truncate text-text">
+                      <span className="min-w-0 flex-1 truncate text-text">
                         {m.displayName}
-                        {isMe(m.userId) && (
+                        {mine && (
                           <span className="ml-1 text-xs text-muted">(siz)</span>
                         )}
                       </span>
+                      {raisingHand && (
+                        <Hand
+                          className="h-3.5 w-3.5 shrink-0 text-warning"
+                          title="Konuşmak istiyor"
+                        />
+                      )}
                       {talking && (
-                        <Mic className="ml-auto h-3.5 w-3.5 text-danger" />
+                        <Mic className="h-3.5 w-3.5 shrink-0 text-danger" />
+                      )}
+                      {!mine && (
+                        <button
+                          type="button"
+                          onClick={() => sendReport(m.userId)}
+                          title="Uygunsuz dil — şikayet et"
+                          className="ml-0.5 rounded p-0.5 text-muted hover:text-danger transition-colors"
+                        >
+                          <Flag className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </div>
                   );
                 })
               )}
             </div>
+            {reportNotice && (
+              <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+                {reportNotice}
+              </p>
+            )}
           </div>
         </div>
       )}

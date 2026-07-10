@@ -173,11 +173,44 @@ model User {
   reviewsReceived        UserReview[]      @relation("UserReviewTarget")
   friendRequestsSent     FriendRequest[]   @relation("FriendRequestSender")
   friendRequestsReceived FriendRequest[]   @relation("FriendRequestReceiver")
+  telsizReportsGiven     TelsizReport[]    @relation("TelsizReporter")
+  telsizReportsReceived  TelsizReport[]    @relation("TelsizReported")
+  telsizMute             TelsizMute?
 
   @@index([email])
   @@index([status])
   @@index([referredById])
   @@map("users")
+}
+
+model TelsizReport {
+  id          String   @id @default(cuid())
+  reporterId  String   @map("reporter_id")
+  reportedId  String   @map("reported_id")
+  channelId   String   @map("channel_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  reporter    User     @relation("TelsizReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported    User     @relation("TelsizReported", fields: [reportedId], references: [id], onDelete: Cascade)
+
+  // Her reporter aynı kişiyi yalnızca bir kez şikayet edebilir
+  @@unique([reporterId, reportedId])
+  @@index([reportedId])
+  @@map("telsiz_reports")
+}
+
+model TelsizMute {
+  id           String   @id @default(cuid())
+  userId       String   @unique @map("user_id")
+  muteUntil    DateTime @map("mute_until")
+  warnCount    Int      @default(0) @map("warn_count")
+  reportCount  Int      @default(0) @map("report_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telsiz_mutes")
 }
 
 model PushSubscription {
