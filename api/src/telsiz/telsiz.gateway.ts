@@ -175,6 +175,46 @@ export class TelsizGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  /**
+   * Canlı PCM ses akışı — konuşmacı ~100 ms'lik ham ses parçaları gönderir,
+   * kanaldaki diğer üyelere anında iletilir (gerçek zamanlı telsiz).
+   */
+  @SubscribeMessage('ptt_chunk')
+  handlePttChunk(
+    @ConnectedSocket() client: TelsizSocket,
+    @MessageBody()
+    data: {
+      channelId: string;
+      pcm: string;
+      rate?: number;
+    },
+  ) {
+    if (!client.userId) return;
+    const channelId = data?.channelId;
+    if (!channelId || client.channelId !== channelId) return;
+
+    // Yalnızca kilidi elinde tutan konuşabilir
+    const active = this.speaker.get(channelId);
+    if (!active || active.socketId !== client.id) return;
+
+    if (typeof data.pcm !== 'string' || data.pcm.length === 0) return;
+    // Tek chunk üst sınırı ~48 KB (base64) — 16 kHz Int16'da ~1.5 sn ses
+    if (data.pcm.length > 64_000) return;
+
+    const rate =
+      typeof data.rate === 'number' && data.rate >= 8000 && data.rate <= 48000
+        ? data.rate
+        : 16000;
+
+    client.to(telsizRoom(channelId)).emit('voice_chunk', {
+      channelId,
+      userId: client.userId,
+      displayName: client.displayName ?? 'Gezgin',
+      pcm: data.pcm,
+      rate,
+    });
+  }
+
   @SubscribeMessage('ptt_audio')
   handlePttAudio(
     @ConnectedSocket() client: TelsizSocket,
