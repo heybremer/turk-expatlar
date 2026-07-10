@@ -26,55 +26,19 @@ type Member = { userId: string; displayName: string; avatarUrl?: string | null }
 type Speaker = { userId: string; displayName: string };
 
 const MAX_TALK_MS = 30_000;
-// İletim örnekleme hızı — 16 kHz mono Int16 ≈ 32 KB/sn (konuşma için yeterli)
-const TARGET_RATE = 16_000;
 
-// ── PCM yardımcıları ─────────────────────────────────────────────────────────
-
-/** Kaba alçak geçiren filtre ile yeniden örnekleme (ortalama alma) */
-function downsample(input: Float32Array, fromRate: number, toRate: number): Float32Array {
-  if (fromRate === toRate) return new Float32Array(input);
-  const ratio = fromRate / toRate;
-  const outLen = Math.floor(input.length / ratio);
-  const out = new Float32Array(outLen);
-  for (let i = 0; i < outLen; i++) {
-    const start = Math.floor(i * ratio);
-    const end = Math.min(Math.floor((i + 1) * ratio), input.length);
-    let sum = 0;
-    for (let j = start; j < end; j++) sum += input[j];
-    out[i] = sum / Math.max(1, end - start);
-  }
-  return out;
-}
-
-function floatToInt16(input: Float32Array): Int16Array {
-  const out = new Int16Array(input.length);
-  for (let i = 0; i < input.length; i++) {
-    const s = Math.max(-1, Math.min(1, input[i]));
-    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-  }
-  return out;
-}
-
-function int16ToBase64(int16: Int16Array): string {
-  const bytes = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
-  let binary = "";
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
-}
-
-function base64ToInt16(b64: string): Int16Array | null {
-  try {
-    const binary = atob(b64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new Int16Array(bytes.buffer, 0, Math.floor(bytes.length / 2));
-  } catch {
-    return null;
-  }
+/** Tercih sırası: MP4/AAC her platformda çalınabilir; WebM ise son çare */
+function pickMimeType(): string {
+  if (typeof MediaRecorder === "undefined") return "";
+  const candidates = [
+    "audio/mp4;codecs=mp4a.40.2",
+    "audio/mp4",
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+  ];
+  for (const c of candidates) if (MediaRecorder.isTypeSupported(c)) return c;
+  return "";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,41 +55,39 @@ export function YolculukTelsizPage() {
   const [muted, setMuted] = useState(false);
   const [micError, setMicError] = useState("");
   const [busyNotice, setBusyNotice] = useState("");
-  // El kaldıranların userId seti
   const [handRaises, setHandRaises] = useState<Set<string>>(new Set());
-  // Şikayet bildirimi
   const [reportNotice, setReportNotice] = useState("");
-  // Aktif şikayet gönderimi (debounce için)
-  const reportingRef = useRef<Set<string>>(new Set());
 
   const socketRef = useRef<Socket | null>(null);
   const channelIdRef = useRef<string | null>(null);
 
-  // Ses altyapısı — tek paylaşılan AudioContext (kayıt + oynatma)
+  // Ses aktyarısı
   const ctxRef = useRef<AudioContext | null>(null);
   const audioUnlockedRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const silentGainRef = useRef<GainNode | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  // Oynatma kuyruğu (AudioContext zamanlayıcısıyla boşluksuz çalma)
+  const nextPlayRef = useRef(0);
+  const receivingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const talkingRef = useRef(false);
   const grantedRef = useRef(false);
-  const pendingChunksRef = useRef<string[]>([]);
   const mutedRef = useRef(false);
   const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speakerGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Canlı oynatma zamanlaması (jitter tamponu ile ardışık planlama)
-  const nextPlayTimeRef = useRef(0);
-  const receivingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportingRef = useRef<Set<string>>(new Set());
+  const startTimeRef = useRef(0);
 
   mutedRef.current = muted;
 
   const isMe = useCallback(
-    (userId: string) => !!user && user.id === userId,
+    (uid: string) => !!user && user.id === uid,
     [user],
   );
+
+  // ── AudioContext ──────────────────────────────────────────────────────────
 
   const getCtx = useCallback((): AudioContext => {
     if (!ctxRef.current || ctxRef.current.state === "closed") {
@@ -138,7 +100,10 @@ export function YolculukTelsizPage() {
     return ctxRef.current;
   }, []);
 
-  /** iOS/Android: ses çıkışının kilidi kullanıcı dokunuşu sırasında açılmalı */
+  /**
+   * iOS/Android: sesi etkinleştirmek için ilk kullanıcı dokunuşunda
+   * 1 örneklik sessiz bir buffer çal.
+   */
   const unlockAudio = useCallback(() => {
     const ctx = getCtx();
     if (ctx.state === "suspended") void ctx.resume();
@@ -152,54 +117,65 @@ export function YolculukTelsizPage() {
     }
   }, [getCtx]);
 
-  // ── Canlı oynatma: gelen PCM parçalarını ardışık planla ───────────────────
-  const playChunk = useCallback(
-    (pcmB64: string, rate: number) => {
+  // ── Oynatma kuyruğu ───────────────────────────────────────────────────────
+
+  /**
+   * Base64 ses klibi → AudioBuffer → ardışık zamanlanmış çalma.
+   * decodeAudioData tarayıcının kendi codec'ini kullanır; format
+   * dönüşümü veya blob URL gerekmez.
+   */
+  const enqueueAudio = useCallback(
+    (b64: string, mime: string) => {
       if (mutedRef.current) return;
-      const int16 = base64ToInt16(pcmB64);
-      if (!int16 || int16.length === 0) return;
+      // Base64 → ArrayBuffer
+      let binary: string;
+      try {
+        binary = atob(b64);
+      } catch {
+        return;
+      }
+      const ab = new ArrayBuffer(binary.length);
+      const view = new Uint8Array(ab);
+      for (let i = 0; i < binary.length; i++) view[i] = binary.charCodeAt(i);
 
       const ctx = getCtx();
       if (ctx.state === "suspended") void ctx.resume();
 
-      const f32 = new Float32Array(int16.length);
-      for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 0x8000;
+      ctx.decodeAudioData(
+        ab,
+        (audioBuf) => {
+          const src = ctx.createBufferSource();
+          src.buffer = audioBuf;
+          src.connect(ctx.destination);
 
-      const buf = ctx.createBuffer(1, f32.length, rate);
-      buf.getChannelData(0).set(f32);
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(ctx.destination);
+          const now = ctx.currentTime;
+          let t = nextPlayRef.current;
+          if (t < now + 0.02) t = now + 0.08;
 
-      // Parçaları boşluksuz ardışık çal; geride kaldıysak küçük jitter
-      // tamponuyla yeniden hizala
-      const now = ctx.currentTime;
-      let t = nextPlayTimeRef.current;
-      if (t < now + 0.02) t = now + 0.12;
-      try {
-        src.start(t);
-        nextPlayTimeRef.current = t + buf.duration;
-      } catch {
-        // start zamanı geçersizse (nadiren) hemen çal
-        try {
-          src.start();
-          nextPlayTimeRef.current = ctx.currentTime + buf.duration;
-        } catch {
-          /* parçayı atla */
-        }
-      }
+          try {
+            src.start(t);
+          } catch {
+            try { src.start(); } catch { return; }
+            t = ctx.currentTime;
+          }
+          nextPlayRef.current = t + audioBuf.duration;
 
-      setReceiving(true);
-      if (receivingTimerRef.current) clearTimeout(receivingTimerRef.current);
-      receivingTimerRef.current = setTimeout(() => setReceiving(false), 700);
+          setReceiving(true);
+          if (receivingTimerRef.current) clearTimeout(receivingTimerRef.current);
+          receivingTimerRef.current = setTimeout(
+            () => setReceiving(false),
+            (audioBuf.duration * 1000 + 800) | 0,
+          );
+        },
+        () => { /* bozuk klip — atla */ },
+      );
     },
     [getCtx],
   );
 
-  // ── Kayıt: mikrofon → PCM parçaları → socket ──────────────────────────────
+  // ── Mikrofon ──────────────────────────────────────────────────────────────
 
   async function ensureStream(): Promise<MediaStream | null> {
-    // Mobilde hoparlör kullanımı sonrası mikrofon track'i ölebilir — doğrula
     const existing = streamRef.current;
     if (existing) {
       const track = existing.getAudioTracks()[0];
@@ -219,33 +195,27 @@ export function YolculukTelsizPage() {
       setMicError("");
       return stream;
     } catch {
-      setMicError(
-        "Mikrofona erişilemedi. Tarayıcı izinlerinden mikrofonu etkinleştirin.",
-      );
+      setMicError("Mikrofona erişilemedi. Tarayıcı izinlerinden mikrofonu etkinleştirin.");
       return null;
     }
   }
 
-  function stopCapture() {
+  function abortRecording() {
     talkingRef.current = false;
     grantedRef.current = false;
-    pendingChunksRef.current = [];
-    if (autoStopRef.current) {
-      clearTimeout(autoStopRef.current);
-      autoStopRef.current = null;
+    chunksRef.current = [];
+    if (autoStopRef.current) { clearTimeout(autoStopRef.current); autoStopRef.current = null; }
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      rec.onstop = null;
+      rec.onerror = null;
+      rec.stop();
     }
-    try {
-      processorRef.current?.disconnect();
-      sourceRef.current?.disconnect();
-      silentGainRef.current?.disconnect();
-    } catch {
-      /* zaten kopuk */
-    }
-    processorRef.current = null;
-    sourceRef.current = null;
-    silentGainRef.current = null;
+    recorderRef.current = null;
     setIsTransmitting(false);
   }
+
+  // ── Konuşma ───────────────────────────────────────────────────────────────
 
   async function startTalking() {
     unlockAudio();
@@ -261,67 +231,96 @@ export function YolculukTelsizPage() {
 
     const stream = await ensureStream();
     if (!stream) return;
-    // İzin beklerken kullanıcı bırakmış olabilir
-    if (channelIdRef.current !== id) return;
-
-    const ctx = getCtx();
-    if (ctx.state === "suspended") {
-      try {
-        await ctx.resume();
-      } catch {
-        /* kullanıcı dokunuşuyla tekrar denenir */
-      }
-    }
+    // İzin süresince kullanıcı butonu bırakmışsa veya kanal değiştiyse iptal
+    if (channelIdRef.current !== id || talkingRef.current) return;
 
     talkingRef.current = true;
     grantedRef.current = false;
-    pendingChunksRef.current = [];
+    chunksRef.current = [];
     sock.emit("ptt_start", { channelId: id });
 
-    const source = ctx.createMediaStreamSource(stream);
-    // ScriptProcessor: tüm mobil/masaüstü tarayıcılarda çalışır
-    const processor = ctx.createScriptProcessor(4096, 1, 1);
-    // Bazı tarayıcılar düğüm çıkışa bağlı değilse callback çalıştırmaz;
-    // sıfır kazançla bağlayarak yankıyı önle
-    const silent = ctx.createGain();
-    silent.gain.value = 0;
+    const mimeType = pickMimeType();
+    let recorder: MediaRecorder;
+    try {
+      recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+    } catch {
+      setMicError("Ses kaydı bu tarayıcıda desteklenmiyor.");
+      abortRecording();
+      sock.emit("ptt_end", { channelId: id });
+      return;
+    }
+    recorderRef.current = recorder;
 
-    processor.onaudioprocess = (e) => {
-      if (!talkingRef.current) return;
-      const input = e.inputBuffer.getChannelData(0);
-      const down = downsample(input, ctx.sampleRate, TARGET_RATE);
-      const b64 = int16ToBase64(floatToInt16(down));
-      if (grantedRef.current) {
-        sock.emit("ptt_chunk", { channelId: id, pcm: b64, rate: TARGET_RATE });
-      } else {
-        // Kilit onayı gelene kadar biriktir (ilk heceler kaybolmasın)
-        pendingChunksRef.current.push(b64);
-        if (pendingChunksRef.current.length > 40) pendingChunksRef.current.shift();
-      }
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
     };
 
-    source.connect(processor);
-    processor.connect(silent);
-    silent.connect(ctx.destination);
+    recorder.onerror = () => {
+      abortRecording();
+      sock.emit("ptt_end", { channelId: id });
+    };
 
-    sourceRef.current = source;
-    processorRef.current = processor;
-    silentGainRef.current = silent;
+    recorder.onstop = () => {
+      const wasGranted = grantedRef.current;
+      const chunks = chunksRef.current;
+      chunksRef.current = [];
+      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      const durationMs = Date.now() - startTimeRef.current;
+      setIsTransmitting(false);
 
+      const finish = () => sock.emit("ptt_end", { channelId: id });
+
+      if (wasGranted && blob.size > 0 && channelIdRef.current === id) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          try {
+            const res = typeof reader.result === "string" ? reader.result : "";
+            const base64 = res.split(",")[1] ?? "";
+            if (base64) {
+              sock.emit("ptt_audio", {
+                channelId: id,
+                audio: base64,
+                mime: blob.type,
+                durationMs,
+              });
+            }
+          } finally {
+            finish();
+          }
+        };
+        reader.onerror = finish;
+        reader.readAsDataURL(blob);
+      } else {
+        finish();
+      }
+      grantedRef.current = false;
+    };
+
+    startTimeRef.current = Date.now();
+    recorder.start();
     setIsTransmitting(true);
-
-    // Güvenlik: azami konuşma süresi dolunca otomatik bırak
     autoStopRef.current = setTimeout(() => stopTalking(), MAX_TALK_MS);
   }
 
   function stopTalking() {
     if (!talkingRef.current) return;
-    const id = channelIdRef.current;
-    stopCapture();
-    if (id) socketRef.current?.emit("ptt_end", { channelId: id });
+    talkingRef.current = false;
+    if (autoStopRef.current) { clearTimeout(autoStopRef.current); autoStopRef.current = null; }
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      rec.stop();
+    } else {
+      const id = channelIdRef.current;
+      if (id) socketRef.current?.emit("ptt_end", { channelId: id });
+      setIsTransmitting(false);
+    }
+    recorderRef.current = null;
   }
 
-  // ── Socket bağlantısı ve olay dinleyicileri ───────────────────────────────
+  // ── Socket olayları ───────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!token) return;
     const sock = getTelsizSocket(token);
@@ -329,72 +328,53 @@ export function YolculukTelsizPage() {
 
     const onConnect = () => {
       setConnected(true);
-      if (channelIdRef.current) {
-        sock.emit("join_channel", { channelId: channelIdRef.current });
-      }
+      if (channelIdRef.current) sock.emit("join_channel", { channelId: channelIdRef.current });
     };
     const onDisconnect = () => {
       setConnected(false);
       setSpeaker(null);
-      stopCapture();
+      abortRecording();
     };
-    const onPresence = (data: { channelId: string; users: Member[] }) => {
-      if (data.channelId !== channelIdRef.current) return;
-      setMembers(data.users);
+    const onPresence = (d: { channelId: string; users: Member[] }) => {
+      if (d.channelId !== channelIdRef.current) return;
+      setMembers(d.users);
     };
-    const onSpeakerStart = (data: Speaker & { channelId: string }) => {
-      if (data.channelId !== channelIdRef.current) return;
-      if (isMe(data.userId)) return;
-      setSpeaker({ userId: data.userId, displayName: data.displayName });
-      // speaker_end kaybolursa buton süresiz kilitli kalmasın
+    const onSpeakerStart = (d: Speaker & { channelId: string }) => {
+      if (d.channelId !== channelIdRef.current) return;
+      if (isMe(d.userId)) return;
+      setSpeaker({ userId: d.userId, displayName: d.displayName });
       if (speakerGuardRef.current) clearTimeout(speakerGuardRef.current);
-      speakerGuardRef.current = setTimeout(
-        () => setSpeaker(null),
-        MAX_TALK_MS + 5_000,
-      );
+      speakerGuardRef.current = setTimeout(() => setSpeaker(null), MAX_TALK_MS + 5_000);
     };
-    const onSpeakerEnd = (data: { channelId: string }) => {
-      if (data.channelId !== channelIdRef.current) return;
-      if (speakerGuardRef.current) {
-        clearTimeout(speakerGuardRef.current);
-        speakerGuardRef.current = null;
-      }
+    const onSpeakerEnd = (d: { channelId: string }) => {
+      if (d.channelId !== channelIdRef.current) return;
+      if (speakerGuardRef.current) { clearTimeout(speakerGuardRef.current); speakerGuardRef.current = null; }
       setSpeaker(null);
     };
-    const onVoiceChunk = (data: {
-      channelId: string;
-      userId: string;
-      pcm: string;
-      rate?: number;
-    }) => {
-      if (data.channelId !== channelIdRef.current) return;
-      if (isMe(data.userId)) return;
-      playChunk(data.pcm, data.rate ?? TARGET_RATE);
+    const onVoice = (d: { channelId: string; userId: string; audio: string; mime: string }) => {
+      if (d.channelId !== channelIdRef.current) return;
+      if (isMe(d.userId)) return;
+      enqueueAudio(d.audio, d.mime);
     };
-    const onHandRaises = (data: { channelId: string; userIds: string[] }) => {
-      if (data.channelId !== channelIdRef.current) return;
-      setHandRaises(new Set(data.userIds));
-    };
-    const onReportResult = (data: { success: boolean; message: string }) => {
-      setReportNotice(data.message);
-      setTimeout(() => setReportNotice(""), 3500);
-    };
-
-    const onPttGranted = () => {
-      grantedRef.current = true;
-      // Onay beklerken biriken parçaları sırayla gönder
-      const id = channelIdRef.current;
-      if (id && pendingChunksRef.current.length > 0) {
-        for (const b64 of pendingChunksRef.current) {
-          sock.emit("ptt_chunk", { channelId: id, pcm: b64, rate: TARGET_RATE });
-        }
-        pendingChunksRef.current = [];
+    const onPttGranted = () => { grantedRef.current = true; };
+    const onPttDenied = (d: { displayName: string; muted?: boolean }) => {
+      if (d.muted) {
+        abortRecording();
+        setBusyNotice(d.displayName); // sunucu "Susturuldunuz — N dk kaldı" mesajını displayName'e koyuyor
+      } else {
+        grantedRef.current = false;
+        abortRecording();
+        setBusyNotice(`${d.displayName} konuşuyor, biraz bekleyin`);
       }
+      setTimeout(() => setBusyNotice(""), 3000);
     };
-    const onPttDenied = (data: { displayName: string }) => {
-      stopCapture();
-      setBusyNotice(`${data.displayName} konuşuyor, biraz bekleyin`);
-      setTimeout(() => setBusyNotice(""), 2000);
+    const onHandRaises = (d: { channelId: string; userIds: string[] }) => {
+      if (d.channelId !== channelIdRef.current) return;
+      setHandRaises(new Set(d.userIds));
+    };
+    const onReportResult = (d: { success: boolean; message: string }) => {
+      setReportNotice(d.message);
+      setTimeout(() => setReportNotice(""), 3500);
     };
 
     sock.on("connect", onConnect);
@@ -402,7 +382,7 @@ export function YolculukTelsizPage() {
     sock.on("presence", onPresence);
     sock.on("speaker_start", onSpeakerStart);
     sock.on("speaker_end", onSpeakerEnd);
-    sock.on("voice_chunk", onVoiceChunk);
+    sock.on("voice", onVoice);
     sock.on("ptt_granted", onPttGranted);
     sock.on("ptt_denied", onPttDenied);
     sock.on("hand_raises", onHandRaises);
@@ -415,19 +395,17 @@ export function YolculukTelsizPage() {
       sock.off("presence", onPresence);
       sock.off("speaker_start", onSpeakerStart);
       sock.off("speaker_end", onSpeakerEnd);
-      sock.off("voice_chunk", onVoiceChunk);
+      sock.off("voice", onVoice);
       sock.off("ptt_granted", onPttGranted);
       sock.off("ptt_denied", onPttDenied);
       sock.off("hand_raises", onHandRaises);
       sock.off("report_result", onReportResult);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, isMe, playChunk]);
+  }, [token, isMe, enqueueAudio]);
 
-  // Sayfadan çıkarken her şeyi serbest bırak
   useEffect(() => {
     return () => {
-      stopCapture();
+      abortRecording();
       if (speakerGuardRef.current) clearTimeout(speakerGuardRef.current);
       if (receivingTimerRef.current) clearTimeout(receivingTimerRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -438,6 +416,8 @@ export function YolculukTelsizPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Kanal yönetimi ────────────────────────────────────────────────────────
 
   function selectChannel(ch: TelsizChannel) {
     unlockAudio();
@@ -450,6 +430,17 @@ export function YolculukTelsizPage() {
     socketRef.current?.emit("join_channel", { channelId: ch.id });
   }
 
+  function leaveChannel() {
+    stopTalking();
+    const id = channelIdRef.current;
+    if (id) socketRef.current?.emit("leave_channel", { channelId: id });
+    channelIdRef.current = null;
+    setChannel(null);
+    setMembers([]);
+    setSpeaker(null);
+    setHandRaises(new Set());
+  }
+
   function sendReport(reportedUserId: string) {
     const id = channelIdRef.current;
     const sock = socketRef.current;
@@ -459,28 +450,13 @@ export function YolculukTelsizPage() {
     setTimeout(() => reportingRef.current.delete(reportedUserId), 5000);
   }
 
-  function leaveChannel() {
-    stopTalking();
-    const id = channelIdRef.current;
-    if (id) socketRef.current?.emit("leave_channel", { channelId: id });
-    channelIdRef.current = null;
-    setChannel(null);
-    setMembers([]);
-    setSpeaker(null);
-  }
-
-  // Boşluk tuşu ile bas-konuş
+  // Boşluk tuşu PTT
   useEffect(() => {
     if (!channel) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.code !== "Space" || e.repeat) return;
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      )
-        return;
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
       e.preventDefault();
       void startTalking();
     }
@@ -499,6 +475,8 @@ export function YolculukTelsizPage() {
 
   const someoneElseTalking = !!speaker && !isTransmitting;
   const pttDisabled = someoneElseTalking;
+
+  // ── UI ────────────────────────────────────────────────────────────────────
 
   return (
     <PageContainer>
@@ -541,9 +519,7 @@ export function YolculukTelsizPage() {
         <div className="mt-10 rounded-2xl border border-border bg-surface p-8 text-center">
           <Radio className="mx-auto h-10 w-10 text-muted" />
           <p className="mt-3 font-semibold text-text">Telsizi kullanmak için giriş yapın</p>
-          <p className="mt-1 text-sm text-muted">
-            Bas-konuş özelliği yalnızca üyeler içindir.
-          </p>
+          <p className="mt-1 text-sm text-muted">Bas-konuş özelliği yalnızca üyeler içindir.</p>
           <Link href="/giris" className="mt-4 inline-block">
             <Button>Giriş yap</Button>
           </Link>
@@ -552,32 +528,19 @@ export function YolculukTelsizPage() {
         <ChannelPicker onSelect={selectChannel} />
       ) : (
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_280px]">
-          {/* Ana telsiz paneli */}
+          {/* Ana panel */}
           <div className="flex flex-col items-center rounded-2xl border border-border bg-surface p-6">
             <div className="flex w-full items-center justify-between">
-              <button
-                onClick={leaveChannel}
-                className="text-sm text-muted hover:text-text"
-              >
+              <button onClick={leaveChannel} className="text-sm text-muted hover:text-text">
                 ← Kanal değiştir
               </button>
               <button
                 onClick={() => setMuted((m) => !m)}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  muted
-                    ? "bg-danger/10 text-danger"
-                    : "bg-background text-muted hover:text-text"
+                  muted ? "bg-danger/10 text-danger" : "bg-background text-muted hover:text-text"
                 }`}
               >
-                {muted ? (
-                  <>
-                    <VolumeX className="h-4 w-4" /> Sesi aç
-                  </>
-                ) : (
-                  <>
-                    <Volume2 className="h-4 w-4" /> Ses açık
-                  </>
-                )}
+                {muted ? <><VolumeX className="h-4 w-4" /> Sesi aç</> : <><Volume2 className="h-4 w-4" /> Ses açık</>}
               </button>
             </div>
 
@@ -586,7 +549,6 @@ export function YolculukTelsizPage() {
               <p className="text-xs text-muted">{channel.description}</p>
             </div>
 
-            {/* Durum göstergesi */}
             <div className="mt-6 flex h-6 items-center">
               {isTransmitting ? (
                 <span className="inline-flex items-center gap-2 rounded-full bg-danger/10 px-3 py-1 text-sm font-semibold text-danger">
@@ -611,22 +573,11 @@ export function YolculukTelsizPage() {
             <button
               type="button"
               disabled={pttDisabled}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                void startTalking();
-              }}
+              onMouseDown={(e) => { e.preventDefault(); void startTalking(); }}
               onMouseUp={stopTalking}
-              onMouseLeave={() => {
-                if (talkingRef.current) stopTalking();
-              }}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                void startTalking();
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                stopTalking();
-              }}
+              onMouseLeave={() => { if (talkingRef.current) stopTalking(); }}
+              onTouchStart={(e) => { e.preventDefault(); void startTalking(); }}
+              onTouchEnd={(e) => { e.preventDefault(); stopTalking(); }}
               onContextMenu={(e) => e.preventDefault()}
               className={`mt-6 flex h-44 w-44 select-none flex-col items-center justify-center rounded-full border-4 text-white shadow-lg transition-all touch-none ${
                 isTransmitting
@@ -644,10 +595,8 @@ export function YolculukTelsizPage() {
 
             <p className="mt-4 text-center text-xs text-muted">
               Butonu basılı tutun ya da{" "}
-              <kbd className="rounded border border-border bg-background px-1.5 py-0.5">
-                Boşluk
-              </kbd>{" "}
-              tuşunu kullanın. Sesiniz konuşurken canlı olarak iletilir.
+              <kbd className="rounded border border-border bg-background px-1.5 py-0.5">Boşluk</kbd>{" "}
+              tuşunu kullanın. Bıraktığınızda ses iletilir.
             </p>
 
             {busyNotice && (
@@ -662,7 +611,7 @@ export function YolculukTelsizPage() {
             )}
           </div>
 
-          {/* Dinleyiciler */}
+          {/* Üye listesi */}
           <div className="rounded-2xl border border-border bg-surface p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-text">
               <Users className="h-4 w-4 text-primary" />
@@ -692,18 +641,14 @@ export function YolculukTelsizPage() {
                       />
                       <span className="min-w-0 flex-1 truncate text-text">
                         {m.displayName}
-                        {mine && (
-                          <span className="ml-1 text-xs text-muted">(siz)</span>
-                        )}
+                        {mine && <span className="ml-1 text-xs text-muted">(siz)</span>}
                       </span>
                       {raisingHand && (
                         <span title="Konuşmak istiyor">
                           <Hand className="h-3.5 w-3.5 shrink-0 text-warning" />
                         </span>
                       )}
-                      {talking && (
-                        <Mic className="h-3.5 w-3.5 shrink-0 text-danger" />
-                      )}
+                      {talking && <Mic className="h-3.5 w-3.5 shrink-0 text-danger" />}
                       {!mine && (
                         <button
                           type="button"
@@ -730,10 +675,9 @@ export function YolculukTelsizPage() {
 
       <div className="mt-8 rounded-xl border border-border bg-background p-4 text-xs leading-relaxed text-muted">
         <strong className="text-text">Nasıl çalışır?</strong> Bir kanal seçin,
-        mikrofon iznini verin ve konuşmak için butonu basılı tutun. Sesiniz
-        konuşurken <em>canlı</em> olarak kanaldaki üyelere iletilir. Aynı anda
-        yalnızca bir kişi konuşabilir; siz konuşurken kanal diğerleri için
-        &ldquo;meşgul&rdquo; olur. Sesler kaydedilmez.
+        mikrofon iznini verin ve konuşmak için butonu basılı tutun. Bıraktığınızda
+        ses kanaldaki üyelere iletilir. Aynı anda yalnızca bir kişi
+        konuşabilir. Sesler kaydedilmez.
       </div>
     </PageContainer>
   );
