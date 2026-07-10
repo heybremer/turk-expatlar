@@ -96,10 +96,20 @@ export function YolculukTelsizPage() {
   }, []);
 
   const enqueueAudio = useCallback(
-    (dataUrl: string) => {
+    (base64: string, mime: string) => {
       if (mutedRef.current) return;
-      audioQueueRef.current.push(dataUrl);
-      playNext();
+      // base64 → Blob: büyük kliplerde data: URL sınırına takılmamak için
+      // blob: URL üzerinden çalınır (CSP media-src blob: ile uyumlu)
+      try {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: mime || "audio/webm" });
+        audioQueueRef.current.push(URL.createObjectURL(blob));
+        playNext();
+      } catch {
+        // bozuk base64 — klibi atla
+      }
     },
     [playNext],
   );
@@ -145,7 +155,7 @@ export function YolculukTelsizPage() {
     }) => {
       if (data.channelId !== channelIdRef.current) return;
       if (isMe(data.userId)) return;
-      enqueueAudio(`data:${data.mime};base64,${data.audio}`);
+      enqueueAudio(data.audio, data.mime);
     };
     const onPttGranted = () => {
       grantedRef.current = true;

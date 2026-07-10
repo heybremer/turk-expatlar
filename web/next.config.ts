@@ -12,10 +12,10 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Referrer bilgisi kısıtlama
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Permissions API kısıtlama
+  // Permissions API kısıtlama — mikrofon Yolculuk Telsiz (PTT) için gerekli
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(self), payment=()",
+    value: "camera=(), microphone=(self), geolocation=(self), payment=()",
   },
   // HTTPS zorunluluğu (production)
   ...(process.env.NODE_ENV === "production"
@@ -35,6 +35,8 @@ const securityHeaders = [
       `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
       `font-src 'self' https://fonts.gstatic.com`,
       `img-src 'self' data: blob: https: http: ${CDN_HOST}`,
+      // Telsiz/sohbet ses klipleri data: ve blob: URL ile çalınır
+      `media-src 'self' data: blob: ${API_URL}`,
       `connect-src 'self' ${API_URL} wss: ws: https://www.google-analytics.com`,
       `frame-src 'none'`,
       `object-src 'none'`,
