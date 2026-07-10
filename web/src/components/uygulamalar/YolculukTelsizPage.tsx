@@ -697,10 +697,9 @@ export function YolculukTelsizPage() {
                         )}
                       </span>
                       {raisingHand && (
-                        <Hand
-                          className="h-3.5 w-3.5 shrink-0 text-warning"
-                          title="Konuşmak istiyor"
-                        />
+                        <span title="Konuşmak istiyor">
+                          <Hand className="h-3.5 w-3.5 shrink-0 text-warning" />
+                        </span>
                       )}
                       {talking && (
                         <Mic className="h-3.5 w-3.5 shrink-0 text-danger" />
