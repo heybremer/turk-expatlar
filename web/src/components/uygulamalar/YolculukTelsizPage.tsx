@@ -71,8 +71,12 @@ export function YolculukTelsizPage() {
   const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Gelen ses klipleri sırayla çalınır
-  const audioQueueRef = useRef<string[]>([]);
+  const audioQueueRef = useRef<{ url: string; durationMs: number }[]>([]);
   const playingRef = useRef(false);
+  // Karşı tarafın "konuşuyor" kilidi sunucudan speaker_end gelmezse
+  // takılı kalmasın diye emniyet zamanlayıcısı
+  const speakerGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startTimeRef = useRef(0);
   // iOS: programatik ses çalma ancak kullanıcı dokunuşuyla "kilidi açılmış"
   // tek bir Audio elemanı üzerinden güvenilir çalışır
   const audioElRef = useRef<HTMLAudioElement | null>(null);
@@ -102,8 +106,8 @@ export function YolculukTelsizPage() {
 
   const playNext = useCallback(() => {
     if (playingRef.current) return;
-    const url = audioQueueRef.current.shift();
-    if (!url) {
+    const item = audioQueueRef.current.shift();
+    if (!item) {
       setReceiving(false);
       return;
     }
@@ -111,21 +115,31 @@ export function YolculukTelsizPage() {
     setReceiving(true);
     if (!audioElRef.current) audioElRef.current = new Audio();
     const audio = audioElRef.current;
+    let finished = false;
+    // Bekçi: onended/onerror hiç ateşlenmezse (mobilde takılı kalan
+    // yükleme) kuyruk sonsuza dek kilitlenmesin
+    const watchdog = setTimeout(
+      () => done(),
+      Math.max(10_000, item.durationMs + 5_000),
+    );
     const done = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(watchdog);
       audio.onended = null;
       audio.onerror = null;
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(item.url);
       playingRef.current = false;
       playNext();
     };
     audio.onended = done;
     audio.onerror = done;
-    audio.src = url;
+    audio.src = item.url;
     void audio.play().catch(done);
   }, []);
 
   const enqueueAudio = useCallback(
-    (base64: string, mime: string) => {
+    (base64: string, mime: string, durationMs: number) => {
       if (mutedRef.current) return;
       // base64 → Blob: büyük kliplerde data: URL sınırına takılmamak için
       // blob: URL üzerinden çalınır (CSP media-src blob: ile uyumlu)
@@ -134,7 +148,10 @@ export function YolculukTelsizPage() {
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         const blob = new Blob([bytes], { type: mime || "audio/webm" });
-        audioQueueRef.current.push(URL.createObjectURL(blob));
+        audioQueueRef.current.push({
+          url: URL.createObjectURL(blob),
+          durationMs: durationMs || 0,
+        });
         playNext();
       } catch {
         // bozuk base64 — klibi atla
@@ -171,9 +188,19 @@ export function YolculukTelsizPage() {
       if (data.channelId !== channelIdRef.current) return;
       if (isMe(data.userId)) return;
       setSpeaker({ userId: data.userId, displayName: data.displayName });
+      // speaker_end kaybolursa buton süresiz kilitli kalmasın
+      if (speakerGuardRef.current) clearTimeout(speakerGuardRef.current);
+      speakerGuardRef.current = setTimeout(
+        () => setSpeaker(null),
+        MAX_TALK_MS + 5_000,
+      );
     };
     const onSpeakerEnd = (data: { channelId: string }) => {
       if (data.channelId !== channelIdRef.current) return;
+      if (speakerGuardRef.current) {
+        clearTimeout(speakerGuardRef.current);
+        speakerGuardRef.current = null;
+      }
       setSpeaker(null);
     };
     const onVoice = (data: {
@@ -181,10 +208,11 @@ export function YolculukTelsizPage() {
       userId: string;
       audio: string;
       mime: string;
+      durationMs?: number;
     }) => {
       if (data.channelId !== channelIdRef.current) return;
       if (isMe(data.userId)) return;
-      enqueueAudio(data.audio, data.mime);
+      enqueueAudio(data.audio, data.mime, data.durationMs ?? 0);
     };
     const onPttGranted = () => {
       grantedRef.current = true;
@@ -223,6 +251,7 @@ export function YolculukTelsizPage() {
   useEffect(() => {
     return () => {
       if (autoStopRef.current) clearTimeout(autoStopRef.current);
+      if (speakerGuardRef.current) clearTimeout(speakerGuardRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       disconnectTelsizSocket();
@@ -250,7 +279,18 @@ export function YolculukTelsizPage() {
   }
 
   async function ensureStream(): Promise<MediaStream | null> {
-    if (streamRef.current) return streamRef.current;
+    // Mobil tarayıcılarda (özellikle iOS) hoparlörden ses çalındıktan sonra
+    // eldeki mikrofon track'i sessizce ölebilir/muted olabilir.
+    // Track canlı değilse akışı bırakıp yeniden al.
+    const existing = streamRef.current;
+    if (existing) {
+      const track = existing.getAudioTracks()[0];
+      if (track && track.readyState === "live" && !track.muted) {
+        return existing;
+      }
+      existing.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -320,6 +360,12 @@ export function YolculukTelsizPage() {
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
     };
+    // Kayıt sırasında hata olursa (ör. mikrofon track'i öldü) kanal
+    // kilidini mutlaka bırak — yoksa 30 sn boyunca kimse konuşamaz
+    recorder.onerror = () => {
+      abortRecording();
+      sock.emit("ptt_end", { channelId: id });
+    };
     recorder.onstop = () => {
       const wasGranted = grantedRef.current;
       const chunks = chunksRef.current;
@@ -327,29 +373,39 @@ export function YolculukTelsizPage() {
       const blob = new Blob(chunks, {
         type: recorder.mimeType || "audio/webm",
       });
+      const durationMs = Date.now() - startTimeRef.current;
       setIsTransmitting(false);
+      // Kanal kilidi her koşulda bırakılmalı
+      const finish = () => sock.emit("ptt_end", { channelId: id });
       // İzin verildiyse ve ses varsa yayınla
       if (wasGranted && blob.size > 0 && channelIdRef.current === id) {
         const reader = new FileReader();
         reader.onloadend = () => {
-          const result = reader.result as string;
-          const base64 = result.split(",")[1] ?? "";
-          if (base64) {
-            sock.emit("ptt_audio", {
-              channelId: id,
-              audio: base64,
-              mime: blob.type,
-            });
+          try {
+            const result =
+              typeof reader.result === "string" ? reader.result : "";
+            const base64 = result.split(",")[1] ?? "";
+            if (base64) {
+              sock.emit("ptt_audio", {
+                channelId: id,
+                audio: base64,
+                mime: blob.type,
+                durationMs,
+              });
+            }
+          } finally {
+            finish();
           }
-          sock.emit("ptt_end", { channelId: id });
         };
+        reader.onerror = finish;
         reader.readAsDataURL(blob);
       } else {
-        sock.emit("ptt_end", { channelId: id });
+        finish();
       }
       grantedRef.current = false;
     };
 
+    startTimeRef.current = Date.now();
     recorder.start();
     setIsTransmitting(true);
 
