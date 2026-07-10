@@ -410,6 +410,83 @@ function pickReply(
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   OpenAI entegrasyonu — OPENAI_API_KEY tanımlıysa cevap gerçek AI ile üretilir.
+   Anahtar yoksa veya istek başarısız olursa yukarıdaki sabit cevap bankasına
+   (REPLY_BANK) sessizce düşülür; bot hiçbir zaman cevapsız kalmaz.
+───────────────────────────────────────────────────────────────────────────── */
+
+const AI_SYSTEM_PROMPT = `Sen Almanya'da 10 yıldan uzun süredir yaşayan, deneyimli bir Türk gurbetçisisin. Bir Türk gurbetçi forumunda gerçek bir üye gibi yorum yapıyorsun.
+
+Kurallar:
+- Türkçe yaz, kısa ve doğal ol (1-3 cümle, en fazla ~350 karakter).
+- Samimi ve gündelik bir forum dili kullan; resmi, robotik, madde işaretli ya da başlıklı yazma.
+- Konuyla doğrudan ilgili, gerçekten faydalı bir cevap ver; boş, genel geçer cümlelerle doldurma.
+- Kesin hukuki, tıbbi veya vergi tavsiyesi verir gibi görünme; kendi tecrübeni paylaşır gibi konuş, gerekirse "bir uzmana/derneğe sorman iyi olur" gibi hafif bir not ekle.
+- Emoji kullanma, aşırı noktalama işareti kullanma.
+- Sadece cevap metnini yaz; tırnak işareti, "Cevap:" gibi ekler veya selamlama/imza koyma.`;
+
+/** OpenAI Chat Completions API'sini çağırıp kısa bir forum cevabı üret */
+async function generateAiReply(
+  title: string,
+  body: string,
+  categoryName: string | undefined,
+  logger: Logger,
+): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  const model = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
+  const userPrompt = `Forum kategorisi: ${categoryName ?? 'Genel'}\nKonu başlığı: ${title}\nKonu içeriği: ${body}\n\nBu konuya kısa bir forum cevabı yaz.`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: AI_SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: 180,
+        temperature: 0.9,
+        presence_penalty: 0.3,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      logger.warn(
+        `OpenAI isteği başarısız (${res.status}), sabit cevap bankasına düşülüyor: ${errText.slice(0, 200)}`,
+      );
+      return null;
+    }
+
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const raw = data.choices?.[0]?.message?.content;
+    if (typeof raw !== 'string') return null;
+
+    const cleaned = raw.trim().replace(/^["'“”]+|["'“”]+$/g, '');
+    if (cleaned.length < 5) return null;
+    return cleaned.slice(0, 600);
+  } catch (err) {
+    logger.warn(`OpenAI çağrısı hata verdi, sabit cevap bankasına düşülüyor: ${String(err)}`);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Cevap botu — konu açmaz, açık kalan konulara doğal, kısa cevap yazar.
    seed.ts'teki 'bot-derya@turkexpatlar.de' hesabı ile senkron olmalı.
 ───────────────────────────────────────────────────────────────────────────── */
@@ -451,22 +528,38 @@ export class ForumReplyBotService {
         id: true,
         title: true,
         body: true,
-        category: { select: { slug: true } },
+        category: { select: { slug: true, name: true } },
       },
     });
   }
 
+  /** AI varsa AI cevabı, yoksa/başarısızsa sabit cevap bankasından seç */
+  private async resolveReply(topic: {
+    title: string;
+    body: string;
+    category: { slug: string; name: string } | null;
+  }): Promise<{ reply: string; aiUsed: boolean }> {
+    const aiReply = await generateAiReply(
+      topic.title,
+      topic.body,
+      topic.category?.name,
+      this.logger,
+    );
+    const reply = aiReply ?? pickReply(topic.category?.slug, topic.title, topic.body);
+    return { reply, aiUsed: aiReply !== null };
+  }
+
   /** Manuel tetikleme (admin) — hemen bir konuya cevap yaz */
-  async replyNow(): Promise<{ topicTitle: string; reply: string }> {
+  async replyNow(): Promise<{ topicTitle: string; reply: string; aiUsed: boolean }> {
     const botUserId = await this.getBotUserId();
     if (!botUserId) throw new Error('Cevap botu kullanıcısı bulunamadı');
 
     const topic = await this.findTopicToAnswer(botUserId);
     if (!topic) throw new Error('Cevaplanacak uygun konu bulunamadı');
 
-    const reply = pickReply(topic.category?.slug, topic.title, topic.body);
+    const { reply, aiUsed } = await this.resolveReply(topic);
     await this.forumService.createReply(topic.id, botUserId, { body: reply });
-    return { topicTitle: topic.title, reply };
+    return { topicTitle: topic.title, reply, aiUsed };
   }
 
   /** Kaç adet açık/cevaplanmamış konu bekliyor (admin dashboard için) */
@@ -517,9 +610,11 @@ export class ForumReplyBotService {
         return;
       }
 
-      const reply = pickReply(topic.category?.slug, topic.title, topic.body);
+      const { reply, aiUsed } = await this.resolveReply(topic);
       await this.forumService.createReply(topic.id, botUserId, { body: reply });
-      this.logger.log(`Forum cevabı yazıldı: "${topic.title.substring(0, 60)}"`);
+      this.logger.log(
+        `Forum cevabı yazıldı${aiUsed ? ' (AI)' : ' (sabit havuz)'}: "${topic.title.substring(0, 60)}"`,
+      );
     } catch (err) {
       this.logger.error('Forum cevap botu hatası:', err);
     }
