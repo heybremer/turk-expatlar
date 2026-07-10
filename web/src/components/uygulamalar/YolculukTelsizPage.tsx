@@ -27,10 +27,14 @@ const MAX_TALK_MS = 30_000;
 
 function pickMimeType(): string {
   if (typeof MediaRecorder === "undefined") return "";
+  // MP4/AAC her platformda (özellikle iOS Safari) çalınabildiği için önceliklidir.
+  // Android'in varsayılanı WebM/Opus iPhone'da ÇALINAMAZ — bu yüzden webm
+  // yalnızca mp4 desteklenmiyorsa son çare olarak kullanılır.
   const candidates = [
+    "audio/mp4;codecs=mp4a.40.2",
+    "audio/mp4",
     "audio/webm;codecs=opus",
     "audio/webm",
-    "audio/mp4",
     "audio/ogg;codecs=opus",
   ];
   for (const type of candidates) {
@@ -38,6 +42,10 @@ function pickMimeType(): string {
   }
   return "";
 }
+
+// Kısa sessiz WAV — iOS'ta ses çalmayı kullanıcı dokunuşuyla "kilidini açmak" için
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
 export function YolculukTelsizPage() {
   const { token, user } = useAuth();
@@ -65,6 +73,10 @@ export function YolculukTelsizPage() {
   // Gelen ses klipleri sırayla çalınır
   const audioQueueRef = useRef<string[]>([]);
   const playingRef = useRef(false);
+  // iOS: programatik ses çalma ancak kullanıcı dokunuşuyla "kilidi açılmış"
+  // tek bir Audio elemanı üzerinden güvenilir çalışır
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const audioUnlockedRef = useRef(false);
 
   mutedRef.current = muted;
 
@@ -72,6 +84,21 @@ export function YolculukTelsizPage() {
     (userId: string) => !!user && user.id === userId,
     [user],
   );
+
+  const unlockAudio = useCallback(() => {
+    if (audioUnlockedRef.current) return;
+    if (!audioElRef.current) audioElRef.current = new Audio();
+    const audio = audioElRef.current;
+    audio.src = SILENT_WAV;
+    void audio
+      .play()
+      .then(() => {
+        audioUnlockedRef.current = true;
+      })
+      .catch(() => {
+        // Sonraki dokunuşta tekrar denenir
+      });
+  }, []);
 
   const playNext = useCallback(() => {
     if (playingRef.current) return;
@@ -82,17 +109,19 @@ export function YolculukTelsizPage() {
     }
     playingRef.current = true;
     setReceiving(true);
-    const audio = new Audio(url);
-    audio.onended = audio.onerror = () => {
+    if (!audioElRef.current) audioElRef.current = new Audio();
+    const audio = audioElRef.current;
+    const done = () => {
+      audio.onended = null;
+      audio.onerror = null;
       URL.revokeObjectURL(url);
       playingRef.current = false;
       playNext();
     };
-    void audio.play().catch(() => {
-      URL.revokeObjectURL(url);
-      playingRef.current = false;
-      playNext();
-    });
+    audio.onended = done;
+    audio.onerror = done;
+    audio.src = url;
+    void audio.play().catch(done);
   }, []);
 
   const enqueueAudio = useCallback(
@@ -201,6 +230,8 @@ export function YolculukTelsizPage() {
   }, []);
 
   function selectChannel(ch: TelsizChannel) {
+    // Kanal seçimi bir kullanıcı dokunuşu — iOS ses çalma kilidini burada aç
+    unlockAudio();
     channelIdRef.current = ch.id;
     setChannel(ch);
     setMembers([]);
@@ -251,6 +282,7 @@ export function YolculukTelsizPage() {
   }
 
   async function startTalking() {
+    unlockAudio();
     const id = channelIdRef.current;
     const sock = socketRef.current;
     if (!id || !sock || !token) return;
