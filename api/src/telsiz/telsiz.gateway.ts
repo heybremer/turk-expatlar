@@ -82,6 +82,8 @@ export class TelsizGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.userId = payload.sub;
       client.displayName = profile?.displayName ?? 'Gezgin';
       client.avatarUrl = profile?.avatarUrl ?? null;
+      // Kimlik doğrulama tamam — istemci artık güvenle join_channel gönderebilir
+      client.emit('telsiz_ready');
     } catch {
       client.disconnect();
     }

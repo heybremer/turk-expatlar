@@ -328,6 +328,10 @@ export function YolculukTelsizPage() {
 
     const onConnect = () => {
       setConnected(true);
+    };
+    // Sunucu kimlik doğrulamasını bitirince gönderilir — join ancak bundan
+    // sonra güvenli (erken join, userId atanmadan sessizce düşüyordu)
+    const onReady = () => {
       if (channelIdRef.current) sock.emit("join_channel", { channelId: channelIdRef.current });
     };
     const onDisconnect = () => {
@@ -378,6 +382,7 @@ export function YolculukTelsizPage() {
     };
 
     sock.on("connect", onConnect);
+    sock.on("telsiz_ready", onReady);
     sock.on("disconnect", onDisconnect);
     sock.on("presence", onPresence);
     sock.on("speaker_start", onSpeakerStart);
@@ -391,6 +396,7 @@ export function YolculukTelsizPage() {
 
     return () => {
       sock.off("connect", onConnect);
+      sock.off("telsiz_ready", onReady);
       sock.off("disconnect", onDisconnect);
       sock.off("presence", onPresence);
       sock.off("speaker_start", onSpeakerStart);
