@@ -1,8 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { EventStatus, TravelStatus } from '@prisma/client';
+import {
+  CourierStatus,
+  EventStatus,
+  JobStatus,
+  SubscriptionStatus,
+  TravelStatus,
+} from '@prisma/client';
 import { GamificationService } from '../gamification/gamification.service';
+
+const COURIER_GRACE_PERIOD_DAYS = 7;
+const COURIER_MAX_AGE_DAYS = 90;
 
 @Injectable()
 export class TasksService {
@@ -129,6 +138,70 @@ export class TasksService {
     });
     if (result.count > 0) {
       this.logger.log(`${result.count} eski bildirim temizlendi`);
+    }
+  }
+
+  /**
+   * Her gece 02:15'te süresi geçmiş iş ilanlarını EXPIRED yap
+   */
+  @Cron('15 2 * * *')
+  async expireJobPostings() {
+    const result = await this.prisma.jobPosting.updateMany({
+      where: {
+        status: JobStatus.PUBLISHED,
+        expiresAt: { not: null, lt: new Date() },
+      },
+      data: { status: JobStatus.EXPIRED },
+    });
+    if (result.count > 0) {
+      this.logger.log(`${result.count} iş ilanı süresi doldu (EXPIRED)`);
+    }
+  }
+
+  /**
+   * Her gece 02:45'te süresi geçmiş kurye taleplerini EXPIRED yap.
+   * Tercih edilen tarihi geçen ve makul bir süre bekleyen, ya da tarih
+   * belirtilmeden çok eski kalan açık talepler kapsanır.
+   */
+  @Cron('45 2 * * *')
+  async expireCourierRequests() {
+    const now = new Date();
+    const gracePeriodCutoff = new Date(
+      now.getTime() - COURIER_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const maxAgeCutoff = new Date(
+      now.getTime() - COURIER_MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    const result = await this.prisma.courierRequest.updateMany({
+      where: {
+        status: CourierStatus.OPEN,
+        OR: [
+          { preferredDate: { not: null, lt: gracePeriodCutoff } },
+          { preferredDate: null, createdAt: { lt: maxAgeCutoff } },
+        ],
+      },
+      data: { status: CourierStatus.EXPIRED },
+    });
+    if (result.count > 0) {
+      this.logger.log(`${result.count} kurye talebi süresi doldu (EXPIRED)`);
+    }
+  }
+
+  /**
+   * Her gece 03:15'te süresi geçmiş üyelikleri EXPIRED yap
+   */
+  @Cron('15 3 * * *')
+  async expireSubscriptions() {
+    const result = await this.prisma.subscription.updateMany({
+      where: {
+        status: SubscriptionStatus.ACTIVE,
+        expiresAt: { not: null, lt: new Date() },
+      },
+      data: { status: SubscriptionStatus.EXPIRED },
+    });
+    if (result.count > 0) {
+      this.logger.log(`${result.count} üyelik süresi doldu (EXPIRED)`);
     }
   }
 }
