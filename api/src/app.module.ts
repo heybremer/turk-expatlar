@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { RedisModule } from './redis/redis.module';
 import { FeatureFlagGuard } from './common/guards/feature-flag.guard';
 import { AdminModule } from './admin/admin.module';
@@ -65,7 +67,9 @@ import { TelsizModule } from './telsiz/telsiz.module';
     GamificationModule,
     TelsizModule,
   ],
+  controllers: [AppController],
   providers: [
+    AppService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
