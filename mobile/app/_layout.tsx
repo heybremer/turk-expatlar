@@ -10,8 +10,10 @@ import { useAuth } from "@/lib/auth";
 import { queryClient } from "@/lib/query-client";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { NavigationMenuProvider } from "@/components/navigation/NavigationMenu";
+import { initSentry, Sentry } from "@/lib/sentry";
 
 SplashScreen.preventAutoHideAsync();
+initSentry();
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { token, _hasHydrated } = useAuth();
@@ -55,7 +57,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
@@ -80,3 +82,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);
