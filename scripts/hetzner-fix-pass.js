@@ -1,7 +1,14 @@
 const { Client } = require("ssh2");
 
 const OLD = process.env.HETZNER_PASS;
-const NEW = process.env.HETZNER_PASS_NEW || "TurkExpatlarHetzner2026!";
+const NEW = process.env.HETZNER_PASS_NEW;
+
+if (!process.env.HETZNER_HOST || !OLD || !NEW) {
+  console.error(
+    "HETZNER_HOST, HETZNER_PASS (mevcut şifre) ve HETZNER_PASS_NEW (yeni şifre) ortam değişkenleri gerekli",
+  );
+  process.exit(1);
+}
 
 function delay(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -32,8 +39,8 @@ conn
     });
   })
   .connect({
-    host: "159.69.23.193",
+    host: process.env.HETZNER_HOST,
     port: 22,
-    username: "root",
+    username: process.env.HETZNER_USER || "root",
     password: OLD,
   });

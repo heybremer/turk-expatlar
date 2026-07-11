@@ -11,6 +11,11 @@ const PASS = process.env.HETZNER_PASS;
 const ROOT = path.resolve(__dirname, "..");
 const TAR = path.join(ROOT, "hetzner-api.tar.gz");
 
+if (!process.env.HETZNER_HOST || !PASS) {
+  console.error("HETZNER_HOST ve HETZNER_PASS ortam değişkenleri gerekli");
+  process.exit(1);
+}
+
 function exec(conn, cmd, label) {
   return new Promise((resolve, reject) => {
     console.log(`\n==> ${label}`);
@@ -74,4 +79,4 @@ tail -5 /opt/turkexpatlar/api/logs/api-error-0.log
       conn.end();
     }
   })
-  .connect({ host: "159.69.23.193", username: "root", password: PASS });
+  .connect({ host: process.env.HETZNER_HOST, username: "root", password: PASS });

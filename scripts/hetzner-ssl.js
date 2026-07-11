@@ -1,4 +1,10 @@
 const { Client } = require("ssh2");
+
+if (!process.env.HETZNER_HOST || !process.env.HETZNER_PASS) {
+  console.error("HETZNER_HOST ve HETZNER_PASS ortam değişkenleri gerekli");
+  process.exit(1);
+}
+
 const conn = new Client();
 conn
   .on("ready", () => {
@@ -25,7 +31,7 @@ conn
     );
   })
   .connect({
-    host: "159.69.23.193",
+    host: process.env.HETZNER_HOST,
     username: "root",
     password: process.env.HETZNER_PASS,
   });
