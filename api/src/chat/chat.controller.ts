@@ -222,6 +222,29 @@ export class ChatController {
       .then((count) => ({ count }));
   }
 
+  // Kanal başına okunmamış mesaj özeti (genel + kullanıcının bölge kanalları)
+  @Get('unread-summary')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  getUnreadSummary(@CurrentUser() user: { id: string }) {
+    return this.chatService.getChannelUnreadSummary(user.id);
+  }
+
+  // Kanal/DM fark etmeksizin okundu işareti (socket bağlantısı yokken)
+  @Patch(':chatId/read')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async markRead(
+    @CurrentUser() user: { id: string },
+    @Param('chatId') chatId: string,
+  ) {
+    const result = await this.chatService.markRead(chatId, user.id);
+    if (result.isDm) {
+      this.chatGateway.emitReadReceipt(chatId, user.id, result.lastReadAt);
+    }
+    return result;
+  }
+
   @Patch('dm/:chatId/read')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)

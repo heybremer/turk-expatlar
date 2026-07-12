@@ -8,6 +8,8 @@ import { ChatType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 
+const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
 @Injectable()
 export class ChatService {
   constructor(private prisma: PrismaService) {}
@@ -422,6 +424,45 @@ export class ChatService {
     return message;
   }
 
+  /**
+   * Düzenlenebilirlik kontrolü: yalnızca kendi mesajı, silinmemiş ve
+   * düzenleme penceresi (15 dk) içinde. Moderasyon kontrolü gateway'de
+   * yapılıp ardından applyMessageEdit çağrılır.
+   */
+  async getEditableMessage(messageId: string, userId: string) {
+    const msg = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        chatId: true,
+        userId: true,
+        deletedAt: true,
+        createdAt: true,
+        attachments: true,
+      },
+    });
+    if (!msg || msg.deletedAt) throw new NotFoundException('Mesaj bulunamadı');
+    if (msg.userId !== userId) {
+      throw new ForbiddenException('Bu mesajı düzenleyemezsiniz');
+    }
+    if (Date.now() - msg.createdAt.getTime() > MESSAGE_EDIT_WINDOW_MS) {
+      throw new ForbiddenException(
+        'Düzenleme süresi doldu (gönderimden sonra 15 dakika)',
+      );
+    }
+    const hasAttachments =
+      Array.isArray(msg.attachments) && msg.attachments.length > 0;
+    return { chatId: msg.chatId, hasAttachments };
+  }
+
+  async applyMessageEdit(messageId: string, body: string) {
+    return this.prisma.message.update({
+      where: { id: messageId },
+      data: { body, editedAt: new Date() },
+      select: { id: true, chatId: true, body: true, editedAt: true },
+    });
+  }
+
   async deleteMessage(messageId: string, userId: string, isAdmin = false) {
     const msg = await this.prisma.message.findUnique({
       where: { id: messageId },
@@ -794,6 +835,80 @@ export class ChatService {
       throw new ForbiddenException('Bu sohbete erişiminiz yok');
     }
     return { lastReadAt: now.toISOString() };
+  }
+
+  /**
+   * Sohbet türünden bağımsız okundu işareti: DM'lerde ChatMember.lastReadAt,
+   * kanallarda ChatReadState güncellenir. Okundu bildirimi (görüldü) yalnızca
+   * DM'ler için anlamlıdır — dönüş değerindeki isDm buna göre kullanılır.
+   */
+  async markRead(chatId: string, userId: string) {
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: { type: true },
+    });
+    if (!chat) throw new NotFoundException('Sohbet bulunamadı');
+
+    if (chat.type === ChatType.DIRECT) {
+      const result = await this.markDmRead(chatId, userId);
+      return { ...result, isDm: true };
+    }
+
+    const denied = await this.checkRoomAccess(chatId, userId);
+    if (denied) throw new ForbiddenException('Bu odaya erişiminiz yok');
+
+    const now = new Date();
+    await this.prisma.chatReadState.upsert({
+      where: { chatId_userId: { chatId, userId } },
+      create: { chatId, userId, lastReadAt: now },
+      update: { lastReadAt: now },
+    });
+    return { lastReadAt: now.toISOString(), isDm: false };
+  }
+
+  /**
+   * Kullanıcının kanallarındaki (genel + eyalet + şehir) okunmamış mesaj
+   * sayıları. Hiç okuma kaydı olmayan kanallarda son 24 saat baz alınır;
+   * aksi halde tüm kanal geçmişi "okunmamış" görünürdü.
+   */
+  async getChannelUnreadSummary(userId: string) {
+    const chatIds = await this.getPresenceChatIds(userId);
+    if (chatIds.length === 0) return [];
+
+    const chats = await this.prisma.chat.findMany({
+      where: { id: { in: chatIds } },
+      select: { id: true, type: true, stateId: true, cityId: true },
+    });
+
+    const readStates = await this.prisma.chatReadState.findMany({
+      where: { userId, chatId: { in: chatIds } },
+      select: { chatId: true, lastReadAt: true },
+    });
+    const readMap = new Map(readStates.map((r) => [r.chatId, r.lastReadAt]));
+    const fallbackSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const rows = await this.prisma.message.groupBy({
+      by: ['chatId'],
+      where: {
+        deletedAt: null,
+        user: { deletedAt: null },
+        userId: { not: userId },
+        OR: chats.map((c) => ({
+          chatId: c.id,
+          createdAt: { gt: readMap.get(c.id) ?? fallbackSince },
+        })),
+      },
+      _count: { _all: true },
+    });
+    const countMap = new Map(rows.map((r) => [r.chatId, r._count._all]));
+
+    return chats.map((c) => ({
+      chatId: c.id,
+      type: c.type,
+      stateId: c.stateId,
+      cityId: c.cityId,
+      unread: countMap.get(c.id) ?? 0,
+    }));
   }
 
   async toggleReaction(messageId: string, userId: string, emoji: string) {

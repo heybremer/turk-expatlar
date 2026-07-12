@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, FileText, Reply, SmilePlus, Trash2 } from "lucide-react";
+import { Clock, FileText, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { ChatAvatar } from "@/components/sohbet/ChatAvatar";
 import { ChatMessageBody } from "@/components/sohbet/ChatMessageBody";
 import { ChatReactionBar } from "@/components/sohbet/ChatReactionBar";
@@ -12,7 +12,7 @@ export type ChatAttachment = {
   url: string;
   name: string;
   size: number;
-  type: "image" | "file";
+  type: "image" | "file" | "audio";
   mime: string;
 };
 
@@ -50,6 +50,7 @@ type Props = {
   body?: string;
   attachments?: ChatAttachment[] | null;
   expiresAt?: string | null;
+  editedAt?: string | null;
   createdAt: string;
   displayName: string;
   avatarUrl?: string | null;
@@ -60,6 +61,7 @@ type Props = {
   replyTo?: MessageReplyTo | null;
   onNameClick?: () => void;
   onDelete?: () => void;
+  onEdit?: () => void;
   onReact?: (emoji: string) => void;
   onReply?: () => void;
   onQuoteClick?: (messageId: string) => void;
@@ -71,6 +73,7 @@ export function ChatMessageBubble({
   body,
   attachments,
   expiresAt,
+  editedAt,
   createdAt,
   displayName,
   avatarUrl,
@@ -81,6 +84,7 @@ export function ChatMessageBubble({
   replyTo,
   onNameClick,
   onDelete,
+  onEdit,
   onReact,
   onReply,
   onQuoteClick,
@@ -147,6 +151,18 @@ export function ChatMessageBubble({
               className="mb-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-muted hover:bg-danger/10 hover:text-danger md:hidden md:group-hover:flex"
             >
               <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+
+          {isMe && onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label="Mesajı düzenle"
+              title="Düzenle"
+              className="mb-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-muted hover:bg-background hover:text-primary md:hidden md:group-hover:flex"
+            >
+              <Pencil className="h-3.5 w-3.5" />
             </button>
           )}
 
@@ -223,6 +239,18 @@ export function ChatMessageBubble({
                         }`}
                       />
                     </a>
+                  ) : att.type === "audio" ? (
+                    <audio
+                      key={j}
+                      controls
+                      preload="metadata"
+                      src={att.url}
+                      className="h-10 w-56 max-w-full"
+                    >
+                      <a href={att.url} target="_blank" rel="noopener noreferrer">
+                        {att.name}
+                      </a>
+                    </audio>
                   ) : (
                     <a
                       key={j}
@@ -248,6 +276,7 @@ export function ChatMessageBubble({
                 isMe ? "text-white/70" : "text-muted"
               }`}
             >
+              {editedAt && <span className="italic">düzenlendi</span>}
               <span>{time}</span>
               {expiresAt && <ExpiryCountdown expiresAt={expiresAt} />}
             </div>

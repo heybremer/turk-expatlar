@@ -8,6 +8,8 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 
+import { HttpException } from '@nestjs/common';
+
 import { Server, Socket } from 'socket.io';
 
 import { JwtService } from '@nestjs/jwt';
@@ -482,6 +484,65 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  @SubscribeMessage('edit_message')
+  async handleEditMessage(
+    @ConnectedSocket() client: AuthSocket,
+    @MessageBody() data: { messageId: string; body: string },
+  ) {
+    if (!client.userId) return;
+
+    const body = (data.body ?? '').trim();
+    if (body.length > 1000) {
+      client.emit('error', { message: 'Mesaj çok uzun (max 1000 karakter)' });
+      return;
+    }
+
+    try {
+      const editable = await this.chatService.getEditableMessage(
+        data.messageId,
+        client.userId,
+      );
+
+      // Eki olmayan mesaj boş metne düzenlenemez (silme için ayrı akış var)
+      if (!body && !editable.hasAttachments) {
+        client.emit('error', { message: 'Mesaj boş olamaz' });
+        return;
+      }
+
+      if (body) {
+        const moderation = await this.chatModeration.checkMessage(
+          client.userId,
+          editable.chatId,
+          body,
+        );
+        if (!moderation.allowed) {
+          client.emit('moderation_notice', {
+            message: moderation.message,
+            code: moderation.code,
+            bannedUntil: moderation.bannedUntil?.toISOString(),
+            clearInput: moderation.clearInput ?? true,
+          });
+          return;
+        }
+      }
+
+      const updated = await this.chatService.applyMessageEdit(
+        data.messageId,
+        body,
+      );
+      this.server.to(updated.chatId).emit('message_edited', {
+        messageId: updated.id,
+        body: updated.body,
+        editedAt: updated.editedAt?.toISOString(),
+      });
+    } catch (err) {
+      client.emit('error', {
+        message:
+          err instanceof HttpException ? err.message : 'Mesaj düzenlenemedi',
+      });
+    }
+  }
+
   emitReadReceipt(chatId: string, userId: string, readAt: string) {
     this.server.to(chatId).emit('read_receipt', { chatId, userId, readAt });
   }
@@ -503,13 +564,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!client.userId) return;
 
     try {
-      const result = await this.chatService.markDmRead(
+      const result = await this.chatService.markRead(
         data.chatId,
         client.userId,
       );
-      this.emitReadReceipt(data.chatId, client.userId, result.lastReadAt);
+      // "Görüldü" bildirimi yalnızca DM'lerde anlamlı
+      if (result.isDm) {
+        this.emitReadReceipt(data.chatId, client.userId, result.lastReadAt);
+      }
     } catch {
-      // Üye olmayan kullanıcı okundu bilgisi yayınlayamaz; sessizce yok say
+      // Erişimi olmayan kullanıcı okundu bilgisi yayınlayamaz; sessizce yok say
     }
   }
 
