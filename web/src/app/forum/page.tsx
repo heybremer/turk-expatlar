@@ -9,6 +9,7 @@ import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { ForumTopicCard } from "@/components/cards/ForumTopicCard";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { MobileFilterToggle } from "@/components/ui/MobileFilterToggle";
 
 type Category = { id: string; name: string; slug: string };
 
@@ -170,7 +171,9 @@ function ForumPageContent() {
       </div>
 
       {/* Kategoriler */}
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3">
+      <MobileFilterToggle label="Kategoriler" activeCount={categorySlug ? 1 : 0}>
+      <div className="flex flex-wrap gap-2">
         <Link
           href={forumHref(null, activeSort)}
           className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
@@ -194,6 +197,8 @@ function ForumPageContent() {
             {cat.name}
           </Link>
         ))}
+      </div>
+      </MobileFilterToggle>
       </div>
 
       {/* Sonuçlar */}

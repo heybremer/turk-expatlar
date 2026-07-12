@@ -300,8 +300,8 @@ export default function ForumDetailClient() {
         )}
       </div>
 
-      <div className="mt-3 flex items-start justify-between gap-3">
-        <h1 className="text-2xl font-bold">{topic.title}</h1>
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+        <h1 className="min-w-0 flex-1 break-words text-2xl font-bold">{topic.title}</h1>
         {isOwner && !editMode && (
           <div className="flex shrink-0 gap-2">
             <button onClick={() => { setEditTitle(topic.title); setEditBody(topic.body); setEditMode(true); }} className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs text-muted hover:text-text">

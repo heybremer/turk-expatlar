@@ -11,12 +11,14 @@ import {
   View,
 } from "react-native";
 import { Link, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { login } from "@/lib/auth";
 import { loginWithGoogle } from "@/lib/google-auth";
 import { ApiError } from "@/lib/api";
 
 export default function GirisScreen() {
+  const insets = useSafeAreaInsets();
   const { error: oauthError } = useLocalSearchParams<{ error?: string }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,7 +64,12 @@ export default function GirisScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "center",
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+        }}
         keyboardShouldPersistTaps="handled"
       >
         <View className="px-6 py-12">

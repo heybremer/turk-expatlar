@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { Pagination } from "@/components/ui/Pagination";
 import { StarRating } from "@/components/ui/StarRating";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { BackButton } from "@/components/ui/BackButton";
@@ -51,7 +53,7 @@ export default function RehberIndex() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["businesses", search, page],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page) });
@@ -76,6 +78,8 @@ export default function RehberIndex() {
 
       {isLoading ? (
         <LoadingScreen />
+      ) : isError ? (
+        <ErrorState onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={data?.items ?? []}
@@ -84,6 +88,9 @@ export default function RehberIndex() {
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
           renderItem={({ item }) => <BusinessCard biz={item} />}
           ListEmptyComponent={<EmptyState icon="storefront-outline" title="İşletme bulunamadı" />}
+          ListFooterComponent={
+            data ? <Pagination page={page} totalPages={data.totalPages} onChange={setPage} /> : null
+          }
         />
       )}
     </View>

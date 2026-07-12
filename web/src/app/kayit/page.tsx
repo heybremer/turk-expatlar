@@ -163,7 +163,7 @@ function KayitForm() {
   }
 
   return (
-    <div className="w-full min-w-0">
+    <div className="mx-auto w-full min-w-0 max-w-md py-8">
       <h1 className="text-2xl font-bold">Hesap Oluştur</h1>
       <p className="mt-2 text-sm text-muted">
         Almanya&apos;daki Türkçe konuşan topluluğa katıl

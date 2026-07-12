@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { DetailHeader } from "@/components/navigation/DetailHeader";
 
 type EventDetail = Event & {
@@ -33,7 +34,15 @@ export default function EtkinlikDetay() {
     onError: () => Alert.alert("Hata", "İşlem başarısız oldu"),
   });
 
-  if (isLoading || !data) return <LoadingScreen />;
+  if (isLoading) return <LoadingScreen />;
+  if (!data) {
+    return (
+      <View className="flex-1 bg-background">
+        <DetailHeader title="Etkinlik" />
+        <ErrorState title="Etkinlik yüklenemedi" onRetry={() => void refetch()} />
+      </View>
+    );
+  }
 
   const isPaid = data.priceType !== "FREE";
   const organizerName = data.organizer?.profile?.displayName ?? "Düzenleyici";

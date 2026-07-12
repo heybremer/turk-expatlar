@@ -6,9 +6,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
+import { colors } from "@/lib/colors";
 
-const PRIMARY = "#1a56db";
-const MUTED = "#6b7280";
+const PRIMARY = colors.primary;
+const MUTED = colors.muted;
 const ACTIVE_BG = "rgba(26, 86, 219, 0.10)";
 const TAB_BAR_CONTENT_HEIGHT = 56;
 
@@ -148,11 +149,11 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     paddingTop: 8,
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    borderTopColor: colors.border,
     elevation: 12,
-    shadowColor: "#111827",
+    shadowColor: colors.text,
     shadowOpacity: 0.08,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: -4 },
@@ -193,14 +194,14 @@ const styles = StyleSheet.create({
     right: -4,
     minWidth: 16,
     height: 16,
-    backgroundColor: "#dc2626",
+    backgroundColor: colors.danger,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 3,
   },
   badgeText: {
-    color: "#ffffff",
+    color: colors.white,
     fontSize: 10,
     fontWeight: "700",
   },

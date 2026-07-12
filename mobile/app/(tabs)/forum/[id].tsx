@@ -25,6 +25,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { DetailHeader } from "@/components/navigation/DetailHeader";
 import { ForumLinkPreview } from "@/components/forum/ForumLinkPreview";
 import { ForumPoll } from "@/components/forum/ForumPoll";
@@ -164,7 +165,15 @@ export default function ForumTopicScreen() {
     ]);
   }
 
-  if (isLoading || !data) return <LoadingScreen />;
+  if (isLoading) return <LoadingScreen />;
+  if (!data) {
+    return (
+      <View className="flex-1 bg-background">
+        <DetailHeader title="Forum" />
+        <ErrorState title="Konu yüklenemedi" onRetry={() => void refetch()} />
+      </View>
+    );
+  }
 
   const status = STATUS_LABELS[data.status] ?? STATUS_LABELS.OPEN;
   const isOwner = user?.id === data.user?.id;

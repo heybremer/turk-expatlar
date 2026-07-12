@@ -68,7 +68,8 @@ export function CookieConsent() {
         className={`fixed z-[999] transition-all duration-300 ${
           view === "details"
             ? "inset-4 bottom-auto top-1/2 mx-auto max-w-lg -translate-y-1/2 rounded-2xl sm:inset-auto sm:left-1/2 sm:top-1/2 sm:w-full sm:-translate-x-1/2 sm:-translate-y-1/2"
-            : "bottom-4 left-4 right-4 mx-auto max-w-2xl rounded-2xl"
+            : // Mobilde alt navigasyonun üstünde kalsın (bar ~4.5rem + safe area)
+              "bottom-[calc(4.5rem+env(safe-area-inset-bottom)+0.5rem)] left-4 right-4 mx-auto max-w-2xl rounded-2xl md:bottom-4"
         } border border-border bg-surface shadow-2xl`}
       >
         {view === "banner" ? (

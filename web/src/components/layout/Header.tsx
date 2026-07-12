@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { MapPin, Sparkles } from "lucide-react";
+import { MapPin, Menu, Sparkles, X } from "lucide-react";
 import { api, MySubscription } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { PublicSiteSettings } from "@/lib/site-settings";
@@ -38,6 +38,18 @@ export function Header({ settings }: HeaderProps) {
   const { user, logout, isAuthenticated, token } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Menü açıkken arka plan kaydırmasını kilitle
+  // (menü bağlantıları tıklandığında onClick ile kapanır)
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [menuOpen]);
 
   const navLinks = useMemo(
     () =>
@@ -71,6 +83,7 @@ export function Header({ settings }: HeaderProps) {
           <div className="flex items-center gap-3" suppressHydrationWarning>
             <Link
               href="/"
+              onClick={() => setMenuOpen(false)}
               className="flex items-center gap-2 font-semibold text-primary"
             >
               {settings.logoUrl ? (
@@ -92,10 +105,10 @@ export function Header({ settings }: HeaderProps) {
             <SearchDialog />
           </div>
 
-          <div className="flex items-center justify-end gap-1.5 sm:gap-2" suppressHydrationWarning>
+          <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2" suppressHydrationWarning>
             {mounted && isAuthenticated() ? (
               <>
-                <ThemeToggle />
+                <span className="hidden sm:block"><ThemeToggle /></span>
                 <NotificationBell />
                 <MessageBell />
                 {isPremium && (
@@ -118,35 +131,48 @@ export function Header({ settings }: HeaderProps) {
                     Admin
                   </Link>
                 )}
-                <Button variant="ghost" size="sm" onClick={logout}>
-                  Çıkış
-                </Button>
+                <span className="hidden sm:block">
+                  <Button variant="ghost" size="sm" onClick={logout}>
+                    Çıkış
+                  </Button>
+                </span>
               </>
             ) : (
               <>
+                <span className="hidden sm:block"><ThemeToggle /></span>
                 <Link href="/giris">
                   <Button variant="ghost" size="sm">
                     Giriş
                   </Button>
                 </Link>
                 {settings.registrationEnabled && (
-                  <Link href="/uyelik" className="hidden sm:block">
+                  <Link href="/uyelik">
                     <Button size="sm">Üye Ol</Button>
                   </Link>
                 )}
               </>
             )}
+            {/* Mobil menü butonu */}
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={menuOpen ? "Menüyü kapat" : "Menüyü aç"}
+              aria-expanded={menuOpen}
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-text md:hidden"
+            >
+              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
         </div>
 
-        {/* Alt satır: menüler ortada */}
-        <nav className="flex justify-center gap-1 overflow-x-auto pb-3 sm:gap-4 md:gap-5">
+        {/* Alt satır: menüler ortada — masaüstü */}
+        <nav className="hidden justify-center gap-1 pb-3 sm:gap-4 md:flex md:gap-5">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
-                "shrink-0 px-2 py-1 text-sm font-medium transition-colors hover:text-primary sm:px-0",
+                "shrink-0 px-2 py-2 text-sm font-medium transition-colors hover:text-primary md:px-0 md:py-1",
                 pathname.startsWith(link.href)
                   ? "text-primary"
                   : "text-muted",
@@ -157,6 +183,43 @@ export function Header({ settings }: HeaderProps) {
           ))}
         </nav>
       </div>
+
+      {/* Mobil menü çekmecesi */}
+      {menuOpen && (
+        <div className="md:hidden">
+          <div
+            className="fixed inset-0 top-14 z-40 bg-black/40"
+            onClick={() => setMenuOpen(false)}
+          />
+          <nav className="absolute left-0 right-0 z-50 max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-b border-border bg-surface shadow-lg">
+            <div className="px-4 py-2">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMenuOpen(false)}
+                  className={cn(
+                    "flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors",
+                    pathname.startsWith(link.href)
+                      ? "bg-primary/10 text-primary"
+                      : "text-text hover:bg-background",
+                  )}
+                >
+                  {link.label}
+                </Link>
+              ))}
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-border pt-2 pb-2">
+                <ThemeToggle />
+                {mounted && isAuthenticated() && (
+                  <Button variant="ghost" size="sm" onClick={logout}>
+                    Çıkış
+                  </Button>
+                )}
+              </div>
+            </div>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

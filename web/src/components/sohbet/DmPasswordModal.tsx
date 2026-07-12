@@ -27,6 +27,15 @@ export function DmPasswordModal({ open, chatId, token, hasPassword, onClose, onU
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   if (!open || !chatId) return null;
 
   async function handleSave(e: React.FormEvent) {
@@ -66,8 +75,16 @@ export function DmPasswordModal({ open, chatId, token, hasPassword, onClose, onU
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
@@ -78,7 +95,12 @@ export function DmPasswordModal({ open, chatId, token, hasPassword, onClose, onU
               <p className="text-xs text-muted">Bu özel sohbete erişim şifresi</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="text-muted hover:text-text">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Kapat"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-background hover:text-text"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -143,7 +165,11 @@ export function DmJoinPasswordModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-xl"
+      >
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10">
             <KeyRound className="h-5 w-5 text-primary" />

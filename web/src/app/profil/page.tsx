@@ -206,14 +206,14 @@ export default function ProfilPage() {
 
       {/* Kullanıcı bilgileri */}
       <Card className="mt-6">
-        <div className="flex items-start gap-4">
+        <div className="flex flex-wrap items-start gap-4">
           <ChatAvatar
             name={user?.profile?.displayName ?? user?.email ?? "?"}
             url={user?.profile?.avatarUrl}
             role={user?.role}
             size="xl"
           />
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <UserDisplayName
               name={user?.profile?.displayName ?? "—"}
               postalCountry={user?.profile?.postalCountry as PostalCountry | undefined}
@@ -232,7 +232,7 @@ export default function ProfilPage() {
               {user?.levelProgress && <LevelCard levelProgress={user.levelProgress} compact />}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-shrink-0 gap-2">
             <Link href="/profil/2fa">
               <Button variant="ghost" size="sm" title="İki Faktörlü Doğrulama">
                 <ShieldCheck className="h-3.5 w-3.5" />

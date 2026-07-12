@@ -16,6 +16,8 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { StarRating } from "@/components/ui/StarRating";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { AppHeader } from "@/components/navigation/AppHeader";
 
 function SectionHeader({ title, onMore }: { title: string; onMore?: () => void }) {
@@ -115,7 +117,7 @@ export default function AkisScreen() {
   const { token } = useAuth();
   const router = useRouter();
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["home-feed"],
     queryFn: () => api.get<HomeFeed>("/feed/home", token),
     enabled: !!token,
@@ -142,6 +144,15 @@ export default function AkisScreen() {
 
   if (isLoading) return <LoadingScreen />;
 
+  if (isError) {
+    return (
+      <View className="flex-1 bg-background">
+        <AppHeader title="Türk Expatlar" subtitle="Almanya'daki Türk topluluğu" />
+        <ErrorState title="Akış yüklenemedi" onRetry={() => void refetch()} />
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-background">
       <AppHeader title="Türk Expatlar" subtitle="Almanya'daki Türk topluluğu" />
@@ -149,8 +160,15 @@ export default function AkisScreen() {
       <FlatList
         data={buildList()}
         keyExtractor={(item) => item.key}
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ padding: 16, flexGrow: 1 }}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+        ListEmptyComponent={
+          <EmptyState
+            icon="newspaper-outline"
+            title="Henüz içerik yok"
+            subtitle="Forum konuları, etkinlikler ve işletmeler burada görünecek."
+          />
+        }
         renderItem={({ item }) => {
           if (item.type === "section-forum") {
             return <SectionHeader title="Son Forum Konuları" onMore={() => router.push("/(tabs)/forum")} />;

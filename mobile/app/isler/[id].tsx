@@ -8,6 +8,7 @@ import { formatDate, formatRelative } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { DetailHeader } from "@/components/navigation/DetailHeader";
 
 const JOB_TYPE_LABELS: Record<string, string> = {
@@ -19,13 +20,21 @@ export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ["job", id],
     queryFn: () => api.get<JobPosting>(`/jobs/${id}`, token),
     enabled: !!id,
   });
 
-  if (isLoading || !data) return <LoadingScreen />;
+  if (isLoading) return <LoadingScreen />;
+  if (!data) {
+    return (
+      <View className="flex-1 bg-background">
+        <DetailHeader title="İş İlanı" />
+        <ErrorState title="İlan yüklenemedi" onRetry={() => void refetch()} />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-background">
