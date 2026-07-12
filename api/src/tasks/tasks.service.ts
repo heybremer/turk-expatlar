@@ -60,6 +60,22 @@ export class TasksService {
   }
 
   /**
+   * Her saat başında süresi dolan süreli (otomatik silinen) sohbet
+   * mesajlarını veritabanından kalıcı olarak sil. Canlı istemcilere silme
+   * bilgisi zaten socket zamanlayıcısıyla gider; bu cron gizlilik vaadinin
+   * kalıcı depolamada da geçerli olmasını sağlar.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async purgeExpiredChatMessages() {
+    const result = await this.prisma.message.deleteMany({
+      where: { expiresAt: { not: null, lt: new Date() } },
+    });
+    if (result.count > 0) {
+      this.logger.log(`${result.count} süreli sohbet mesajı kalıcı silindi`);
+    }
+  }
+
+  /**
    * Her saat başında süresi geçmiş e-posta doğrulama tokenlarını temizle
    */
   @Cron(CronExpression.EVERY_HOUR)

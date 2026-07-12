@@ -37,9 +37,9 @@ const SOCIAL_PATTERNS: { re: RegExp; label: string }[] = [
 const PHONE_PATTERNS: RegExp[] = [
   /\+?\d[\d\s().\-/]{8,}\d/,
   /\b0\d{2,4}[\s\-/]?\d{3,4}[\s\-/]?\d{3,4}[\s\-/]?\d{0,4}\b/,
-  /\b\+90[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}\b/,
-  /\b\+49[\s\-]?\d{2,4}[\s\-]?\d{3,8}\b/,
-  /\b\d{3}[\s\-]\d{3}[\s\-]\d{2}[\s\-]\d{2}\b/,
+  /\b\+90[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}\b/,
+  /\b\+49[\s-]?\d{2,4}[\s-]?\d{3,8}\b/,
+  /\b\d{3}[\s-]\d{3}[\s-]\d{2}[\s-]\d{2}\b/,
 ];
 
 @Injectable()
@@ -49,10 +49,8 @@ export class ChatModerationService {
     loadedAt: number;
   } | null = null;
 
-  private recentMessages = new Map<
-    string,
-    { body: string; at: number }[]
-  >();
+  private recentMessages = new Map<string, { body: string; at: number }[]>();
+  private lastSweepAt = Date.now();
 
   constructor(private prisma: PrismaService) {}
 
@@ -97,7 +95,11 @@ export class ChatModerationService {
       select: { type: true },
     });
     if (!chat) {
-      return { allowed: false, code: 'INVALID_CHAT', message: 'Oda bulunamadı.' };
+      return {
+        allowed: false,
+        code: 'INVALID_CHAT',
+        message: 'Oda bulunamadı.',
+      };
     }
 
     const isChannel =
@@ -276,7 +278,13 @@ export class ChatModerationService {
       },
     });
 
-    await this.logViolation(userId, chatId, ChatModerationReason.BANNED_WORD, word, body);
+    await this.logViolation(
+      userId,
+      chatId,
+      ChatModerationReason.BANNED_WORD,
+      word,
+      body,
+    );
 
     if (priorSameWord >= 1) {
       const bannedUntil = await this.applyChatBan(userId, chatId);
@@ -438,5 +446,20 @@ export class ChatModerationService {
     );
     list.push({ body, at: now });
     this.recentMessages.set(userId, list);
+    this.sweepStaleEntries(now);
+  }
+
+  /**
+   * Artık mesaj göndermeyen kullanıcıların kayıtlarını periyodik temizler;
+   * aksi halde harita süreç yeniden başlatılana kadar sınırsız büyür.
+   */
+  private sweepStaleEntries(now: number) {
+    if (now - this.lastSweepAt < 5 * 60_000) return;
+    this.lastSweepAt = now;
+    for (const [userId, list] of this.recentMessages) {
+      if (list.every((m) => now - m.at >= 60_000)) {
+        this.recentMessages.delete(userId);
+      }
+    }
   }
 }

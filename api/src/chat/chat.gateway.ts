@@ -1,19 +1,11 @@
 import {
-
   ConnectedSocket,
-
   MessageBody,
-
   OnGatewayConnection,
-
   OnGatewayDisconnect,
-
   SubscribeMessage,
-
   WebSocketGateway,
-
   WebSocketServer,
-
 } from '@nestjs/websockets';
 
 import { Server, Socket } from 'socket.io';
@@ -24,12 +16,16 @@ import { ChatService } from './chat.service';
 
 import { ChatModerationService } from './chat-moderation.service';
 
+import { sanitizeAttachments } from './chat-upload.util';
+
 import { ExpoPushService } from '../notifications/expo-push.service';
 
-
+// Süreli mesaj üst sınırı: UI 24 saate izin verir, sunucu 7 güne kadar kabul
+// eder. Node setTimeout ~24,8 günü aşan değerlerde hemen tetiklendiği için
+// sınırsız değer kabul edilemez.
+const MAX_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 
 export interface OnlineUser {
-
   userId: string;
 
   displayName: string;
@@ -39,13 +35,9 @@ export interface OnlineUser {
   postalCountry?: string | null;
 
   socketId: string;
-
 }
 
-
-
 interface AuthSocket extends Socket {
-
   userId?: string;
 
   displayName?: string;
@@ -56,52 +48,34 @@ interface AuthSocket extends Socket {
 
   presenceRoomIds?: string[];
 
+  // join_room ile girilen ve presence eklenen odalar (örn. DM'ler)
+  joinedPresenceRoomIds?: Set<string>;
 }
 
-
-
 @WebSocketGateway({
-
   cors: {
-
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3200',
+    // main.ts ile aynı biçim: virgülle ayrılmış çoklu origin desteklenir
+    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:3200'],
 
     credentials: true,
-
   },
 
   namespace: '/chat',
-
 })
-
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
-
   @WebSocketServer() server: Server;
-
-
 
   // chatId → userId → { user, refs }
 
   private roomPresence = new Map<
-
     string,
-
     Map<string, { user: OnlineUser; refs: number }>
-
   >();
-
-
 
   // chatId → userId → auto-stop timeout
   private typingTimers = new Map<string, Map<string, NodeJS.Timeout>>();
 
-  // Mesaj rate limiting: userId → { count, resetAt }
-  private msgRateMap = new Map<string, { count: number; resetAt: number }>();
-  private readonly MSG_LIMIT = 20; // 30 saniyede max 20 mesaj
-  private readonly MSG_WINDOW_MS = 30_000;
-
   constructor(
-
     private chatService: ChatService,
 
     private chatModeration: ChatModerationService,
@@ -109,33 +83,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private jwtService: JwtService,
 
     private expoPush: ExpoPushService,
-
   ) {}
 
-
-
   async handleConnection(client: AuthSocket) {
-
     try {
-
       const token =
-
-        client.handshake.auth?.token ??
-
+        (client.handshake.auth as { token?: string } | undefined)?.token ??
         client.handshake.headers?.authorization?.replace('Bearer ', '');
 
-
-
       if (token) {
-
         const payload = this.jwtService.verify<{
-
           sub: string;
 
           displayName?: string;
 
           avatarUrl?: string;
-
         }>(token);
 
         client.userId = payload.sub;
@@ -154,94 +116,72 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
         client.postalCountry = profile.postalCountry ?? null;
 
-
-
         void this.registerSitePresence(client);
-
       }
-
     } catch {
-
       // anonim bağlantı (sadece okuma)
-
     }
-
   }
 
-
+  /** Ek URL doğrulaması için istemcinin bağlandığı API adresi (proto+host). */
+  private getHandshakeBase(client: AuthSocket): string | undefined {
+    const headers = client.handshake?.headers ?? {};
+    const forwardedProto = headers['x-forwarded-proto'];
+    const proto =
+      (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)
+        ?.split(',')[0]
+        ?.trim() ?? 'http';
+    const host = headers.host;
+    return host ? `${proto}://${host}` : undefined;
+  }
 
   private async registerSitePresence(client: AuthSocket) {
-
     if (!client.userId) return;
 
     try {
-
       const joinCheck = await this.chatModeration.checkCanJoin(client.userId);
 
       if (!joinCheck.allowed) return;
-
-
 
       const roomIds = await this.chatService.getPresenceChatIds(client.userId);
 
       client.presenceRoomIds = roomIds;
 
       for (const chatId of roomIds) {
-
         this.addPresence(chatId, client);
-
       }
-
     } catch {
-
       // presence isteğe bağlı
-
     }
-
   }
-
-
 
   handleDisconnect(client: AuthSocket) {
-
-    if (client.userId && client.presenceRoomIds) {
-
-      for (const chatId of client.presenceRoomIds) {
-
-        this.removePresence(chatId, client.userId);
-
-      }
-
-    }
-
-  }
-
-
-
-  private addPresence(chatId: string, client: AuthSocket) {
-
     if (!client.userId) return;
 
+    for (const chatId of client.presenceRoomIds ?? []) {
+      this.removePresence(chatId, client.userId);
+    }
 
+    for (const chatId of client.joinedPresenceRoomIds ?? []) {
+      this.removePresence(chatId, client.userId);
+    }
+  }
+
+  private addPresence(chatId: string, client: AuthSocket) {
+    if (!client.userId) return;
 
     if (!this.roomPresence.has(chatId)) {
-
       this.roomPresence.set(chatId, new Map());
-
     }
 
     const map = this.roomPresence.get(chatId)!;
 
     const existing = map.get(client.userId);
 
-
-
     if (existing) {
-
       existing.refs += 1;
 
       existing.user = {
-
         userId: client.userId,
 
         displayName: client.displayName ?? 'Kullanıcı',
@@ -251,17 +191,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         postalCountry: client.postalCountry,
 
         socketId: client.id,
-
       };
-
     } else {
-
       map.set(client.userId, {
-
         refs: 1,
 
         user: {
-
           userId: client.userId,
 
           displayName: client.displayName ?? 'Kullanıcı',
@@ -271,130 +206,107 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           postalCountry: client.postalCountry,
 
           socketId: client.id,
-
         },
-
       });
 
       this.emitOnlineList(chatId);
-
     }
-
   }
 
-
-
   private removePresence(chatId: string, userId: string) {
-
     const map = this.roomPresence.get(chatId);
 
     if (!map) return;
-
-
 
     const entry = map.get(userId);
 
     if (!entry) return;
 
-
-
     entry.refs -= 1;
 
     if (entry.refs <= 0) {
-
       map.delete(userId);
 
       this.emitOnlineList(chatId);
-
     }
-
   }
 
-
-
   private emitOnlineList(chatId: string) {
-
     const map = this.roomPresence.get(chatId);
 
     const list = map ? [...map.values()].map((e) => e.user) : [];
 
     this.server.to(chatId).emit('online_users', list);
-
   }
 
-
-
   @SubscribeMessage('join_room')
-
   async handleJoin(
-
     @ConnectedSocket() client: AuthSocket,
 
     @MessageBody() data: { chatId: string; password?: string },
-
   ) {
-
     const { chatId, password } = data;
 
     // Oturum açmamış kullanıcılar odaya giremez
     if (!client.userId) {
-      client.emit('error', { message: 'Sohbete katılmak için giriş yapmalısınız', code: 'AUTH_REQUIRED' });
+      client.emit('error', {
+        message: 'Sohbete katılmak için giriş yapmalısınız',
+        code: 'AUTH_REQUIRED',
+      });
       return;
     }
 
     const joinCheck = await this.chatModeration.checkCanJoin(client.userId);
 
-      if (!joinCheck.allowed) {
+    if (!joinCheck.allowed) {
+      client.emit('moderation_notice', {
+        message: joinCheck.message,
 
-        client.emit('moderation_notice', {
+        code: joinCheck.code,
 
-          message: joinCheck.message,
+        bannedUntil: joinCheck.bannedUntil?.toISOString(),
 
-          code: joinCheck.code,
+        clearInput: false,
+      });
 
-          bannedUntil: joinCheck.bannedUntil?.toISOString(),
-
-          clearInput: false,
-
-        });
-
-        return;
-
-      }
-
-
-
-      const denied = await this.chatService.checkRoomAccess(chatId, client.userId);
-
-      if (denied) {
-
-        client.emit('access_denied', denied);
-
-        return;
-
-      }
-
-
-
-    const roomPassword = await this.chatService.getRoomPassword(chatId);
-
-    if (roomPassword) {
-
-      if (!password || password !== roomPassword) {
-
-        client.emit('password_required', { chatId });
-
-        return;
-
-      }
-
+      return;
     }
 
+    const denied = await this.chatService.checkRoomAccess(
+      chatId,
+      client.userId,
+    );
 
+    if (denied) {
+      client.emit('access_denied', denied);
+
+      return;
+    }
+
+    const passwordOk = await this.chatService.verifyRoomPassword(
+      chatId,
+      password ?? '',
+    );
+    if (!passwordOk) {
+      client.emit('password_required', { chatId });
+      return;
+    }
 
     await client.join(chatId);
 
-
+    // Odaya fiilen giren kullanıcı o odada çevrimiçi görünmeli. Site geneli
+    // presence yalnızca genel/eyalet/şehir kanallarını kapsadığından bu
+    // olmadan özellikle DM'lerde karşı taraf hep çevrimdışı görünüyordu.
+    if (!client.joinedPresenceRoomIds) {
+      client.joinedPresenceRoomIds = new Set();
+    }
+    const alreadyTracked =
+      client.joinedPresenceRoomIds.has(chatId) ||
+      (client.presenceRoomIds ?? []).includes(chatId);
+    if (!alreadyTracked) {
+      client.joinedPresenceRoomIds.add(chatId);
+      this.addPresence(chatId, client);
+    }
 
     // Mevcut online listesini hemen gönder
 
@@ -404,85 +316,65 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     client.emit('online_users', list);
 
-
-
     try {
-
       const messages = await this.chatService.getMessages(chatId, 50);
 
       client.emit('history', messages.reverse());
-
     } catch {
-
       client.emit('error', { message: 'Oda geçmişi yüklenemedi' });
-
     }
-
   }
 
-
-
   @SubscribeMessage('leave_room')
-
   handleLeave(
-
     @ConnectedSocket() client: AuthSocket,
 
     @MessageBody() data: { chatId: string },
-
   ) {
+    void client.leave(data.chatId);
 
-    client.leave(data.chatId);
-
+    if (client.userId && client.joinedPresenceRoomIds?.has(data.chatId)) {
+      client.joinedPresenceRoomIds.delete(data.chatId);
+      this.removePresence(data.chatId, client.userId);
+    }
   }
 
-
-
   @SubscribeMessage('send_message')
-
   async handleMessage(
-
     @ConnectedSocket() client: AuthSocket,
 
     @MessageBody()
-
     data: {
-
       chatId: string;
 
       body: string;
 
-      attachments?: { url: string; name: string; size: number; type: string; mime: string }[];
+      attachments?: {
+        url: string;
+        name: string;
+        size: number;
+        type: string;
+        mime: string;
+      }[];
 
       expiresInSeconds?: number;
 
       replyToId?: string;
-
     },
-
   ) {
-
     if (!client.userId) {
-
-      client.emit('error', { message: 'Mesaj göndermek için giriş yapmalısınız' });
+      client.emit('error', {
+        message: 'Mesaj göndermek için giriş yapmalısınız',
+        code: 'AUTH_REQUIRED',
+      });
 
       return;
-
     }
 
-    // Rate limiting kontrolü
-    const now = Date.now();
-    const rateEntry = this.msgRateMap.get(client.userId);
-    if (!rateEntry || now > rateEntry.resetAt) {
-      this.msgRateMap.set(client.userId, { count: 1, resetAt: now + this.MSG_WINDOW_MS });
-    } else if (rateEntry.count >= this.MSG_LIMIT) {
-      client.emit('error', { message: 'Çok fazla mesaj gönderdiniz. Lütfen bekleyin.' });
-      return;
-    } else {
-      rateEntry.count++;
-    }
-
-    const denied = await this.chatService.checkRoomAccess(data.chatId, client.userId);
+    const denied = await this.chatService.checkRoomAccess(
+      data.chatId,
+      client.userId,
+    );
     if (denied) {
       client.emit('access_denied', denied);
       return;
@@ -490,34 +382,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const body = (data.body ?? '').trim();
 
-    const attachments = data.attachments ?? [];
+    // Ekler istemciden geldiği gibi kullanılamaz: yalnızca bu sunucuya
+    // gerçekten yüklenmiş dosyalar kabul edilir (harici URL/piksel engeli)
+    const attachments = sanitizeAttachments(
+      data.attachments,
+      this.getHandshakeBase(client),
+    );
 
     if (!body && attachments.length === 0) return;
 
     if (body.length > 1000) {
-
       client.emit('error', { message: 'Mesaj çok uzun (max 1000 karakter)' });
 
       return;
-
     }
 
-
-
     const moderation = await this.chatModeration.checkMessage(
-
       client.userId,
 
       data.chatId,
 
       body,
-
     );
 
     if (!moderation.allowed) {
-
       client.emit('moderation_notice', {
-
         message: moderation.message,
 
         code: moderation.code,
@@ -525,27 +414,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         bannedUntil: moderation.bannedUntil?.toISOString(),
 
         clearInput: moderation.clearInput ?? true,
-
       });
 
       return;
-
     }
-
-
 
     let expiresAt: Date | undefined;
 
-    if (data.expiresInSeconds && data.expiresInSeconds > 0) {
-
-      expiresAt = new Date(Date.now() + data.expiresInSeconds * 1000);
-
+    const expiresIn = Number(data.expiresInSeconds);
+    if (Number.isFinite(expiresIn) && expiresIn > 0) {
+      const clamped = Math.min(Math.floor(expiresIn), MAX_EXPIRES_IN_SECONDS);
+      expiresAt = new Date(Date.now() + clamped * 1000);
     }
 
-
-
     const message = await this.chatService.saveMessage(
-
       data.chatId,
 
       client.userId,
@@ -557,123 +439,98 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       expiresAt,
 
       data.replyToId,
-
     );
 
     this.server.to(data.chatId).emit('new_message', message);
 
-    void this.notifyDmMessage(data.chatId, client.userId, client.displayName ?? 'Birisi', body, attachments.length > 0);
+    void this.notifyDmMessage(
+      data.chatId,
+      client.userId,
+      client.displayName ?? 'Birisi',
+      body,
+      attachments.length > 0,
+    );
 
     if (expiresAt) {
-
       const ms = expiresAt.getTime() - Date.now();
 
       setTimeout(() => {
-
-        this.server.to(data.chatId).emit('message_deleted', { messageId: message.id });
-
+        this.server
+          .to(data.chatId)
+          .emit('message_deleted', { messageId: message.id });
       }, ms);
-
     }
-
   }
 
-
-
   @SubscribeMessage('delete_message')
-
   async handleDeleteMessage(
-
     @ConnectedSocket() client: AuthSocket,
 
     @MessageBody() data: { messageId: string },
-
   ) {
-
     if (!client.userId) return;
 
     try {
-
-      const msg = await this.chatService.deleteMessage(data.messageId, client.userId);
+      const msg = await this.chatService.deleteMessage(
+        data.messageId,
+        client.userId,
+      );
 
       this.server.to(msg.chatId).emit('message_deleted', { messageId: msg.id });
-
     } catch {
-
       client.emit('error', { message: 'Mesaj silinemedi' });
-
     }
-
   }
-
-
 
   emitReadReceipt(chatId: string, userId: string, readAt: string) {
-
     this.server.to(chatId).emit('read_receipt', { chatId, userId, readAt });
-
   }
 
-
+  emitMessageDeleted(chatId: string, messageId: string) {
+    this.server.to(chatId).emit('message_deleted', { messageId });
+  }
 
   emitRoomCleared(chatId: string) {
-
     this.server.to(chatId).emit('room_cleared', { chatId });
-
   }
-
-
 
   @SubscribeMessage('mark_read')
-
   async handleMarkRead(
-
     @ConnectedSocket() client: AuthSocket,
 
     @MessageBody() data: { chatId: string },
-
   ) {
-
     if (!client.userId) return;
 
-    const result = await this.chatService.markDmRead(data.chatId, client.userId);
-
-    this.emitReadReceipt(data.chatId, client.userId, result.lastReadAt);
-
+    try {
+      const result = await this.chatService.markDmRead(
+        data.chatId,
+        client.userId,
+      );
+      this.emitReadReceipt(data.chatId, client.userId, result.lastReadAt);
+    } catch {
+      // Üye olmayan kullanıcı okundu bilgisi yayınlayamaz; sessizce yok say
+    }
   }
 
-
-
   @SubscribeMessage('typing')
-
   handleTyping(
-
     @ConnectedSocket() client: AuthSocket,
 
     @MessageBody() data: { chatId: string },
-
   ) {
-
     if (!client.userId) return;
 
-
-
     client.to(data.chatId).emit('user_typing', {
-
       chatId: data.chatId,
 
       userId: client.userId,
 
       displayName: client.displayName ?? 'Kullanıcı',
-
     });
 
-
-
     if (!this.typingTimers.has(data.chatId)) {
-
       this.typingTimers.set(data.chatId, new Map());
-
     }
 
     const roomTimers = this.typingTimers.get(data.chatId)!;
@@ -682,57 +539,37 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (existing) clearTimeout(existing);
 
-
-
     roomTimers.set(
-
       client.userId,
 
       setTimeout(() => {
-
         this.clearTyping(data.chatId, client.userId!);
 
         client.to(data.chatId).emit('user_typing_stop', {
-
           chatId: data.chatId,
 
           userId: client.userId,
-
         });
-
       }, 3000),
-
     );
-
   }
 
-
-
   @SubscribeMessage('typing_stop')
-
   handleTypingStop(
-
     @ConnectedSocket() client: AuthSocket,
 
     @MessageBody() data: { chatId: string },
-
   ) {
-
     if (!client.userId) return;
 
     this.clearTyping(data.chatId, client.userId);
 
     client.to(data.chatId).emit('user_typing_stop', {
-
       chatId: data.chatId,
 
       userId: client.userId,
-
     });
-
   }
-
-
 
   @SubscribeMessage('react_message')
   async handleReactMessage(
@@ -741,7 +578,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     if (!client.userId) return;
 
-    const ALLOWED = ['👍','❤️','😂','😮','😢','😡','🙏','🎉'];
+    const ALLOWED = ['👍', '❤️', '😂', '😮', '😢', '😡', '🙏', '🎉'];
     if (!ALLOWED.includes(data.emoji)) return;
 
     const message = await this.chatService.toggleReaction(
@@ -766,7 +603,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     hasAttachment: boolean,
   ) {
     try {
-      const recipientId = await this.chatService.getDmRecipientId(chatId, senderId);
+      const recipientId = await this.chatService.getDmRecipientId(
+        chatId,
+        senderId,
+      );
       if (!recipientId) return;
       if (await this.chatService.isMuted(chatId, recipientId)) return;
       await this.expoPush.sendToUser(recipientId, {
@@ -780,7 +620,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private clearTyping(chatId: string, userId: string) {
-
     const roomTimers = this.typingTimers.get(chatId);
 
     if (!roomTimers) return;
@@ -791,8 +630,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     roomTimers.delete(userId);
 
+    if (roomTimers.size === 0) this.typingTimers.delete(chatId);
   }
-
 }
-
-
