@@ -404,6 +404,20 @@ export default function SohbetOdasiPage() {
   // viewport yüksekliği (visualViewport) baz alınır.
   useEffect(() => setupChatViewportHeight(), []);
 
+  // Süreli mesajları süresi dolduğunda istemcide de kaldır (API yeniden
+  // başlatılıp sunucu yayını kaçırılsa bile görünüm tutarlı kalır)
+  useEffect(() => {
+    const timers = messages
+      .filter((m) => m.expiresAt)
+      .map((m) =>
+        setTimeout(
+          () => setMessages((p) => p.filter((x) => x.id !== m.id)),
+          Math.max(0, new Date(m.expiresAt!).getTime() - Date.now()),
+        ),
+      );
+    return () => timers.forEach(clearTimeout);
+  }, [messages]);
+
   // Close mobile drawers when navigating to a different room
   useEffect(() => {
     setMobileChannelsOpen(false);
@@ -566,9 +580,11 @@ export default function SohbetOdasiPage() {
         if (data.clearInput !== false) { setInput(""); setPendingAttachments([]); }
       }
     }
-    function onSocketError(data: { message?: string }) {
+    function onSocketError(data: { message?: string; code?: string }) {
       const msg = data?.message ?? "Bir hata oluştu";
-      if (msg.toLowerCase().includes("giriş")) {
+      // Yalnızca sunucunun açıkça bildirdiği yetki hatasında oturumu kapat;
+      // mesaj metnine göre karar vermek yanlış pozitif logout'a yol açıyordu
+      if (data?.code === "AUTH_REQUIRED") {
         logout();
         router.push(`/giris?redirect=${encodeURIComponent(window.location.pathname)}`);
       } else {

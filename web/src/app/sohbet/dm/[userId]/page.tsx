@@ -82,6 +82,11 @@ export default function DmPage() {
   const [passwordUnlocked, setPasswordUnlocked] = useState(false);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
 
+  // Eski mesaj sayfalaması
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const oldestCreatedAtRef = useRef<string | null>(null);
+
   const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +101,20 @@ export default function DmPage() {
   // Klavye açıldığında mesaj yazma alanının arkada kalmaması için gerçek görünür
   // viewport yüksekliği (visualViewport) baz alınır.
   useEffect(() => setupChatViewportHeight(), []);
+
+  // Süreli mesajları süresi dolduğunda istemcide de kaldır (API yeniden
+  // başlatılıp sunucu yayını kaçırılsa bile görünüm tutarlı kalır)
+  useEffect(() => {
+    const timers = messages
+      .filter((m) => m.expiresAt)
+      .map((m) =>
+        setTimeout(
+          () => setMessages((p) => p.filter((x) => x.id !== m.id)),
+          Math.max(0, new Date(m.expiresAt!).getTime() - Date.now()),
+        ),
+      );
+    return () => timers.forEach(clearTimeout);
+  }, [messages]);
 
   const loadDms = useCallback(() => {
     if (!token) return;
@@ -148,6 +167,9 @@ export default function DmPage() {
     setReplyingTo(null);
     setNewMsgCount(0);
     setShowScrollDown(false);
+    setLoadingOlder(false);
+    setHasMoreOlder(true);
+    oldestCreatedAtRef.current = null;
     pendingPasswordRef.current = "";
     api.post<DmResolve>(`/chat/dm/${params.userId}`, {}, token)
       .then((resolved) => {
@@ -173,6 +195,43 @@ export default function DmPage() {
     [messages, user?.id, partnerLastReadAt],
   );
 
+  // Daha eski mesajları REST üzerinden yükle (scroll konumunu koruyarak başa ekle)
+  const loadOlderMessages = useCallback(async () => {
+    if (!dm?.chatId || !token || loadingOlder || !hasMoreOlder || !oldestCreatedAtRef.current) return;
+    setLoadingOlder(true);
+    try {
+      const older = await api.get<Message[]>(
+        `/chat/${dm.chatId}/messages?before=${encodeURIComponent(oldestCreatedAtRef.current)}`,
+        token,
+      );
+      if (older.length === 0) {
+        setHasMoreOlder(false);
+        return;
+      }
+      // API en yeniden eskiye döndürür — kronolojik sıraya çevir
+      const ascending = [...older].reverse().filter(
+        (m) => !isDeletedChatUser(m.user.profile?.displayName),
+      );
+      if (ascending.length > 0) {
+        oldestCreatedAtRef.current = ascending[0].createdAt;
+        const container = messagesRef.current;
+        const prevHeight = container?.scrollHeight ?? 0;
+        setMessages((prev) => [...ascending, ...prev]);
+        // Yeni içerik eklendikten sonra görünümü aynı mesajda tut
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop += container.scrollHeight - prevHeight;
+          }
+        });
+      }
+      if (older.length < 50) setHasMoreOlder(false);
+    } catch {
+      // Sessizce geç; kullanıcı tekrar denediğinde yeniden istenir
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [dm?.chatId, token, loadingOlder, hasMoreOlder]);
+
   useEffect(() => {
     if (!dm?.chatId || !passwordUnlocked) return;
     const chatId = dm.chatId;
@@ -194,6 +253,8 @@ export default function DmPage() {
     function onHistory(msgs: Message[]) {
       setConnected(true);
       setMessages(msgs.filter((m) => !isDeletedChatUser(m.user.profile?.displayName)));
+      oldestCreatedAtRef.current = msgs.length > 0 ? msgs[0].createdAt : null;
+      setHasMoreOlder(msgs.length >= 50);
       setTimeout(() => scrollToBottomReliably(false), 0);
       markChatRead(chatId, token!, true);
     }
@@ -240,9 +301,11 @@ export default function DmPage() {
         }
       }
     }
-    function onSocketError(data: { message?: string }) {
+    function onSocketError(data: { message?: string; code?: string }) {
       const msg = data?.message ?? "Bir hata oluştu";
-      if (msg.toLowerCase().includes("giriş")) {
+      // Yalnızca sunucunun açıkça bildirdiği yetki hatasında oturumu kapat;
+      // mesaj metnine göre karar vermek yanlış pozitif logout'a yol açıyordu
+      if (data?.code === "AUTH_REQUIRED") {
         logout();
         router.push(`/giris?redirect=${encodeURIComponent(window.location.pathname)}`);
       } else {
@@ -294,7 +357,8 @@ export default function DmPage() {
     };
   }, [dm?.chatId, token, passwordUnlocked, router, scrollToBottomReliably, isNearBottom]);
 
-  // Scroll takibi: alta inince "yeni mesaj" sayacını sıfırla
+  // Scroll takibi: en üste yaklaşınca eski mesajları otomatik yükle,
+  // alta inince "yeni mesaj" sayacını sıfırla
   useEffect(() => {
     const el = messagesRef.current;
     if (!el) return;
@@ -307,10 +371,11 @@ export default function DmPage() {
       } else {
         setShowScrollDown(true);
       }
+      if (el.scrollTop < 60) void loadOlderMessages();
     }
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, [dm?.chatId, passwordUnlocked]);
+  }, [dm?.chatId, passwordUnlocked, loadOlderMessages]);
 
   function submitJoinPassword(password: string) {
     pendingPasswordRef.current = password;
@@ -531,6 +596,18 @@ export default function DmPage() {
 
               <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <div ref={messagesRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-4 md:py-4">
+                {messages.length > 0 && hasMoreOlder && (
+                  <div className="flex justify-center pb-2">
+                    <button
+                      type="button"
+                      onClick={() => void loadOlderMessages()}
+                      disabled={loadingOlder}
+                      className="rounded-full border border-border bg-surface px-4 py-1.5 text-xs text-muted transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+                    >
+                      {loadingOlder ? "Yükleniyor…" : "Daha eski mesajları göster"}
+                    </button>
+                  </div>
+                )}
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center gap-3 pt-16 text-center">
                     <ChatAvatar name={partnerName} url={partnerAvatar} role={dm?.targetUser.role} size="lg" />

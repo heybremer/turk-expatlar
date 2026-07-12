@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Clock, FileText, Reply, SmilePlus, Trash2 } from "lucide-react";
 import { ChatAvatar } from "@/components/sohbet/ChatAvatar";
+import { ChatMessageBody } from "@/components/sohbet/ChatMessageBody";
 import { ChatReactionBar } from "@/components/sohbet/ChatReactionBar";
 import { CountryFlagBadge } from "@/components/user/CountryFlagBadge";
 import type { PostalCountry } from "@/lib/postal-country";
@@ -207,11 +208,7 @@ export function ChatMessageBubble({
                 </span>
               </button>
             )}
-            {body && (
-              <p className={`whitespace-pre-wrap break-words text-sm leading-relaxed ${isMe ? "text-white" : ""}`}>
-                {body}
-              </p>
-            )}
+            {body && <ChatMessageBody body={body} isMe={isMe} />}
             {(attachments ?? []).length > 0 && (
               <div className={`space-y-1.5 ${body ? "mt-1.5" : ""}`}>
                 {(attachments as ChatAttachment[]).map((att, j) =>
