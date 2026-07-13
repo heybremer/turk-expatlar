@@ -1,3 +1,4 @@
+import { RefObject, useEffect } from "react";
 import { api } from "@/lib/api";
 import { getSocket } from "@/lib/socket";
 
@@ -50,39 +51,28 @@ export function scrollMessagesToBottom(container: HTMLElement | null, smooth = f
 }
 
 /**
- * Sohbet sayfası yüksekliğini 100dvh yerine görsel viewport'a (visualViewport) göre sabitler.
- * Mobil tarayıcılarda klavye açıldığında dvh her zaman güncellenmediği için mesaj yazma
- * alanı klavyenin arkasında kalabiliyor; bu, useEffect içinde çağrılıp html/body yüksekliğini
- * klavye açık/kapalı her durumda gerçek görünür alana eşitleyerek sabit bir düzen sağlar.
+ * Mobil klavye açıldığında (görünür alan küçüldüğünde) kullanıcı yazıyorsa mesaj
+ * listesini en alta sabitler; son mesajlar klavyenin arkasında kaybolmaz.
+ * Viewport/body yükseklik senkronu MainWrapper'da global olarak yapılır.
  */
-export function setupChatViewportHeight() {
-  if (typeof window === "undefined") return () => {};
-  const html = document.documentElement;
-  const body = document.body;
-  const prev = {
-    htmlHeight: html.style.height,
-    bodyHeight: body.style.height,
-    bodyOverflow: body.style.overflow,
-  };
-
-  function applyHeight() {
-    const vh = window.visualViewport?.height ?? window.innerHeight;
-    html.style.height = `${vh}px`;
-    body.style.height = `${vh}px`;
-  }
-
-  body.style.overflow = "hidden";
-  applyHeight();
-  window.visualViewport?.addEventListener("resize", applyHeight);
-  window.addEventListener("resize", applyHeight);
-
-  return () => {
-    window.visualViewport?.removeEventListener("resize", applyHeight);
-    window.removeEventListener("resize", applyHeight);
-    html.style.height = prev.htmlHeight;
-    body.style.height = prev.bodyHeight;
-    body.style.overflow = prev.bodyOverflow;
-  };
+export function useKeyboardBottomPin<T extends HTMLElement>(containerRef: RefObject<T | null>) {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let lastHeight = vv.height;
+    const onResize = () => {
+      const shrunk = vv.height < lastHeight - 50;
+      lastHeight = vv.height;
+      const ae = document.activeElement;
+      const typing =
+        ae instanceof HTMLElement && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA");
+      if (shrunk && typing) {
+        requestAnimationFrame(() => scrollMessagesToBottom(containerRef.current, false));
+      }
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, [containerRef]);
 }
 
 export function markChatRead(

@@ -15,7 +15,7 @@ import { ChatPageShell } from "@/components/sohbet/ChatPageShell";
 import { DmConversationList } from "@/components/sohbet/DmConversationList";
 import { DmJoinPasswordModal, DmPasswordModal } from "@/components/sohbet/DmPasswordModal";
 import { NewMessageModal } from "@/components/sohbet/NewMessageModal";
-import { DmEntry, isDeletedChatUser, markChatRead, scrollMessagesToBottom, setupChatViewportHeight } from "@/components/sohbet/chat-utils";
+import { DmEntry, isDeletedChatUser, markChatRead, scrollMessagesToBottom, useKeyboardBottomPin } from "@/components/sohbet/chat-utils";
 import { ChatInputEmojiPicker } from "@/components/sohbet/ChatInputEmojiPicker";
 import { ChatMessageBubble, getLastReadOwnMessageId, type MessageReplyTo } from "@/components/sohbet/ChatMessageBubble";
 import { formatTypingLabel, useChatTyping } from "@/components/sohbet/useChatTyping";
@@ -104,10 +104,9 @@ export default function DmPage() {
     scrollMessagesToBottom(messagesRef.current, smooth);
   }, []);
 
-  // Sohbet sayfasında sayfayı sabit yükseklikte tut; yalnızca mesaj listesi scroll etsin.
-  // Klavye açıldığında mesaj yazma alanının arkada kalmaması için gerçek görünür
-  // viewport yüksekliği (visualViewport) baz alınır.
-  useEffect(() => setupChatViewportHeight(), []);
+  // Klavye açıldığında (viewport küçülünce) son mesajlar görünür kalsın.
+  // Sayfa/body yükseklik senkronu MainWrapper'da global olarak yapılır.
+  useKeyboardBottomPin(messagesRef);
 
   // Süreli mesajları süresi dolduğunda istemcide de kaldır (API yeniden
   // başlatılıp sunucu yayını kaçırılsa bile görünüm tutarlı kalır)
@@ -747,7 +746,7 @@ export default function DmPage() {
               )}
               </div>
 
-              <form onSubmit={sendMessage} className="border-t border-border bg-surface px-2 py-2 md:px-4 md:py-3">
+              <form onSubmit={sendMessage} className="border-t border-border bg-surface px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:px-4 md:py-3">
                 <ModerationNotice
                   message={moderationNotice}
                   code={moderationCode}
@@ -869,7 +868,7 @@ export default function DmPage() {
                         : `@${partnerName} mesaj yaz…`}
                       maxLength={1000}
                       enterKeyHint="send"
-                      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 md:text-sm"
                     />
                     <button type="submit"
                       disabled={(!input.trim() && pendingAttachments.length === 0) || !connected}

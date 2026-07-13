@@ -111,7 +111,7 @@ export function DmPasswordModal({ open, chatId, token, hasPassword, onClose, onU
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={hasPassword ? "Yeni şifre (boş bırak = değiştirme)" : "Şifre belirle"}
-            className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-base focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 md:text-sm"
           />
           {password && (
             <input
@@ -119,7 +119,7 @@ export function DmPasswordModal({ open, chatId, token, hasPassword, onClose, onU
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               placeholder="Şifreyi tekrar girin"
-              className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-base focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 md:text-sm"
             />
           )}
           {error && <p className="text-xs text-danger">{error}</p>}
@@ -192,7 +192,7 @@ export function DmJoinPasswordModal({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Sohbet şifresini girin…"
-            className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-base focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 md:text-sm"
           />
           <button
             type="submit"

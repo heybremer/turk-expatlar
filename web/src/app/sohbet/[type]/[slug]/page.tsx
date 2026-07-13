@@ -13,7 +13,7 @@ import { siteContentClass } from "@/lib/site-layout";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getSocket } from "@/lib/socket";
-import { scrollMessagesToBottom, isDeletedChatUser, setupChatViewportHeight } from "@/components/sohbet/chat-utils";
+import { scrollMessagesToBottom, isDeletedChatUser, useKeyboardBottomPin } from "@/components/sohbet/chat-utils";
 import { ChatInputEmojiPicker } from "@/components/sohbet/ChatInputEmojiPicker";
 import { ChatMessageBubble, type MessageReplyTo } from "@/components/sohbet/ChatMessageBubble";
 import { VoiceRecorderButton } from "@/components/sohbet/VoiceRecorderButton";
@@ -421,10 +421,9 @@ export default function SohbetOdasiPage() {
     setTimeout(() => el.classList.remove("chat-highlight"), 1300);
   }, []);
 
-  // Sohbet sayfasında sayfayı sabit yükseklikte tut; yalnızca mesaj listesi scroll etsin.
-  // Klavye açıldığında mesaj yazma alanının arkada kalmaması için gerçek görünür
-  // viewport yüksekliği (visualViewport) baz alınır.
-  useEffect(() => setupChatViewportHeight(), []);
+  // Klavye açıldığında (viewport küçülünce) son mesajlar görünür kalsın.
+  // Sayfa/body yükseklik senkronu MainWrapper'da global olarak yapılır.
+  useKeyboardBottomPin(messagesRef);
 
   // Süreli mesajları süresi dolduğunda istemcide de kaldır (API yeniden
   // başlatılıp sunucu yayını kaçırılsa bile görünüm tutarlı kalır)
@@ -924,7 +923,7 @@ export default function SohbetOdasiPage() {
         </div>
         <form onSubmit={submitPassword} className="space-y-3">
           <input autoFocus type="password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)}
-            placeholder="Oda şifresi..." className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+            placeholder="Oda şifresi..." className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-base focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 md:text-sm" />
           <button type="submit" disabled={!passwordInput.trim()} className="w-full rounded-lg bg-primary py-2.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-40">Gir</button>
           <Link href="/sohbet" className="block text-center text-sm text-muted hover:text-text">← Geri dön</Link>
         </form>
@@ -1130,7 +1129,7 @@ export default function SohbetOdasiPage() {
           </div>
 
           {/* Mesaj giriş alanı */}
-          <div className="border-t border-border bg-surface px-2 py-2 md:px-4 md:py-3">
+          <div className="border-t border-border bg-surface px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:px-4 md:py-3">
             {token ? (
               <div className="space-y-2">
                 {showTimer && (
@@ -1264,7 +1263,7 @@ export default function SohbetOdasiPage() {
                         : `#${roomName} kanalına mesaj yaz…`}
                       maxLength={1000}
                       enterKeyHint="send"
-                      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-base focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 md:text-sm"
                     />
                     <button type="submit"
                       disabled={(!input.trim() && pendingAttachments.length === 0) || !connected}
