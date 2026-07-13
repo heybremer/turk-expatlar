@@ -61,3 +61,26 @@ SITE_URL="https://turkexpatlar.de"
 ```env
 NEXT_PUBLIC_API_URL=https://api.turkexpatlar.de
 ```
+
+---
+
+## Veritabanı yedekleme
+
+Supabase yönettiği için otomatik snapshot alıyor olabilir, ama plana göre
+saklama süresi kısa olabileceğinden ek olarak sunucudan günlük `pg_dump`
+yedeği almak için `scripts/backup-db.sh` eklendi.
+
+```bash
+ssh root@SUNUCU_IP
+cd /opt/turkexpatlar
+bash scripts/backup-db.sh        # ilk denemeyi elle çalıştır
+
+crontab -e
+# Her gün 03:30'da yedek al, 14 gün sakla:
+30 3 * * * cd /opt/turkexpatlar && bash scripts/backup-db.sh >> /var/log/turkexpatlar-backup.log 2>&1
+```
+
+Yedekler `/opt/turkexpatlar/backups/turkexpatlar_YYYYMMDD_HHMMSS.sql.gz`
+olarak tutulur. Sunucunun kendisi de kaybolursa yedekler işe yaramaz —
+mümkünse `BACKUP_REMOTE_CMD` ortam değişkeniyle (rclone/s3cmd/restic vb.)
+yedekleri sunucu dışına da kopyalayın (script içindeki yorum satırına bakın).

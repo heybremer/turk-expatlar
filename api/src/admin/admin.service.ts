@@ -26,6 +26,7 @@ import {
 import { ChatModerationService } from '../chat/chat-moderation.service';
 import { DEFAULT_BANNED_WORDS } from '../chat/default-banned-words';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogService } from './audit-log.service';
 import {
   AdminCreateBusinessDto,
   AdminCreateUserDto,
@@ -42,6 +43,7 @@ export class AdminService {
   constructor(
     private prisma: PrismaService,
     private chatModeration: ChatModerationService,
+    private auditLog: AuditLogService,
   ) {}
 
   getDashboard() {
@@ -334,43 +336,66 @@ export class AdminService {
   }
 
   // Zamanlı ban veya kalıcı askıya al
-  async banUser(id: string, until?: Date) {
+  async banUser(id: string, until?: Date, actorId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (user?.role === UserRole.ADMIN) {
       throw new NotFoundException('Admin hesabı banlanamaz');
     }
-    return this.prisma.user.update({
+    const result = await this.prisma.user.update({
       where: { id },
       data: {
         status: UserStatus.SUSPENDED,
         bannedUntil: until ?? null,
       },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'user.ban',
+      entityType: 'User',
+      entityId: id,
+      metadata: { until: until?.toISOString() ?? null },
+    });
+    return result;
   }
 
   // Banı kaldır
-  async unbanUser(id: string) {
-    return this.prisma.user.update({
+  async unbanUser(id: string, actorId?: string) {
+    const result = await this.prisma.user.update({
       where: { id },
       data: { status: UserStatus.ACTIVE, bannedUntil: null },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'user.unban',
+      entityType: 'User',
+      entityId: id,
+    });
+    return result;
   }
 
   // Rol değiştir (ADMIN, MODERATOR, USER)
-  async changeUserRole(id: string, role: UserRole) {
-    return this.prisma.user.update({
+  async changeUserRole(id: string, role: UserRole, actorId?: string) {
+    const result = await this.prisma.user.update({
       where: { id },
       data: { role },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'user.role_change',
+      entityType: 'User',
+      entityId: id,
+      metadata: { newRole: role },
+    });
+    return result;
   }
 
   // Kullanıcı sil (soft delete)
-  async deleteUser(id: string) {
+  async deleteUser(id: string, actorId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (user?.role === UserRole.ADMIN) {
       throw new NotFoundException('Admin hesabı silinemez');
     }
-    return this.prisma.user.update({
+    const result = await this.prisma.user.update({
       where: { id },
       data: {
         deletedAt: new Date(),
@@ -382,6 +407,13 @@ export class AdminService {
         },
       },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'user.delete',
+      entityType: 'User',
+      entityId: id,
+    });
+    return result;
   }
 
   async createUser(dto: AdminCreateUserDto) {
@@ -462,11 +494,18 @@ export class AdminService {
     });
   }
 
-  deleteForumTopic(id: string) {
-    return this.prisma.forumTopic.update({
+  async deleteForumTopic(id: string, actorId?: string) {
+    const result = await this.prisma.forumTopic.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'forum_topic.delete',
+      entityType: 'ForumTopic',
+      entityId: id,
+    });
+    return result;
   }
 
   updateForumReply(id: string, dto: AdminUpdateForumReplyDto) {
@@ -476,11 +515,18 @@ export class AdminService {
     });
   }
 
-  deleteForumReply(id: string) {
-    return this.prisma.forumReply.update({
+  async deleteForumReply(id: string, actorId?: string) {
+    const result = await this.prisma.forumReply.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'forum_reply.delete',
+      entityType: 'ForumReply',
+      entityId: id,
+    });
+    return result;
   }
 
   // ─── Etkinlikler ─────────────────────────────────────────────────────────
@@ -546,11 +592,18 @@ export class AdminService {
     });
   }
 
-  deleteEvent(id: string) {
-    return this.prisma.event.update({
+  async deleteEvent(id: string, actorId?: string) {
+    const result = await this.prisma.event.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'event.delete',
+      entityType: 'Event',
+      entityId: id,
+    });
+    return result;
   }
 
   // ─── İşletmeler ──────────────────────────────────────────────────────────
@@ -623,11 +676,18 @@ export class AdminService {
     });
   }
 
-  deleteBusiness(id: string) {
-    return this.prisma.business.update({
+  async deleteBusiness(id: string, actorId?: string) {
+    const result = await this.prisma.business.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'business.delete',
+      entityType: 'Business',
+      entityId: id,
+    });
+    return result;
   }
 
   async listBusinessReviews(params: { page?: number; status?: string }) {
@@ -666,12 +726,18 @@ export class AdminService {
     return review;
   }
 
-  async deleteBusinessReview(id: string) {
+  async deleteBusinessReview(id: string, actorId?: string) {
     const review = await this.prisma.businessReview.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
     await this.recalculateBusinessReviewStats(review.businessId);
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'business_review.delete',
+      entityType: 'BusinessReview',
+      entityId: id,
+    });
     return review;
   }
 
@@ -763,12 +829,32 @@ export class AdminService {
     });
   }
 
-  approveJob(id: string) {
-    return this.prisma.jobPosting.update({ where: { id }, data: { status: JobStatus.PUBLISHED } });
+  async approveJob(id: string, actorId?: string) {
+    const result = await this.prisma.jobPosting.update({
+      where: { id },
+      data: { status: JobStatus.PUBLISHED },
+    });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'job.approve',
+      entityType: 'JobPosting',
+      entityId: id,
+    });
+    return result;
   }
 
-  rejectJob(id: string) {
-    return this.prisma.jobPosting.update({ where: { id }, data: { status: JobStatus.REJECTED } });
+  async rejectJob(id: string, actorId?: string) {
+    const result = await this.prisma.jobPosting.update({
+      where: { id },
+      data: { status: JobStatus.REJECTED },
+    });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'job.reject',
+      entityType: 'JobPosting',
+      entityId: id,
+    });
+    return result;
   }
 
   async updateJob(id: string, dto: AdminUpdateJobDto) {
@@ -796,11 +882,18 @@ export class AdminService {
     });
   }
 
-  deleteJob(id: string) {
-    return this.prisma.jobPosting.update({
+  async deleteJob(id: string, actorId?: string) {
+    const result = await this.prisma.jobPosting.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'job.delete',
+      entityType: 'JobPosting',
+      entityId: id,
+    });
+    return result;
   }
 
   getPendingReports() {
@@ -1079,14 +1172,22 @@ export class AdminService {
     });
   }
 
-  resolveReport(id: string, status: ReportStatus, moderatorId: string) {
-    return this.prisma.report.update({
+  async resolveReport(id: string, status: ReportStatus, moderatorId: string) {
+    const result = await this.prisma.report.update({
       where: { id },
       data: { status, moderatorId, resolvedAt: new Date() },
     });
+    await this.auditLog.log({
+      userId: moderatorId,
+      action: 'report.resolve',
+      entityType: 'Report',
+      entityId: id,
+      metadata: { status },
+    });
+    return result;
   }
 
-  async approveEvent(id: string) {
+  async approveEvent(id: string, actorId?: string) {
     const event = await this.prisma.event.findUnique({ where: { id } });
     if (!event) throw new Error('Etkinlik bulunamadı');
 
@@ -1104,10 +1205,17 @@ export class AdminService {
       },
     });
 
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'event.approve',
+      entityType: 'Event',
+      entityId: id,
+    });
+
     return updated;
   }
 
-  async rejectEvent(id: string, reason?: string) {
+  async rejectEvent(id: string, reason?: string, actorId?: string) {
     const event = await this.prisma.event.findUnique({ where: { id } });
     if (!event) throw new Error('Etkinlik bulunamadı');
 
@@ -1127,15 +1235,43 @@ export class AdminService {
       },
     });
 
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'event.reject',
+      entityType: 'Event',
+      entityId: id,
+      metadata: { reason: reason ?? null },
+    });
+
     return updated;
   }
 
-  approveBusiness(id: string) {
-    return this.prisma.business.update({ where: { id }, data: { status: BusinessStatus.ACTIVE } });
+  async approveBusiness(id: string, actorId?: string) {
+    const result = await this.prisma.business.update({
+      where: { id },
+      data: { status: BusinessStatus.ACTIVE },
+    });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'business.approve',
+      entityType: 'Business',
+      entityId: id,
+    });
+    return result;
   }
 
-  suspendUser(id: string) {
-    return this.prisma.user.update({ where: { id }, data: { status: UserStatus.SUSPENDED } });
+  async suspendUser(id: string, actorId?: string) {
+    const result = await this.prisma.user.update({
+      where: { id },
+      data: { status: UserStatus.SUSPENDED },
+    });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'user.suspend',
+      entityType: 'User',
+      entityId: id,
+    });
+    return result;
   }
 
   // ─── Seyahat / kurye ─────────────────────────────────────────────────────
@@ -1178,11 +1314,18 @@ export class AdminService {
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  deleteCourierRequest(id: string) {
-    return this.prisma.courierRequest.update({
+  async deleteCourierRequest(id: string, actorId?: string) {
+    const result = await this.prisma.courierRequest.update({
       where: { id },
       data: { deletedAt: new Date(), status: CourierStatus.CANCELLED },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'courier_request.delete',
+      entityType: 'CourierRequest',
+      entityId: id,
+    });
+    return result;
   }
 
   async listCourierCarryRelations(params: {
@@ -1513,11 +1656,18 @@ export class AdminService {
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  unbanChatUser(userId: string) {
-    return this.prisma.user.update({
+  async unbanChatUser(userId: string, actorId?: string) {
+    const result = await this.prisma.user.update({
       where: { id: userId },
       data: { status: UserStatus.ACTIVE, bannedUntil: null },
     });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'chat.unban',
+      entityType: 'User',
+      entityId: userId,
+    });
+    return result;
   }
 
   async getPagePermissionsConfig() {
@@ -1640,6 +1790,40 @@ export class AdminService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  // ─── Audit log ───────────────────────────────────────────────────────────
+
+  async listAuditLogs(params: {
+    page?: number;
+    action?: string;
+    entityType?: string;
+    userId?: string;
+  }) {
+    const page = Math.max(1, params.page ?? 1);
+    const limit = 30;
+    const skip = (page - 1) * limit;
+    const where: Record<string, unknown> = {};
+    if (params.action) where.action = params.action;
+    if (params.entityType) where.entityType = params.entityType;
+    if (params.userId) where.userId = params.userId;
+
+    const [items, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: { id: true, email: true, profile: { select: { displayName: true } } },
+          },
+        },
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   // ─── Analytics ─────────────────────────────────────────────────────────────

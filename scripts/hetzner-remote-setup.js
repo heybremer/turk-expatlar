@@ -7,14 +7,14 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const HOST = process.env.HETZNER_HOST || "159.69.23.193";
+const HOST = process.env.HETZNER_HOST;
 const USER = process.env.HETZNER_USER || "root";
 const PASS = process.env.HETZNER_PASS;
 const ROOT = path.resolve(__dirname, "..");
 const TAR = path.join(ROOT, "hetzner-deploy.tar.gz");
 
-if (!PASS) {
-  console.error("HETZNER_PASS gerekli");
+if (!HOST || !PASS) {
+  console.error("HETZNER_HOST ve HETZNER_PASS ortam değişkenleri gerekli");
   process.exit(1);
 }
 
@@ -85,11 +85,14 @@ conn
       );
 
       // api/.env
-      const dbUrl =
-        "postgresql://postgres.puixogwequambqxjhzja:TurkExpatlar88@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require";
-      const redisUrl =
-        "rediss://default:gQAAAAAAAeuzAAIgcDIxMjJkZmY2Mzg4NDk0Nzk4Yjg0YTVlZjYyMDY4NWNiZQ@modest-weevil-125875.upstash.io:6379";
-      const jwt = "turkexpatlar-prod-jwt-hetzner-2026";
+      const dbUrl = process.env.DATABASE_URL;
+      const redisUrl = process.env.REDIS_URL;
+      const jwt = process.env.JWT_SECRET;
+      if (!dbUrl || !redisUrl || !jwt) {
+        throw new Error(
+          "DATABASE_URL, REDIS_URL ve JWT_SECRET ortam değişkenleri gerekli",
+        );
+      }
 
       const apiEnv = [
         "NODE_ENV=production",
@@ -120,6 +123,14 @@ conn
 
       await exec(conn, "cd /opt/turkexpatlar && bash scripts/hetzner-deploy.sh", "Build + PM2");
 
+      // İlk kurulumda veritabanı boş — bir kereye mahsus seed çalıştır.
+      // (Rutin deploy'larda hetzner-deploy.sh artık seed çalıştırmıyor.)
+      await exec(
+        conn,
+        "cd /opt/turkexpatlar/api && npx prisma db seed",
+        "İlk kurulum seed",
+      );
+
       await exec(
         conn,
         "DOMAIN=turkexpatlar.de bash /opt/turkexpatlar/scripts/hetzner-nginx.sh",
@@ -135,7 +146,7 @@ conn
       console.log("\n✓ Kurulum tamamlandı.");
       console.log("  https://turkexpatlar.de (DNS yayıldıktan sonra)");
       console.log("  https://api.turkexpatlar.de");
-      console.log("  Hetzner DNS: A kayıtları @ www api → 159.69.23.193");
+      console.log(`  Hetzner DNS: A kayıtları @ www api → ${HOST}`);
     } catch (e) {
       console.error("\nHATA:", e.message);
       process.exitCode = 1;

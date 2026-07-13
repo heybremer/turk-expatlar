@@ -2,8 +2,8 @@ const { Client } = require("ssh2");
 const pass = process.env.SSH_PASS;
 const dbUrl = process.env.DATABASE_URL;
 
-if (!pass || !dbUrl) {
-  console.error("SSH_PASS and DATABASE_URL required");
+if (!pass || !dbUrl || !process.env.SSH_HOST || !process.env.SSH_USER) {
+  console.error("SSH_HOST, SSH_USER, SSH_PASS and DATABASE_URL required");
   process.exit(1);
 }
 
@@ -51,8 +51,8 @@ c.on("ready", () => {
   console.error(e.message);
   process.exit(1);
 }).connect({
-  host: "access-5020523952.webspace-host.com",
+  host: process.env.SSH_HOST,
   port: 22,
-  username: "su1182926",
+  username: process.env.SSH_USER,
   password: pass,
 });

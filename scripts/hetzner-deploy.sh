@@ -15,9 +15,13 @@ cd api
 npm ci --legacy-peer-deps
 npx prisma generate
 npx prisma migrate deploy
-npx prisma db seed
 npm run build
 cd ..
+
+# NOT: "npx prisma db seed" bilerek burada çalıştırılmıyor.
+# Seed script'i her deploy'da otomatik çalıştırmak production verisinde
+# istenmeyen değişikliklere yol açabilir. Seed'i sadece gerektiğinde,
+# elle (node scripts/hetzner-seed.js veya sunucuda `npx prisma db seed`) çalıştırın.
 
 echo "==> Web..."
 cd web

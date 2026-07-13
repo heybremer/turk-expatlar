@@ -1,7 +1,12 @@
 const { Client } = require("ssh2");
 const pass = process.env.SSH_PASS;
-const dbUrl =
-  "postgresql://postgres.puixogwequambqxjhzja:TurkExpatlar88@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require";
+const dbUrl = process.env.DATABASE_URL;
+
+if (!pass || !dbUrl || !process.env.SSH_HOST || !process.env.SSH_USER) {
+  console.error("SSH_HOST, SSH_USER, SSH_PASS ve DATABASE_URL ortam değişkenleri gerekli.");
+  process.exit(1);
+}
+
 const escaped = dbUrl.replace(/'/g, "'\\''");
 
 const script = `
@@ -43,8 +48,8 @@ c.on("ready", () => {
     });
   });
 }).connect({
-  host: "access-5020523952.webspace-host.com",
+  host: process.env.SSH_HOST,
   port: 22,
-  username: "su1182926",
+  username: process.env.SSH_USER,
   password: pass,
 });

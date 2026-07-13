@@ -10,6 +10,11 @@ const PASS = process.env.HETZNER_PASS;
 const ROOT = path.resolve(__dirname, "..");
 const TAR = path.join(ROOT, "hetzner-web.tar.gz");
 
+if (!process.env.HETZNER_HOST || !PASS) {
+  console.error("HETZNER_HOST ve HETZNER_PASS ortam değişkenleri gerekli");
+  process.exit(1);
+}
+
 function exec(conn, cmd, label) {
   return new Promise((resolve, reject) => {
     console.log(`\n==> ${label}`);
@@ -69,4 +74,4 @@ conn
       conn.end();
     }
   })
-  .connect({ host: "159.69.23.193", port: 22, username: "root", password: PASS });
+  .connect({ host: process.env.HETZNER_HOST, port: 22, username: "root", password: PASS });
