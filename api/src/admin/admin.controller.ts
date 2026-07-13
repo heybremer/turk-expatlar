@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AdminService } from './admin.service';
 import { ForumBotService } from '../tasks/forum-bot.service';
+import { ForumReplyBotService } from '../tasks/forum-reply-bot.service';
 import {
   AdminCreateBusinessDto,
   AdminCreateUserDto,
@@ -115,6 +116,7 @@ export class AdminController {
   constructor(
     private adminService: AdminService,
     private forumBot: ForumBotService,
+    private forumReplyBot: ForumReplyBotService,
   ) {}
 
   @Get('dashboard')
@@ -651,5 +653,17 @@ export class AdminController {
   @Post('forum-bot/post-now')
   triggerForumBotPost() {
     return this.forumBot.postNow();
+  }
+
+  // ─── Forum Cevap Botu ────────────────────────────────────────────────────
+
+  @Get('forum-reply-bot/dashboard')
+  getForumReplyBotDashboard() {
+    return this.forumReplyBot.getDashboardData();
+  }
+
+  @Post('forum-reply-bot/reply-now')
+  triggerForumReplyBotReply() {
+    return this.forumReplyBot.replyNow();
   }
 }

@@ -82,6 +82,8 @@ export class TelsizGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.userId = payload.sub;
       client.displayName = profile?.displayName ?? 'Gezgin';
       client.avatarUrl = profile?.avatarUrl ?? null;
+      // Kimlik doğrulama tamam — istemci artık güvenle join_channel gönderebilir
+      client.emit('telsiz_ready');
     } catch {
       client.disconnect();
     }
@@ -149,8 +151,13 @@ export class TelsizGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const channelId = data?.channelId;
     if (!channelId || client.channelId !== channelId) return;
 
-    // Susturulmuş mu kontrol et
-    const muteUntil = await this.moderation.getMuteUntil(client.userId);
+    // Susturulmuş mu kontrol et — moderasyon hatası PTT'yi asla engellememeli
+    let muteUntil: Date | null = null;
+    try {
+      muteUntil = await this.moderation.getMuteUntil(client.userId);
+    } catch {
+      muteUntil = null;
+    }
     if (muteUntil) {
       const mins = Math.ceil((muteUntil.getTime() - Date.now()) / 60_000);
       client.emit('ptt_denied', {
