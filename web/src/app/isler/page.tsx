@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { api, JobPosting } from "@/lib/api";
 import { JobCard } from "@/components/cards/JobCard";
 import { Button } from "@/components/ui/Button";
+import { MobileFilterToggle } from "@/components/ui/MobileFilterToggle";
 import {
   JOB_CATEGORIES,
   JOB_TYPES,
@@ -118,7 +119,11 @@ export default async function JobsPage({
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3">
+      <MobileFilterToggle
+        activeCount={[sp.jobType, sp.turkishFriendly, sp.category].filter(Boolean).length}
+      >
+      <div className="flex flex-wrap gap-2">
         {JOB_TYPES.map((t) => (
           <Link
             key={t.value}
@@ -158,7 +163,7 @@ export default async function JobsPage({
               { category: sp.category === c.value ? undefined : c.value },
               sp,
             )}
-            className={`rounded-full border px-3 py-1 text-xs ${
+            className={`rounded-full border px-3 py-1.5 text-xs ${
               sp.category === c.value
                 ? "border-primary bg-primary/10 font-medium text-primary"
                 : "border-border text-muted hover:border-primary hover:text-primary"
@@ -167,6 +172,8 @@ export default async function JobsPage({
             {c.label}
           </Link>
         ))}
+      </div>
+      </MobileFilterToggle>
       </div>
 
       <div className="mt-4 rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm text-muted">

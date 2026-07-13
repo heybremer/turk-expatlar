@@ -94,7 +94,7 @@ export function PushNotificationSetup() {
   if (!show || subscribed) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 z-50 w-80 rounded-2xl border border-border bg-surface p-4 shadow-xl md:bottom-6">
+    <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom)+0.5rem)] right-4 z-50 w-[calc(100vw-2rem)] max-w-xs rounded-2xl border border-border bg-surface p-4 shadow-xl md:bottom-6 md:w-80 md:max-w-none">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">

@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { Pagination } from "@/components/ui/Pagination";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { BackButton } from "@/components/ui/BackButton";
 
@@ -63,7 +65,7 @@ export default function IslerIndex() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["jobs", search, page],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page) });
@@ -86,7 +88,9 @@ export default function IslerIndex() {
         <SearchBar value={search} onChangeText={(v) => { setSearch(v); setPage(1); }} placeholder="İş ilanı ara…" />
       </View>
 
-      {isLoading ? <LoadingScreen /> : (
+      {isLoading ? <LoadingScreen /> : isError ? (
+        <ErrorState onRetry={() => void refetch()} />
+      ) : (
         <FlatList
           data={data?.items ?? []}
           keyExtractor={(j) => j.id}
@@ -94,6 +98,9 @@ export default function IslerIndex() {
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
           renderItem={({ item }) => <JobCard job={item} />}
           ListEmptyComponent={<EmptyState icon="briefcase-outline" title="İlan bulunamadı" />}
+          ListFooterComponent={
+            data ? <Pagination page={page} totalPages={data.totalPages} onChange={setPage} /> : null
+          }
         />
       )}
     </View>

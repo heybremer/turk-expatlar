@@ -792,7 +792,10 @@ export default function ChatRoomScreen() {
 
   if (chatId && passwordRequired) {
     return (
-      <View className="flex-1 bg-background">
+      <KeyboardAvoidingView
+        className="flex-1 bg-background"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <DetailHeader title={roomName || "Şifreli Oda"} onBack={() => router.back()} />
         <View className="flex-1 items-center justify-center px-6 gap-4">
           <View className="w-16 h-16 rounded-full bg-primary/10 items-center justify-center">
@@ -817,7 +820,7 @@ export default function ChatRoomScreen() {
             <Text className="text-white font-semibold text-sm">Gir</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 

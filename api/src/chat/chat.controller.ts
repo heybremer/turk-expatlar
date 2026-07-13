@@ -18,9 +18,10 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { diskStorage } from 'multer';
 import { join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, unlink } from 'fs';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SubscriptionGuard } from '../common/guards/subscription.guard';
@@ -28,31 +29,9 @@ import { RequireSubscription } from '../common/decorators/require-subscription.d
 import { RequireFeature } from '../common/decorators/require-feature.decorator';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
+import { ALLOWED_MIME, MAX_UPLOAD_SIZE, MIME_EXT } from './chat-upload.util';
 import { LinkPreviewService } from './link-preview.service';
 import type { Request } from 'express';
-
-// MIME -> güvenli dosya uzantısı eşlemesi. Uzantı istemcinin gönderdiği
-// dosya adından DEĞİL, doğrulanan MIME türünden türetilir (XSS/HTML yükleme koruması).
-const MIME_EXT: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/gif': '.gif',
-  'image/webp': '.webp',
-  'application/pdf': '.pdf',
-  'application/msword': '.doc',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-    '.docx',
-  'audio/m4a': '.m4a',
-  'audio/x-m4a': '.m4a',
-  'audio/mp4': '.m4a',
-  'audio/mpeg': '.mp3',
-  'audio/wav': '.wav',
-  'audio/x-wav': '.wav',
-  'audio/aac': '.aac',
-  'audio/webm': '.webm',
-};
-const ALLOWED_MIME = Object.keys(MIME_EXT);
-const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 
 @ApiTags('chat')
 @RequireFeature('chat')
@@ -123,6 +102,8 @@ export class ChatController {
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
   @UseGuards(JwtAuthGuard)
+  // Kullanıcı başına dakikada max 10 yükleme (disk doldurma koruması)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -137,15 +118,29 @@ export class ChatController {
           cb(null, `${unique}${ext}`);
         },
       }),
-      limits: { fileSize: MAX_SIZE },
+      limits: { fileSize: MAX_UPLOAD_SIZE },
       fileFilter: (_req, file, cb) => {
         if (ALLOWED_MIME.includes(file.mimetype)) cb(null, true);
         else cb(new BadRequestException('Desteklenmeyen dosya türü'), false);
       },
     }),
   )
-  uploadFile(@UploadedFile() file: Express.Multer.File, @Req() req: Request) {
+  async uploadFile(
+    @CurrentUser() user: { id: string },
+    @Param('chatId') chatId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
+  ) {
     if (!file) throw new BadRequestException('Dosya bulunamadı');
+
+    // Yükleme yalnızca erişim hakkı olan odalar için yapılabilir. Multer
+    // dosyayı handler'dan önce diske yazdığı için erişim reddedilirse silinir.
+    const denied = await this.chatService.checkRoomAccess(chatId, user.id);
+    if (denied) {
+      unlink(file.path, () => undefined);
+      throw new ForbiddenException('Bu odaya dosya yükleyemezsiniz');
+    }
+
     const protocol = req.protocol;
     const host = req.get('host');
     const url = `${protocol}://${host}/uploads/chat/${file.filename}`;
@@ -180,15 +175,18 @@ export class ChatController {
   @Delete('messages/:messageId')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  deleteMessage(
+  async deleteMessage(
     @CurrentUser() user: { id: string; role?: string },
     @Param('messageId') messageId: string,
   ) {
-    return this.chatService.deleteMessage(
+    const msg = await this.chatService.deleteMessage(
       messageId,
       user.id,
       user.role === 'ADMIN',
     );
+    // Socket üzerinden silenlerle aynı davranış: açık istemcilerden de kaldır
+    this.chatGateway.emitMessageDeleted(msg.chatId, msg.id);
+    return msg;
   }
 
   // Odadaki tüm mesajları temizle (yalnızca admin)
@@ -222,6 +220,29 @@ export class ChatController {
     return this.chatService
       .getDmUnreadCount(user.id)
       .then((count) => ({ count }));
+  }
+
+  // Kanal başına okunmamış mesaj özeti (genel + kullanıcının bölge kanalları)
+  @Get('unread-summary')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  getUnreadSummary(@CurrentUser() user: { id: string }) {
+    return this.chatService.getChannelUnreadSummary(user.id);
+  }
+
+  // Kanal/DM fark etmeksizin okundu işareti (socket bağlantısı yokken)
+  @Patch(':chatId/read')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async markRead(
+    @CurrentUser() user: { id: string },
+    @Param('chatId') chatId: string,
+  ) {
+    const result = await this.chatService.markRead(chatId, user.id);
+    if (result.isDm) {
+      this.chatGateway.emitReadReceipt(chatId, user.id, result.lastReadAt);
+    }
+    return result;
   }
 
   @Patch('dm/:chatId/read')

@@ -11,7 +11,7 @@ export function BusinessCard({ business }: { business: Business }) {
         {business.speaksTurkish && <Badge variant="default">Türkçe</Badge>}
         {business.isVerified && <Badge variant="success">Doğrulanmış</Badge>}
       </div>
-      <h3 className="mt-2 font-semibold text-text">{business.name}</h3>
+      <h3 className="mt-2 line-clamp-2 break-words font-semibold text-text">{business.name}</h3>
       <p className="mt-1 flex items-center gap-1 text-sm text-muted">
         <MapPin className="h-3.5 w-3.5" />
         {business.city.name}

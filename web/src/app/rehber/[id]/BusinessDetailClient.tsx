@@ -163,7 +163,7 @@ export default function BusinessDetailClient() {
         )}
       </div>
 
-      <h1 className="mt-3 text-2xl font-bold">{biz.name}</h1>
+      <h1 className="mt-3 break-words text-2xl font-bold">{biz.name}</h1>
       <div className="mt-2 flex items-center gap-3 text-sm">
         <span className="flex items-center gap-1 font-medium text-warning">
           <Star className="h-4 w-4 fill-warning text-warning" />{biz.averageRating.toFixed(1)}

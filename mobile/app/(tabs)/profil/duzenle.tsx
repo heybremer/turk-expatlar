@@ -78,18 +78,20 @@ export default function ProfilDuzenle() {
       <DetailHeader title="Profili Düzenle" />
 
       <ScrollView contentContainerStyle={{ padding: 24, gap: 24 }} keyboardShouldPersistTaps="handled">
-        {/* Avatar */}
+        {/* Avatar — kopya ile tutarlı olarak fotoğrafın tamamı dokunulabilir */}
         <View className="items-center">
-          <View className="relative">
+          <TouchableOpacity
+            onPress={() => void pickAndUploadAvatar()}
+            disabled={uploading}
+            activeOpacity={0.8}
+            accessibilityLabel="Profil fotoğrafını değiştir"
+            className="relative"
+          >
             <Avatar name={name} url={profile?.avatarUrl} size="xl" />
-            <TouchableOpacity
-              onPress={() => void pickAndUploadAvatar()}
-              disabled={uploading}
-              className="absolute -bottom-2 -right-2 bg-primary w-9 h-9 rounded-full items-center justify-center border-2 border-surface"
-            >
+            <View className="absolute -bottom-2 -right-2 bg-primary w-9 h-9 rounded-full items-center justify-center border-2 border-surface">
               {uploading ? <Text className="text-white text-base">…</Text> : <Ionicons name="camera" size={16} color="#fff" />}
-            </TouchableOpacity>
-          </View>
+            </View>
+          </TouchableOpacity>
           <Text className="text-sm text-muted mt-3">Fotoğrafa dokunarak değiştirin</Text>
         </View>
 

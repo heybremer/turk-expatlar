@@ -11,6 +11,7 @@ export type LinkPreview = {
 const FETCH_TIMEOUT_MS = 5000;
 const MAX_BYTES = 500_000;
 const CACHE_TTL_MS = 30 * 60 * 1000;
+const CACHE_MAX_ENTRIES = 300;
 const BLOCKED_HOSTNAMES = ['localhost', '0.0.0.0', '127.0.0.1', '::1'];
 
 @Injectable()
@@ -36,7 +37,22 @@ export class LinkPreviewService {
     };
 
     this.cache.set(url, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+    this.pruneCache();
     return data;
+  }
+
+  /** Cache'i sınırlı tutar: önce süresi dolanlar, gerekirse en eskiler atılır. */
+  private pruneCache() {
+    if (this.cache.size <= CACHE_MAX_ENTRIES) return;
+    const now = Date.now();
+    for (const [key, entry] of this.cache) {
+      if (entry.expiresAt <= now) this.cache.delete(key);
+    }
+    // Map ekleme sırasını korur; en eski kayıtlardan sil
+    for (const key of this.cache.keys()) {
+      if (this.cache.size <= CACHE_MAX_ENTRIES) break;
+      this.cache.delete(key);
+    }
   }
 
   private validateUrl(rawUrl: string): string {

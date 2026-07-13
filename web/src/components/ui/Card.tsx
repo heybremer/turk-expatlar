@@ -16,7 +16,13 @@ export function Card({
 
   if (href) {
     return (
-      <a href={href} className={cn(classes, "block")}>
+      <a
+        href={href}
+        className={cn(
+          classes,
+          "block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+        )}
+      >
         {children}
       </a>
     );

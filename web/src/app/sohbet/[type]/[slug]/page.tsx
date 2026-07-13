@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Ban, ChevronDown, ChevronRight, Clock, FileText, Globe,
   Hash, ImageIcon, KeyRound, Loader2, Lock, MapPin, Menu,
-  MessageCircle, Reply, Send, Smile, Trash2, Users, X,
+  MessageCircle, Pencil, Reply, Send, Smile, Trash2, Users, X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { siteContentClass } from "@/lib/site-layout";
@@ -16,6 +16,7 @@ import { getSocket } from "@/lib/socket";
 import { scrollMessagesToBottom, isDeletedChatUser, setupChatViewportHeight } from "@/components/sohbet/chat-utils";
 import { ChatInputEmojiPicker } from "@/components/sohbet/ChatInputEmojiPicker";
 import { ChatMessageBubble, type MessageReplyTo } from "@/components/sohbet/ChatMessageBubble";
+import { VoiceRecorderButton } from "@/components/sohbet/VoiceRecorderButton";
 import { formatTypingLabel, useChatTyping } from "@/components/sohbet/useChatTyping";
 import { ModerationNotice } from "@/components/sohbet/ModerationNotice";
 import { ChatRulesButton } from "@/components/sohbet/ChatRulesButton";
@@ -24,16 +25,28 @@ import { CountryFlagBadge } from "@/components/user/CountryFlagBadge";
 import type { PostalCountry } from "@/lib/postal-country";
 
 /* ─── Types ─────────────────────────────────────────────────────── */
-type Attachment = { url: string; name: string; size: number; type: "image" | "file"; mime: string };
+type Attachment = { url: string; name: string; size: number; type: "image" | "file" | "audio"; mime: string };
 type Message = {
   id: string; body: string;
   attachments?: Attachment[] | null;
   expiresAt?: string | null;
+  editedAt?: string | null;
   createdAt: string;
   reactions?: { emoji: string; count: number }[];
   replyTo?: MessageReplyTo | null;
   user: { id: string; role?: string; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null };
 };
+type UnreadSummaryItem = {
+  chatId: string;
+  type: string;
+  stateId?: string | null;
+  cityId?: string | null;
+  unread: number;
+};
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+function isEditWindowExpired(createdAt: string): boolean {
+  return Date.now() - new Date(createdAt).getTime() > EDIT_WINDOW_MS;
+}
 type OnlineUser = { userId: string; displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null; socketId: string };
 type OfflineMember = {
   userId: string;
@@ -42,7 +55,7 @@ type OfflineMember = {
   postalCountry?: "DE" | "TR" | null;
 };
 type ChatResolve = { chatId: string; name: string };
-type RoomItem = { href: string; label: string; type: "global" | "state" | "city" };
+type RoomItem = { href: string; label: string; type: "global" | "state" | "city"; unread?: number };
 
 const TIMER_OPTIONS = [
   { label: "Yok", value: 0 }, { label: "30 sn", value: 30 },
@@ -70,6 +83,7 @@ function toSlug(name: string) {
 /* ─── Channel item ──────────────────────────────────────────────── */
 function ChannelItem({ room, active, onClick }: { room: RoomItem; active: boolean; onClick?: () => void }) {
   const Icon = room.type === "global" ? Globe : room.type === "state" ? MapPin : Hash;
+  const showBadge = !active && (room.unread ?? 0) > 0;
   return (
     <Link
       href={room.href}
@@ -81,7 +95,12 @@ function ChannelItem({ room, active, onClick }: { room: RoomItem; active: boolea
       }`}
     >
       <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-      <span className="truncate">{room.label}</span>
+      <span className={`truncate ${showBadge ? "font-semibold text-text" : ""}`}>{room.label}</span>
+      {showBadge && (
+        <span className="ml-auto flex-shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+          {(room.unread ?? 0) > 99 ? "99+" : room.unread}
+        </span>
+      )}
     </Link>
   );
 }
@@ -91,7 +110,7 @@ function ChannelsSidebarContent({
   currentHref, stateRooms, cityRooms,
   statesExpanded, setStatesExpanded,
   citiesExpanded, setCitiesExpanded,
-  token, onLinkClick,
+  token, onLinkClick, globalUnread,
 }: {
   currentHref: string;
   stateRooms: RoomItem[];
@@ -102,12 +121,13 @@ function ChannelsSidebarContent({
   setCitiesExpanded: React.Dispatch<React.SetStateAction<boolean>>;
   token: string | null;
   onLinkClick?: () => void;
+  globalUnread?: number;
 }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
       <p className="px-2 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-widest text-muted/60">Genel</p>
       <ChannelItem
-        room={{ href: "/sohbet/genel/genel", label: "Genel Sohbet", type: "global" }}
+        room={{ href: "/sohbet/genel/genel", label: "Genel Sohbet", type: "global", unread: globalUnread }}
         active={currentHref === "/sohbet/genel/genel"}
         onClick={onLinkClick}
       />
@@ -344,6 +364,8 @@ export default function SohbetOdasiPage() {
   const [expiresInSeconds, setExpiresInSeconds] = useState(0);
   const [showTimer, setShowTimer] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMsg, setEditingMsg] = useState<Message | null>(null);
+  const [unreadSummary, setUnreadSummary] = useState<UnreadSummaryItem[]>([]);
   // Kullanıcı yukarıda gezerken gelen mesaj sayısı + aşağı in butonu görünürlüğü
   const [newMsgCount, setNewMsgCount] = useState(0);
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -404,6 +426,20 @@ export default function SohbetOdasiPage() {
   // viewport yüksekliği (visualViewport) baz alınır.
   useEffect(() => setupChatViewportHeight(), []);
 
+  // Süreli mesajları süresi dolduğunda istemcide de kaldır (API yeniden
+  // başlatılıp sunucu yayını kaçırılsa bile görünüm tutarlı kalır)
+  useEffect(() => {
+    const timers = messages
+      .filter((m) => m.expiresAt)
+      .map((m) =>
+        setTimeout(
+          () => setMessages((p) => p.filter((x) => x.id !== m.id)),
+          Math.max(0, new Date(m.expiresAt!).getTime() - Date.now()),
+        ),
+      );
+    return () => timers.forEach(clearTimeout);
+  }, [messages]);
+
   // Close mobile drawers when navigating to a different room
   useEffect(() => {
     setMobileChannelsOpen(false);
@@ -424,6 +460,20 @@ export default function SohbetOdasiPage() {
     }
   }, [token]);
 
+  // Kanal okunmamış rozetleri: oda değişince ve periyodik olarak yenile
+  useEffect(() => {
+    if (!token) { setUnreadSummary([]); return; }
+    let cancelled = false;
+    const load = () => {
+      api.get<UnreadSummaryItem[]>("/chat/unread-summary", token)
+        .then((items) => { if (!cancelled) setUnreadSummary(items); })
+        .catch(() => null);
+    };
+    load();
+    const id = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [token, chatId]);
+
   useEffect(() => {
     if (!params?.type || !params?.slug) return;
     // Oda değişince önceki odanın durumu sıfırlanır (eski mesaj/erişim/şifre
@@ -436,6 +486,7 @@ export default function SohbetOdasiPage() {
     setLoadingOlder(false);
     setHasMoreOlder(true);
     setReplyingTo(null);
+    setEditingMsg(null);
     setNewMsgCount(0);
     setShowScrollDown(false);
     oldestCreatedAtRef.current = null;
@@ -508,12 +559,21 @@ export default function SohbetOdasiPage() {
     function onDisconnect() { setConnected(false); }
     function onAccessDenied(data: { reason: string; requiredLocation?: string }) { setAccessDenied(data); }
     function onPasswordRequired() { setPasswordRequired(true); setConnected(true); }
+    function markThisRoomRead() {
+      if (!userIdRef.current) return;
+      sock.emit("mark_read", { chatId });
+      // Rozet gecikmeden sıfırlansın (sunucu tarafı zaten güncellendi)
+      setUnreadSummary((prev) =>
+        prev.map((i) => (i.chatId === chatId ? { ...i, unread: 0 } : i)),
+      );
+    }
     function onHistory(msgs: Message[]) {
       setConnected(true);
       setMessages(msgs.filter((m) => !isDeletedChatUser(m.user.profile?.displayName)));
       oldestCreatedAtRef.current = msgs.length > 0 ? msgs[0].createdAt : null;
       setHasMoreOlder(msgs.length >= 50);
       setTimeout(() => scrollToBottomReliably(false), 0);
+      markThisRoomRead();
     }
     function onNewMessage(msg: Message) {
       if (isDeletedChatUser(msg.user.profile?.displayName)) return;
@@ -524,10 +584,20 @@ export default function SohbetOdasiPage() {
       // yukarıda okuma yapan kullanıcıyı zorla aşağı çekme
       if (isOwn || isNearBottom()) {
         setTimeout(() => scrollToBottomReliably(true), 0);
+        markThisRoomRead();
       } else {
         setNewMsgCount((c) => c + 1);
         setShowScrollDown(true);
       }
+    }
+    function onMessageEdited(data: { messageId: string; body: string; editedAt?: string }) {
+      setMessages((p) =>
+        p.map((m) =>
+          m.id === data.messageId
+            ? { ...m, body: data.body, editedAt: data.editedAt ?? new Date().toISOString() }
+            : m,
+        ),
+      );
     }
     function onUserTyping(data: { userId: string; displayName?: string }) {
       if (data.userId === userIdRef.current) return;
@@ -566,9 +636,11 @@ export default function SohbetOdasiPage() {
         if (data.clearInput !== false) { setInput(""); setPendingAttachments([]); }
       }
     }
-    function onSocketError(data: { message?: string }) {
+    function onSocketError(data: { message?: string; code?: string }) {
       const msg = data?.message ?? "Bir hata oluştu";
-      if (msg.toLowerCase().includes("giriş")) {
+      // Yalnızca sunucunun açıkça bildirdiği yetki hatasında oturumu kapat;
+      // mesaj metnine göre karar vermek yanlış pozitif logout'a yol açıyordu
+      if (data?.code === "AUTH_REQUIRED") {
         logout();
         router.push(`/giris?redirect=${encodeURIComponent(window.location.pathname)}`);
       } else {
@@ -583,6 +655,7 @@ export default function SohbetOdasiPage() {
     sock.on("password_required", onPasswordRequired);
     sock.on("history", onHistory);
     sock.on("new_message", onNewMessage);
+    sock.on("message_edited", onMessageEdited);
     sock.on("user_typing", onUserTyping);
     sock.on("user_typing_stop", onUserTypingStop);
     sock.on("online_users", onOnlineUsers);
@@ -598,6 +671,7 @@ export default function SohbetOdasiPage() {
       sock.off("connect", onConnect); sock.off("disconnect", onDisconnect);
       sock.off("access_denied", onAccessDenied); sock.off("password_required", onPasswordRequired);
       sock.off("history", onHistory); sock.off("new_message", onNewMessage);
+      sock.off("message_edited", onMessageEdited);
       sock.off("user_typing", onUserTyping); sock.off("user_typing_stop", onUserTypingStop);
       sock.off("online_users", onOnlineUsers); sock.off("message_deleted", onMessageDeleted);
       sock.off("room_cleared", onRoomCleared);
@@ -664,8 +738,20 @@ export default function SohbetOdasiPage() {
 
   function sendMessage(e: React.FormEvent) {
     e.preventDefault();
-    if ((!input.trim() && pendingAttachments.length === 0) || !chatId) return;
-    if (!token) return;
+    if (!token || !chatId) return;
+
+    // Düzenleme modu: yalnızca mevcut mesajın metni güncellenir
+    if (editingMsg) {
+      if (!input.trim()) return;
+      getSocket(token).emit("edit_message", { messageId: editingMsg.id, body: input.trim() });
+      setEditingMsg(null);
+      setInput("");
+      stopTypingNow();
+      inputRef.current?.focus();
+      return;
+    }
+
+    if (!input.trim() && pendingAttachments.length === 0) return;
     getSocket(token).emit("send_message", {
       chatId, body: input.trim(), attachments: pendingAttachments,
       ...(expiresInSeconds > 0 ? { expiresInSeconds } : {}),
@@ -682,7 +768,51 @@ export default function SohbetOdasiPage() {
 
   function startReply(msg: Message) {
     setReplyingTo(msg);
+    setEditingMsg(null);
     inputRef.current?.focus();
+  }
+
+  function startEdit(msg: Message) {
+    // Sunucu da aynı pencereyi uygular; burada erken ve anlaşılır geri bildirim verilir
+    if (isEditWindowExpired(msg.createdAt)) {
+      setModerationNotice("Düzenleme süresi doldu (gönderimden sonra 15 dakika içinde düzenlenebilir)");
+      setModerationCode("EDIT");
+      return;
+    }
+    setEditingMsg(msg);
+    setReplyingTo(null);
+    setInput(msg.body);
+    inputRef.current?.focus();
+  }
+
+  function cancelEdit() {
+    setEditingMsg(null);
+    setInput("");
+  }
+
+  async function uploadVoiceMessage(file: File) {
+    if (!chatId || !token) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3201"}/api/chat/${chatId}/upload`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd },
+      );
+      if (res.ok) {
+        const att = (await res.json()) as Attachment;
+        setPendingAttachments((p) => [...p, att]);
+      } else {
+        setModerationNotice("Sesli mesaj yüklenemedi. Lütfen tekrar deneyin.");
+        setModerationCode("UPLOAD");
+      }
+    } catch {
+      setModerationNotice("Sesli mesaj yüklenemedi. Lütfen tekrar deneyin.");
+      setModerationCode("UPLOAD");
+    } finally {
+      setUploading(false);
+    }
   }
 
   function deleteMsg(messageId: string) { getSocket(token).emit("delete_message", { messageId }); }
@@ -715,10 +845,23 @@ export default function SohbetOdasiPage() {
 
   /* ─── Channel/member list helpers ───────────────────────────────── */
   const currentHref = params ? `/sohbet/${params.type}/${params.slug}` : "";
+  const unreadByState = new Map(
+    unreadSummary.filter((i) => i.stateId).map((i) => [i.stateId as string, i.unread]),
+  );
+  const unreadByCity = new Map(
+    unreadSummary.filter((i) => i.cityId).map((i) => [i.cityId as string, i.unread]),
+  );
+  const globalUnread = unreadSummary.find((i) => i.type === "GLOBAL")?.unread ?? 0;
   const channelRooms: RoomItem[] = [
-    { href: "/sohbet/genel/genel", label: "Genel Sohbet", type: "global" },
-    ...allRooms.states.map((s) => ({ href: `/sohbet/eyalet/${toSlug(s.name)}`, label: s.name, type: "state" as const })),
-    ...allRooms.cities.map((c) => ({ href: `/sohbet/sehir/${toSlug(c.name)}`, label: c.name, type: "city" as const })),
+    { href: "/sohbet/genel/genel", label: "Genel Sohbet", type: "global", unread: globalUnread },
+    ...allRooms.states.map((s) => ({
+      href: `/sohbet/eyalet/${toSlug(s.name)}`, label: s.name, type: "state" as const,
+      unread: unreadByState.get(s.id) ?? 0,
+    })),
+    ...allRooms.cities.map((c) => ({
+      href: `/sohbet/sehir/${toSlug(c.name)}`, label: c.name, type: "city" as const,
+      unread: unreadByCity.get(c.id) ?? 0,
+    })),
   ];
   const stateRooms = channelRooms.filter((r) => r.type === "state");
   const cityRooms = channelRooms.filter((r) => r.type === "city");
@@ -898,6 +1041,7 @@ export default function SohbetOdasiPage() {
               citiesExpanded={citiesExpanded}
               setCitiesExpanded={setCitiesExpanded}
               token={token}
+              globalUnread={globalUnread}
             />
           )}
         </aside>
@@ -944,6 +1088,7 @@ export default function SohbetOdasiPage() {
                       body={msg.body}
                       attachments={msg.attachments}
                       expiresAt={msg.expiresAt}
+                      editedAt={msg.editedAt}
                       createdAt={msg.createdAt}
                       displayName={isMe ? "Sen" : name}
                       avatarUrl={msg.user.profile?.avatarUrl}
@@ -953,6 +1098,7 @@ export default function SohbetOdasiPage() {
                       replyTo={msg.replyTo}
                       onNameClick={!isMe ? () => openDm(msg.user.id) : undefined}
                       onDelete={isMe ? () => deleteMsg(msg.id) : undefined}
+                      onEdit={isMe && !!msg.body ? () => startEdit(msg) : undefined}
                       onReply={token ? () => startReply(msg) : undefined}
                       onQuoteClick={scrollToMessage}
                       onReact={(emoji) => {
@@ -1007,6 +1153,8 @@ export default function SohbetOdasiPage() {
                         {att.type === "image"
                           // eslint-disable-next-line @next/next/no-img-element
                           ? <img src={att.url} alt={att.name} className="h-14 w-14 rounded-lg object-cover border border-border" />
+                          : att.type === "audio"
+                          ? <audio controls preload="metadata" src={att.url} className="h-10 w-48" />
                           : <div className="flex h-14 w-28 items-center gap-1.5 rounded-lg border border-border bg-background px-2 text-xs text-muted"><FileText className="h-4 w-4 flex-shrink-0" /><span className="truncate">{att.name}</span></div>
                         }
                         <button type="button" onClick={() => setPendingAttachments((p) => p.filter((a) => a.url !== att.url))}
@@ -1043,6 +1191,23 @@ export default function SohbetOdasiPage() {
                     </button>
                   </div>
                 )}
+                {editingMsg && (
+                  <div className="flex items-center gap-2 rounded-lg border-l-2 border-warning bg-background px-3 py-1.5 text-xs">
+                    <Pencil className="h-3.5 w-3.5 flex-shrink-0 text-warning" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-warning">Mesaj düzenleniyor</p>
+                      <p className="truncate text-muted">{editingMsg.body}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-text"
+                      aria-label="Düzenlemeyi iptal et"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
                 {Object.keys(typingUsers).length > 0 && (
                   <p className="text-xs text-primary">{formatTypingLabel(Object.values(typingUsers))}</p>
                 )}
@@ -1055,12 +1220,21 @@ export default function SohbetOdasiPage() {
                     {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
                   </button>
 
+                  {!editingMsg && (
+                    <VoiceRecorderButton
+                      disabled={uploading}
+                      onRecorded={(file) => void uploadVoiceMessage(file)}
+                      onError={(msg) => { setModerationNotice(msg); setModerationCode("MIC"); }}
+                    />
+                  )}
+
+                  {/* Mobil klavyede emoji zaten var; dar ekranda yer açmak için gizle */}
                   <button
                     ref={emojiBtnRef}
                     type="button"
                     title="Emoji"
                     onClick={() => setShowEmoji((v) => !v)}
-                    className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary active:bg-background ${showEmoji ? "bg-background text-primary" : ""}`}
+                    className={`hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary active:bg-background sm:flex ${showEmoji ? "bg-background text-primary" : ""}`}
                   >
                     <Smile className="h-4 w-4" />
                   </button>
@@ -1080,15 +1254,17 @@ export default function SohbetOdasiPage() {
                     <Clock className="h-4 w-4" />
                   </button>
 
-                  <form onSubmit={sendMessage} className="flex flex-1 items-center gap-1.5">
+                  <form onSubmit={sendMessage} className="flex min-w-0 flex-1 items-center gap-1.5">
                     <input ref={inputRef} type="text" value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder={expiresInSeconds > 0
+                      placeholder={editingMsg
+                        ? "Mesajı düzenle…"
+                        : expiresInSeconds > 0
                         ? `${TIMER_OPTIONS.find((t) => t.value === expiresInSeconds)?.label} sonra silinecek…`
                         : `#${roomName} kanalına mesaj yaz…`}
                       maxLength={1000}
                       enterKeyHint="send"
-                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                     <button type="submit"
                       disabled={(!input.trim() && pendingAttachments.length === 0) || !connected}
@@ -1159,6 +1335,7 @@ export default function SohbetOdasiPage() {
               citiesExpanded={citiesExpanded}
               setCitiesExpanded={setCitiesExpanded}
               token={token}
+              globalUnread={globalUnread}
               onLinkClick={() => setMobileChannelsOpen(false)}
             />
           </div>

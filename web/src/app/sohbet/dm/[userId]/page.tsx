@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, ChevronDown, Clock, FileText, ImageIcon, KeyRound, Loader2, Lock, Reply, Send, Smile, WifiOff, X,
+  ArrowLeft, ChevronDown, Clock, FileText, ImageIcon, KeyRound, Loader2, Lock, Pencil, Reply, Send, Smile, WifiOff, X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -22,14 +22,16 @@ import { formatTypingLabel, useChatTyping } from "@/components/sohbet/useChatTyp
 import { ModerationNotice } from "@/components/sohbet/ModerationNotice";
 import { ChatRulesButton } from "@/components/sohbet/ChatRulesButton";
 import { UserDisplayName } from "@/components/user/UserDisplayName";
+import { VoiceRecorderButton } from "@/components/sohbet/VoiceRecorderButton";
 import type { PostalCountry } from "@/lib/postal-country";
 
-type Attachment = { url: string; name: string; size: number; type: "image" | "file"; mime: string };
+type Attachment = { url: string; name: string; size: number; type: "image" | "file" | "audio"; mime: string };
 type Message = {
   id: string;
   body: string;
   attachments?: Attachment[] | null;
   expiresAt?: string | null;
+  editedAt?: string | null;
   createdAt: string;
   reactions?: { emoji: string; count: number }[];
   replyTo?: MessageReplyTo | null;
@@ -48,6 +50,10 @@ const TIMER_OPTIONS = [
   { label: "1 dk", value: 60 }, { label: "5 dk", value: 300 },
   { label: "1 sa", value: 3600 }, { label: "24 sa", value: 86400 },
 ];
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+function isEditWindowExpired(createdAt: string): boolean {
+  return Date.now() - new Date(createdAt).getTime() > EDIT_WINDOW_MS;
+}
 
 export default function DmPage() {
   const params = useParams<{ userId: string }>();
@@ -73,6 +79,7 @@ export default function DmPage() {
   const [expiresInSeconds, setExpiresInSeconds] = useState(0);
   const [showTimer, setShowTimer] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMsg, setEditingMsg] = useState<Message | null>(null);
   const [newMsgCount, setNewMsgCount] = useState(0);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [channelsOpen, setChannelsOpen] = useState(true);
@@ -81,6 +88,11 @@ export default function DmPage() {
   const [showJoinPassword, setShowJoinPassword] = useState(false);
   const [passwordUnlocked, setPasswordUnlocked] = useState(false);
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
+
+  // Eski mesaj sayfalaması
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const oldestCreatedAtRef = useRef<string | null>(null);
 
   const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +108,20 @@ export default function DmPage() {
   // Klavye açıldığında mesaj yazma alanının arkada kalmaması için gerçek görünür
   // viewport yüksekliği (visualViewport) baz alınır.
   useEffect(() => setupChatViewportHeight(), []);
+
+  // Süreli mesajları süresi dolduğunda istemcide de kaldır (API yeniden
+  // başlatılıp sunucu yayını kaçırılsa bile görünüm tutarlı kalır)
+  useEffect(() => {
+    const timers = messages
+      .filter((m) => m.expiresAt)
+      .map((m) =>
+        setTimeout(
+          () => setMessages((p) => p.filter((x) => x.id !== m.id)),
+          Math.max(0, new Date(m.expiresAt!).getTime() - Date.now()),
+        ),
+      );
+    return () => timers.forEach(clearTimeout);
+  }, [messages]);
 
   const loadDms = useCallback(() => {
     if (!token) return;
@@ -146,8 +172,12 @@ export default function DmPage() {
     setConnected(false);
     setPasswordUnlocked(false);
     setReplyingTo(null);
+    setEditingMsg(null);
     setNewMsgCount(0);
     setShowScrollDown(false);
+    setLoadingOlder(false);
+    setHasMoreOlder(true);
+    oldestCreatedAtRef.current = null;
     pendingPasswordRef.current = "";
     api.post<DmResolve>(`/chat/dm/${params.userId}`, {}, token)
       .then((resolved) => {
@@ -173,6 +203,43 @@ export default function DmPage() {
     [messages, user?.id, partnerLastReadAt],
   );
 
+  // Daha eski mesajları REST üzerinden yükle (scroll konumunu koruyarak başa ekle)
+  const loadOlderMessages = useCallback(async () => {
+    if (!dm?.chatId || !token || loadingOlder || !hasMoreOlder || !oldestCreatedAtRef.current) return;
+    setLoadingOlder(true);
+    try {
+      const older = await api.get<Message[]>(
+        `/chat/${dm.chatId}/messages?before=${encodeURIComponent(oldestCreatedAtRef.current)}`,
+        token,
+      );
+      if (older.length === 0) {
+        setHasMoreOlder(false);
+        return;
+      }
+      // API en yeniden eskiye döndürür — kronolojik sıraya çevir
+      const ascending = [...older].reverse().filter(
+        (m) => !isDeletedChatUser(m.user.profile?.displayName),
+      );
+      if (ascending.length > 0) {
+        oldestCreatedAtRef.current = ascending[0].createdAt;
+        const container = messagesRef.current;
+        const prevHeight = container?.scrollHeight ?? 0;
+        setMessages((prev) => [...ascending, ...prev]);
+        // Yeni içerik eklendikten sonra görünümü aynı mesajda tut
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop += container.scrollHeight - prevHeight;
+          }
+        });
+      }
+      if (older.length < 50) setHasMoreOlder(false);
+    } catch {
+      // Sessizce geç; kullanıcı tekrar denediğinde yeniden istenir
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [dm?.chatId, token, loadingOlder, hasMoreOlder]);
+
   useEffect(() => {
     if (!dm?.chatId || !passwordUnlocked) return;
     const chatId = dm.chatId;
@@ -194,6 +261,8 @@ export default function DmPage() {
     function onHistory(msgs: Message[]) {
       setConnected(true);
       setMessages(msgs.filter((m) => !isDeletedChatUser(m.user.profile?.displayName)));
+      oldestCreatedAtRef.current = msgs.length > 0 ? msgs[0].createdAt : null;
+      setHasMoreOlder(msgs.length >= 50);
       setTimeout(() => scrollToBottomReliably(false), 0);
       markChatRead(chatId, token!, true);
     }
@@ -211,6 +280,15 @@ export default function DmPage() {
       }
       markChatRead(chatId, token!, sock.connected);
       loadDmsRef.current();
+    }
+    function onMessageEdited(data: { messageId: string; body: string; editedAt?: string }) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === data.messageId
+            ? { ...m, body: data.body, editedAt: data.editedAt ?? new Date().toISOString() }
+            : m,
+        ),
+      );
     }
     function onUserTyping(data: { userId: string }) {
       if (data.userId === targetUserId) setPartnerTyping(true);
@@ -240,9 +318,11 @@ export default function DmPage() {
         }
       }
     }
-    function onSocketError(data: { message?: string }) {
+    function onSocketError(data: { message?: string; code?: string }) {
       const msg = data?.message ?? "Bir hata oluştu";
-      if (msg.toLowerCase().includes("giriş")) {
+      // Yalnızca sunucunun açıkça bildirdiği yetki hatasında oturumu kapat;
+      // mesaj metnine göre karar vermek yanlış pozitif logout'a yol açıyordu
+      if (data?.code === "AUTH_REQUIRED") {
         logout();
         router.push(`/giris?redirect=${encodeURIComponent(window.location.pathname)}`);
       } else {
@@ -263,6 +343,7 @@ export default function DmPage() {
     sock.on("online_users", onOnlineUsers);
     sock.on("history", onHistory);
     sock.on("new_message", onNewMessage);
+    sock.on("message_edited", onMessageEdited);
     sock.on("user_typing", onUserTyping);
     sock.on("user_typing_stop", onUserTypingStop);
     sock.on("read_receipt", onReadReceipt);
@@ -284,6 +365,7 @@ export default function DmPage() {
       sock.off("online_users", onOnlineUsers);
       sock.off("history", onHistory);
       sock.off("new_message", onNewMessage);
+      sock.off("message_edited", onMessageEdited);
       sock.off("user_typing", onUserTyping);
       sock.off("user_typing_stop", onUserTypingStop);
       sock.off("read_receipt", onReadReceipt);
@@ -294,7 +376,8 @@ export default function DmPage() {
     };
   }, [dm?.chatId, token, passwordUnlocked, router, scrollToBottomReliably, isNearBottom]);
 
-  // Scroll takibi: alta inince "yeni mesaj" sayacını sıfırla
+  // Scroll takibi: en üste yaklaşınca eski mesajları otomatik yükle,
+  // alta inince "yeni mesaj" sayacını sıfırla
   useEffect(() => {
     const el = messagesRef.current;
     if (!el) return;
@@ -307,10 +390,11 @@ export default function DmPage() {
       } else {
         setShowScrollDown(true);
       }
+      if (el.scrollTop < 60) void loadOlderMessages();
     }
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, [dm?.chatId, passwordUnlocked]);
+  }, [dm?.chatId, passwordUnlocked, loadOlderMessages]);
 
   function submitJoinPassword(password: string) {
     pendingPasswordRef.current = password;
@@ -371,7 +455,20 @@ export default function DmPage() {
 
   function sendMessage(e: React.FormEvent) {
     e.preventDefault();
-    if ((!input.trim() && pendingAttachments.length === 0) || !dm?.chatId || !passwordUnlocked) return;
+    if (!dm?.chatId || !passwordUnlocked) return;
+
+    // Düzenleme modu: yalnızca mevcut mesajın metni güncellenir
+    if (editingMsg) {
+      if (!input.trim()) return;
+      getSocket(token).emit("edit_message", { messageId: editingMsg.id, body: input.trim() });
+      setEditingMsg(null);
+      setInput("");
+      stopTypingNow();
+      inputRef.current?.focus();
+      return;
+    }
+
+    if (!input.trim() && pendingAttachments.length === 0) return;
     getSocket(token).emit("send_message", {
       chatId: dm.chatId,
       body: input.trim(),
@@ -390,7 +487,51 @@ export default function DmPage() {
 
   function startReply(msg: Message) {
     setReplyingTo(msg);
+    setEditingMsg(null);
     inputRef.current?.focus();
+  }
+
+  function startEdit(msg: Message) {
+    // Sunucu da aynı pencereyi uygular; burada erken ve anlaşılır geri bildirim verilir
+    if (isEditWindowExpired(msg.createdAt)) {
+      setModerationNotice("Düzenleme süresi doldu (gönderimden sonra 15 dakika içinde düzenlenebilir)");
+      setModerationCode("EDIT");
+      return;
+    }
+    setEditingMsg(msg);
+    setReplyingTo(null);
+    setInput(msg.body);
+    inputRef.current?.focus();
+  }
+
+  function cancelEdit() {
+    setEditingMsg(null);
+    setInput("");
+  }
+
+  async function uploadVoiceMessage(file: File) {
+    if (!dm?.chatId || !token) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3201"}/api/chat/${dm.chatId}/upload`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd },
+      );
+      if (res.ok) {
+        const att = (await res.json()) as Attachment;
+        setPendingAttachments((p) => [...p, att]);
+      } else {
+        setModerationNotice("Sesli mesaj yüklenemedi. Lütfen tekrar deneyin.");
+        setModerationCode("UPLOAD");
+      }
+    } catch {
+      setModerationNotice("Sesli mesaj yüklenemedi. Lütfen tekrar deneyin.");
+      setModerationCode("UPLOAD");
+    } finally {
+      setUploading(false);
+    }
   }
 
   if (error) {
@@ -531,6 +672,18 @@ export default function DmPage() {
 
               <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <div ref={messagesRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-4 md:py-4">
+                {messages.length > 0 && hasMoreOlder && (
+                  <div className="flex justify-center pb-2">
+                    <button
+                      type="button"
+                      onClick={() => void loadOlderMessages()}
+                      disabled={loadingOlder}
+                      className="rounded-full border border-border bg-surface px-4 py-1.5 text-xs text-muted transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+                    >
+                      {loadingOlder ? "Yükleniyor…" : "Daha eski mesajları göster"}
+                    </button>
+                  </div>
+                )}
                 {messages.length === 0 && (
                   <div className="flex flex-col items-center justify-center gap-3 pt-16 text-center">
                     <ChatAvatar name={partnerName} url={partnerAvatar} role={dm?.targetUser.role} size="lg" />
@@ -554,6 +707,7 @@ export default function DmPage() {
                           body={msg.body}
                           attachments={msg.attachments}
                           expiresAt={msg.expiresAt}
+                          editedAt={msg.editedAt}
                           createdAt={msg.createdAt}
                           displayName={isMe ? "Sen" : name}
                           avatarUrl={msg.user.profile?.avatarUrl}
@@ -562,6 +716,7 @@ export default function DmPage() {
                           showReadReceipt={isMe && msg.id === lastReadOwnMessageId}
                           reactions={msg.reactions}
                           replyTo={msg.replyTo}
+                          onEdit={isMe && !!msg.body ? () => startEdit(msg) : undefined}
                           onReply={() => startReply(msg)}
                           onQuoteClick={scrollToMessage}
                           onReact={(emoji) => {
@@ -620,6 +775,23 @@ export default function DmPage() {
                       </button>
                     </div>
                   )}
+                  {editingMsg && (
+                    <div className="flex items-center gap-2 rounded-lg border-l-2 border-warning bg-background px-3 py-1.5 text-xs">
+                      <Pencil className="h-3.5 w-3.5 flex-shrink-0 text-warning" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-warning">Mesaj düzenleniyor</p>
+                        <p className="truncate text-muted">{editingMsg.body}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-text"
+                        aria-label="Düzenlemeyi iptal et"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {showTimer && (
                     <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-background px-3 py-2 text-xs">
                       <Clock className="h-3.5 w-3.5 text-muted" />
@@ -640,6 +812,8 @@ export default function DmPage() {
                           {att.type === "image"
                             // eslint-disable-next-line @next/next/no-img-element
                             ? <img src={att.url} alt={att.name} className="h-14 w-14 rounded-lg border border-border object-cover" />
+                            : att.type === "audio"
+                            ? <audio controls preload="metadata" src={att.url} className="h-10 w-48" />
                             : <div className="flex h-14 w-28 items-center gap-1.5 rounded-lg border border-border bg-background px-2 text-xs text-muted"><FileText className="h-4 w-4" /><span className="truncate">{att.name}</span></div>
                           }
                           <button type="button" onClick={() => setPendingAttachments((p) => p.filter((a) => a.url !== att.url))}
@@ -657,12 +831,20 @@ export default function DmPage() {
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary disabled:opacity-40">
                       {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
                     </button>
+                    {!editingMsg && (
+                      <VoiceRecorderButton
+                        disabled={uploading}
+                        onRecorded={(file) => void uploadVoiceMessage(file)}
+                        onError={(msg) => { setModerationNotice(msg); setModerationCode("MIC"); }}
+                      />
+                    )}
+                    {/* Mobil klavyede emoji zaten var; dar ekranda yer açmak için gizle */}
                     <button
                       ref={emojiBtnRef}
                       type="button"
                       title="Emoji"
                       onClick={() => setShowEmoji((v) => !v)}
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary ${showEmoji ? "bg-background text-primary" : ""}`}
+                      className={`hidden h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary sm:flex ${showEmoji ? "bg-background text-primary" : ""}`}
                     >
                       <Smile className="h-4 w-4" />
                     </button>
@@ -680,12 +862,14 @@ export default function DmPage() {
                       <Clock className="h-4 w-4" />
                     </button>
                     <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)}
-                      placeholder={expiresInSeconds > 0
+                      placeholder={editingMsg
+                        ? "Mesajı düzenle…"
+                        : expiresInSeconds > 0
                         ? `${TIMER_OPTIONS.find((t) => t.value === expiresInSeconds)?.label} sonra silinecek…`
                         : `@${partnerName} mesaj yaz…`}
                       maxLength={1000}
                       enterKeyHint="send"
-                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                     <button type="submit"
                       disabled={(!input.trim() && pendingAttachments.length === 0) || !connected}

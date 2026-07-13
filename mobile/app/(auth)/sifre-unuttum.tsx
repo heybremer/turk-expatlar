@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, ApiError } from "@/lib/api";
 
 export default function SifreUnuttumScreen() {
@@ -18,6 +19,7 @@ export default function SifreUnuttumScreen() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   async function handleSubmit() {
     if (!email.trim()) return;
@@ -37,7 +39,10 @@ export default function SifreUnuttumScreen() {
       className="flex-1 bg-background"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View className="flex-1 justify-center px-6">
+      <View
+        className="flex-1 justify-center px-6"
+        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+      >
         {sent ? (
           <View className="rounded-2xl bg-surface p-8 items-center">
             <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-primary/10">

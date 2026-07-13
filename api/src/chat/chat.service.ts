@@ -1,10 +1,14 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { ChatType } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
+
+const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class ChatService {
@@ -142,6 +146,15 @@ export class ChatService {
     const chat = await this.prisma.chat.findUnique({ where: { id: chatId } });
     if (!chat) throw new NotFoundException('Oda bulunamadı');
 
+    // "before" istemciden gelir; geçersiz tarih Prisma'ya ulaşmadan reddedilmeli
+    let beforeDate: Date | undefined;
+    if (before) {
+      beforeDate = new Date(before);
+      if (isNaN(beforeDate.getTime())) {
+        throw new BadRequestException('Geçersiz tarih parametresi');
+      }
+    }
+
     const now = new Date();
     const messages = await this.prisma.message.findMany({
       where: {
@@ -150,7 +163,7 @@ export class ChatService {
         user: { deletedAt: null },
         // Süresi dolmuş zamanlayıcılı mesajları hariç tut
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-        ...(before && { createdAt: { lt: new Date(before) } }),
+        ...(beforeDate && { createdAt: { lt: beforeDate } }),
       },
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -228,12 +241,11 @@ export class ChatService {
       return null;
     }
 
+    // Var olmayan oda: erişim yok (yükleme vb. için sahte chatId kullanılamasın)
+    if (!chat) return { reason: 'not_found' };
+
     // GLOBAL veya EVENT odaları herkese açık
-    if (
-      !chat ||
-      chat.type === ChatType.GLOBAL ||
-      chat.type === ChatType.EVENT
-    ) {
+    if (chat.type === ChatType.GLOBAL || chat.type === ChatType.EVENT) {
       return null;
     }
 
@@ -412,6 +424,45 @@ export class ChatService {
     return message;
   }
 
+  /**
+   * Düzenlenebilirlik kontrolü: yalnızca kendi mesajı, silinmemiş ve
+   * düzenleme penceresi (15 dk) içinde. Moderasyon kontrolü gateway'de
+   * yapılıp ardından applyMessageEdit çağrılır.
+   */
+  async getEditableMessage(messageId: string, userId: string) {
+    const msg = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        chatId: true,
+        userId: true,
+        deletedAt: true,
+        createdAt: true,
+        attachments: true,
+      },
+    });
+    if (!msg || msg.deletedAt) throw new NotFoundException('Mesaj bulunamadı');
+    if (msg.userId !== userId) {
+      throw new ForbiddenException('Bu mesajı düzenleyemezsiniz');
+    }
+    if (Date.now() - msg.createdAt.getTime() > MESSAGE_EDIT_WINDOW_MS) {
+      throw new ForbiddenException(
+        'Düzenleme süresi doldu (gönderimden sonra 15 dakika)',
+      );
+    }
+    const hasAttachments =
+      Array.isArray(msg.attachments) && msg.attachments.length > 0;
+    return { chatId: msg.chatId, hasAttachments };
+  }
+
+  async applyMessageEdit(messageId: string, body: string) {
+    return this.prisma.message.update({
+      where: { id: messageId },
+      data: { body, editedAt: new Date() },
+      select: { id: true, chatId: true, body: true, editedAt: true },
+    });
+  }
+
   async deleteMessage(messageId: string, userId: string, isAdmin = false) {
     const msg = await this.prisma.message.findUnique({
       where: { id: messageId },
@@ -499,18 +550,48 @@ export class ChatService {
       }
     }
 
+    const trimmed = password?.trim() ?? '';
     return this.prisma.chat.update({
       where: { id: chatId },
-      data: { password: password?.trim() ? password.trim() : null },
+      // Şifreler düz metin yerine bcrypt hash olarak saklanır
+      data: { password: trimmed ? await bcrypt.hash(trimmed, 10) : null },
     });
   }
 
-  async getRoomPassword(chatId: string): Promise<string | null> {
+  async hasRoomPassword(chatId: string): Promise<boolean> {
     const chat = await this.prisma.chat.findUnique({
       where: { id: chatId },
       select: { password: true },
     });
-    return chat?.password ?? null;
+    return !!chat?.password;
+  }
+
+  /**
+   * Oda şifresini doğrular. Yeni kayıtlar bcrypt hash'tir; hash geçişinden
+   * önce oluşturulmuş düz metin şifreler ilk başarılı girişte hash'e çevrilir.
+   */
+  async verifyRoomPassword(chatId: string, password: string): Promise<boolean> {
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: { password: true },
+    });
+    const stored = chat?.password;
+    if (!stored) return true;
+    if (!password) return false;
+
+    if (stored.startsWith('$2')) {
+      return bcrypt.compare(password, stored);
+    }
+
+    // Eski düz metin kayıt: timing-safe olmasa da tek seferlik geçiş yolu.
+    if (stored === password) {
+      await this.prisma.chat.update({
+        where: { id: chatId },
+        data: { password: await bcrypt.hash(password, 10) },
+      });
+      return true;
+    }
+    return false;
   }
 
   async resolveChatId(type: 'state' | 'city' | 'global', slug: string) {
@@ -688,38 +769,23 @@ export class ChatService {
 
     const dms = memberships.filter((m) => m.chat.type === ChatType.DIRECT);
 
-    const results = await Promise.all(
-      dms.map(async (m) => {
+    const unreadByChat = await this.getUnreadCountsByChat(
+      userId,
+      dms.map((m) => ({ chatId: m.chat.id, lastReadAt: m.lastReadAt })),
+    );
+
+    return dms
+      .map((m) => {
         const partner = m.chat.members[0]?.user ?? null;
         if (!partner || partner.deletedAt) return null;
-        const unread = m.lastReadAt
-          ? await this.prisma.message.count({
-              where: {
-                chatId: m.chat.id,
-                deletedAt: null,
-                user: { deletedAt: null },
-                userId: { not: userId },
-                createdAt: { gt: m.lastReadAt },
-              },
-            })
-          : await this.prisma.message.count({
-              where: {
-                chatId: m.chat.id,
-                deletedAt: null,
-                user: { deletedAt: null },
-                userId: { not: userId },
-              },
-            });
         return {
           chatId: m.chat.id,
           partner,
           lastMessage: m.chat.messages[0] ?? null,
-          unread,
+          unread: unreadByChat.get(m.chat.id) ?? 0,
         };
-      }),
-    );
-
-    return results.filter((dm) => dm !== null);
+      })
+      .filter((dm) => dm !== null);
   }
 
   async getDmUnreadCount(userId: string): Promise<number> {
@@ -728,20 +794,34 @@ export class ChatService {
       select: { chatId: true, lastReadAt: true },
     });
 
+    const unreadByChat = await this.getUnreadCountsByChat(userId, memberships);
     let total = 0;
-    for (const m of memberships) {
-      const count = await this.prisma.message.count({
-        where: {
-          chatId: m.chatId,
-          deletedAt: null,
-          user: { deletedAt: null },
-          userId: { not: userId },
-          ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
-        },
-      });
-      total += count;
-    }
+    for (const count of unreadByChat.values()) total += count;
     return total;
+  }
+
+  /** Sohbet başına okunmamış mesaj sayısını tek sorguda toplar (N+1 önlenir). */
+  private async getUnreadCountsByChat(
+    userId: string,
+    memberships: { chatId: string; lastReadAt: Date | null }[],
+  ): Promise<Map<string, number>> {
+    if (memberships.length === 0) return new Map();
+
+    const rows = await this.prisma.message.groupBy({
+      by: ['chatId'],
+      where: {
+        deletedAt: null,
+        user: { deletedAt: null },
+        userId: { not: userId },
+        OR: memberships.map((m) => ({
+          chatId: m.chatId,
+          ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
+        })),
+      },
+      _count: { _all: true },
+    });
+
+    return new Map(rows.map((r) => [r.chatId, r._count._all]));
   }
 
   async markDmRead(chatId: string, userId: string) {
@@ -757,12 +837,91 @@ export class ChatService {
     return { lastReadAt: now.toISOString() };
   }
 
+  /**
+   * Sohbet türünden bağımsız okundu işareti: DM'lerde ChatMember.lastReadAt,
+   * kanallarda ChatReadState güncellenir. Okundu bildirimi (görüldü) yalnızca
+   * DM'ler için anlamlıdır — dönüş değerindeki isDm buna göre kullanılır.
+   */
+  async markRead(chatId: string, userId: string) {
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: { type: true },
+    });
+    if (!chat) throw new NotFoundException('Sohbet bulunamadı');
+
+    if (chat.type === ChatType.DIRECT) {
+      const result = await this.markDmRead(chatId, userId);
+      return { ...result, isDm: true };
+    }
+
+    const denied = await this.checkRoomAccess(chatId, userId);
+    if (denied) throw new ForbiddenException('Bu odaya erişiminiz yok');
+
+    const now = new Date();
+    await this.prisma.chatReadState.upsert({
+      where: { chatId_userId: { chatId, userId } },
+      create: { chatId, userId, lastReadAt: now },
+      update: { lastReadAt: now },
+    });
+    return { lastReadAt: now.toISOString(), isDm: false };
+  }
+
+  /**
+   * Kullanıcının kanallarındaki (genel + eyalet + şehir) okunmamış mesaj
+   * sayıları. Hiç okuma kaydı olmayan kanallarda son 24 saat baz alınır;
+   * aksi halde tüm kanal geçmişi "okunmamış" görünürdü.
+   */
+  async getChannelUnreadSummary(userId: string) {
+    const chatIds = await this.getPresenceChatIds(userId);
+    if (chatIds.length === 0) return [];
+
+    const chats = await this.prisma.chat.findMany({
+      where: { id: { in: chatIds } },
+      select: { id: true, type: true, stateId: true, cityId: true },
+    });
+
+    const readStates = await this.prisma.chatReadState.findMany({
+      where: { userId, chatId: { in: chatIds } },
+      select: { chatId: true, lastReadAt: true },
+    });
+    const readMap = new Map(readStates.map((r) => [r.chatId, r.lastReadAt]));
+    const fallbackSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const rows = await this.prisma.message.groupBy({
+      by: ['chatId'],
+      where: {
+        deletedAt: null,
+        user: { deletedAt: null },
+        userId: { not: userId },
+        OR: chats.map((c) => ({
+          chatId: c.id,
+          createdAt: { gt: readMap.get(c.id) ?? fallbackSince },
+        })),
+      },
+      _count: { _all: true },
+    });
+    const countMap = new Map(rows.map((r) => [r.chatId, r._count._all]));
+
+    return chats.map((c) => ({
+      chatId: c.id,
+      type: c.type,
+      stateId: c.stateId,
+      cityId: c.cityId,
+      unread: countMap.get(c.id) ?? 0,
+    }));
+  }
+
   async toggleReaction(messageId: string, userId: string, emoji: string) {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
       select: { id: true, chatId: true, deletedAt: true },
     });
     if (!message || message.deletedAt) return null;
+
+    // Yalnızca mesajın bulunduğu odaya erişimi olanlar reaksiyon verebilir
+    // (mesaj ID'si bilinse bile başkalarının DM'lerine reaksiyon eklenemez)
+    const denied = await this.checkRoomAccess(message.chatId, userId);
+    if (denied) return null;
 
     const existing = await this.prisma.messageReaction.findFirst({
       where: { messageId, userId, emoji },

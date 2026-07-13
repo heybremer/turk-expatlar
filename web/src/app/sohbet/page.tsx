@@ -71,6 +71,14 @@ export default function SohbetPage() {
   const popularCities = rooms.cities.filter((c) => POPULAR_CITIES.includes(c.name));
   const otherCities = rooms.cities.filter((c) => !POPULAR_CITIES.includes(c.name) && c.id !== myCity?.id);
 
+  // Erişim kuralları (API checkRoomAccess ile aynı): eyalet odası profil
+  // eyaletiyle eşleşmeli; şehir odası için aynı eyalette olmak yeterli.
+  // Giriş yapmamış ziyaretçilere kilit gösterilmez (giriş sonrası belli olur).
+  const showLocks = !loading && !!token;
+  const canAccessState = (id: string) => profile?.stateId === id;
+  const canAccessCity = (c: { id: string; stateId: string }) =>
+    profile?.cityId === c.id || profile?.stateId === c.stateId;
+
   return (
     <div className={sitePageShellClass}>
 
@@ -193,7 +201,10 @@ export default function SohbetPage() {
                       <Link key={s.id} href={`/sohbet/eyalet/${toSlug(s.name)}`}
                         className="flex items-center gap-2.5 rounded-lg border border-border bg-surface px-3 py-2.5 hover:border-accent/60 transition-colors">
                         <MapPin className="h-3.5 w-3.5 text-accent" />
-                        <span className="text-sm font-medium">{s.name}</span>
+                        <span className="flex-1 text-sm font-medium">{s.name}</span>
+                        {showLocks && !canAccessState(s.id) && (
+                          <Lock className="h-3 w-3 flex-shrink-0 text-muted" aria-label="Bölge sakinlerine özel" />
+                        )}
                       </Link>
                     ))}
                   </div>
@@ -207,7 +218,10 @@ export default function SohbetPage() {
                       <Link key={c.id} href={`/sohbet/sehir/${toSlug(c.name)}`}
                         className="flex items-center gap-2.5 rounded-lg border border-border bg-surface px-3 py-2.5 hover:border-primary/60 transition-colors">
                         <Hash className="h-3.5 w-3.5 text-primary" />
-                        <span className="text-sm font-medium">{c.name}</span>
+                        <span className="flex-1 text-sm font-medium">{c.name}</span>
+                        {showLocks && !canAccessCity(c) && (
+                          <Lock className="h-3 w-3 flex-shrink-0 text-muted" aria-label="Bölge sakinlerine özel" />
+                        )}
                       </Link>
                     ))}
                   </div>
@@ -232,10 +246,13 @@ export default function SohbetPage() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/8">
                       <Hash className="h-4 w-4 text-primary" />
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <p className="text-sm font-medium">{c.name}</p>
                       <p className="text-xs text-muted">Şehir kanalı</p>
                     </div>
+                    {showLocks && !canAccessCity(c) && (
+                      <Lock className="h-3.5 w-3.5 flex-shrink-0 text-muted" aria-label="Bölge sakinlerine özel" />
+                    )}
                   </Link>
                 ))}
               </div>
@@ -252,10 +269,13 @@ export default function SohbetPage() {
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/8">
                     <MapPin className="h-4 w-4 text-accent" />
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-medium">{s.name}</p>
                     <p className="text-xs text-muted">Eyalet kanalı</p>
                   </div>
+                  {showLocks && !canAccessState(s.id) && (
+                    <Lock className="h-3.5 w-3.5 flex-shrink-0 text-muted" aria-label="Bölge sakinlerine özel" />
+                  )}
                 </Link>
               ))}
             </div>
@@ -271,6 +291,7 @@ export default function SohbetPage() {
                     className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-muted hover:border-primary hover:text-primary transition-colors">
                     <Hash className="h-3 w-3" />
                     {c.name}
+                    {showLocks && !canAccessCity(c) && <Lock className="h-3 w-3" aria-label="Bölge sakinlerine özel" />}
                   </Link>
                 ))}
               </div>
