@@ -104,7 +104,7 @@ export function NewMessageModal({ open, onClose }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="İsim veya kullanıcı adı ara…"
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-muted md:text-sm"
           />
           <button
             type="button"

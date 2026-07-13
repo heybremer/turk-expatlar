@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
@@ -24,6 +24,16 @@ const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin", "latin-ext"],
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  // Android Chrome: klavye açıldığında layout viewport küçülsün ki sohbet
+  // composer'ı klavyenin üstünde kalsın (iOS için MainWrapper'da visualViewport
+  // senkronu var).
+  interactiveWidget: "resizes-content",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await fetchPublicSiteSettings();

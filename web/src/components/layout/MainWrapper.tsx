@@ -13,11 +13,32 @@ export function MainWrapper({ children }: { children: ReactNode }) {
   // Sohbet uygulama ekranlarında sayfa scroll'u kapatılır; mesaj listesi kendi
   // içinde scroll eder. Body viewport'a sabitlenmezse flex-1 zinciri sınırsız
   // büyür ve tüm sayfa (header+footer dahil) scroll etmeye başlar.
+  //
+  // Mobil klavye: iOS Safari klavye açıldığında layout viewport'u küçültmez,
+  // yalnızca görünür (visual) viewport küçülür ve sayfayı kaydırarak input'u
+  // göstermeye çalışır — bu da tüm düzeni kaydırır. Bunu önlemek için body
+  // yüksekliğini visualViewport yüksekliğine sabitleyip scroll'u sıfırlıyoruz.
   useEffect(() => {
     if (!chatApp) return;
-    document.body.classList.add("h-full", "overflow-hidden");
+    const body = document.body;
+    body.classList.add("h-full", "overflow-hidden", "overscroll-none");
+
+    const vv = window.visualViewport;
+    const syncHeight = () => {
+      if (!vv) return;
+      // Klavye açık: görünür alan layout viewport'tan belirgin şekilde küçük.
+      const keyboardOpen = vv.height < window.innerHeight - 50;
+      body.style.height = keyboardOpen ? `${vv.height}px` : "";
+      window.scrollTo(0, 0);
+    };
+    vv?.addEventListener("resize", syncHeight);
+    vv?.addEventListener("scroll", syncHeight);
+
     return () => {
-      document.body.classList.remove("h-full", "overflow-hidden");
+      vv?.removeEventListener("resize", syncHeight);
+      vv?.removeEventListener("scroll", syncHeight);
+      body.style.height = "";
+      body.classList.remove("h-full", "overflow-hidden", "overscroll-none");
     };
   }, [chatApp]);
 
