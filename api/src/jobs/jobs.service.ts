@@ -8,6 +8,8 @@ import { JobListingType, JobStatus, JobType, WorkMode } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 
+export const JOB_LISTING_DURATION_DAYS = 60;
+
 @Injectable()
 export class JobsService {
   constructor(private prisma: PrismaService) {}
@@ -155,6 +157,9 @@ export class JobsService {
         ? dto.description?.trim() || dto.briefInfo!.trim()
         : dto.description!.trim();
 
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + JOB_LISTING_DURATION_DAYS);
+
     return this.prisma.jobPosting.create({
       data: {
         ownerId,
@@ -178,6 +183,7 @@ export class JobsService {
         // İlanlar yayınlanmadan önce yönetici onayından geçer
         // (etkinlik ve işletme kayıtlarıyla aynı moderasyon akışı)
         status: JobStatus.PENDING,
+        expiresAt,
       },
       include: { city: true, state: true },
     });

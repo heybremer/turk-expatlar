@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ReportStatus, UserRole, SupportTicketStatus, ChatType, ChatBannedWordSeverity } from '@prisma/client';
 import { IsBoolean, IsDateString, IsEnum, IsOptional, IsString, MinLength, IsArray } from 'class-validator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -169,31 +170,39 @@ export class AdminController {
   }
 
   @Patch('users/:id/ban')
-  banUser(@Param('id') id: string, @Body() dto: BanUserDto) {
+  banUser(
+    @Param('id') id: string,
+    @Body() dto: BanUserDto,
+    @CurrentUser() actor: { id: string },
+  ) {
     const until = dto.until ? new Date(dto.until) : undefined;
-    return this.adminService.banUser(id, until);
+    return this.adminService.banUser(id, until, actor.id);
   }
 
   @Patch('users/:id/unban')
-  unbanUser(@Param('id') id: string) {
-    return this.adminService.unbanUser(id);
+  unbanUser(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.unbanUser(id, actor.id);
   }
 
   @Patch('users/:id/role')
   @Roles(UserRole.ADMIN)
-  changeUserRole(@Param('id') id: string, @Body() dto: ChangeRoleDto) {
-    return this.adminService.changeUserRole(id, dto.role);
+  changeUserRole(
+    @Param('id') id: string,
+    @Body() dto: ChangeRoleDto,
+    @CurrentUser() actor: { id: string },
+  ) {
+    return this.adminService.changeUserRole(id, dto.role, actor.id);
   }
 
   @Delete('users/:id')
   @Roles(UserRole.ADMIN)
-  deleteUser(@Param('id') id: string) {
-    return this.adminService.deleteUser(id);
+  deleteUser(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.deleteUser(id, actor.id);
   }
 
   @Patch('users/:id/suspend')
-  suspendUser(@Param('id') id: string) {
-    return this.adminService.suspendUser(id);
+  suspendUser(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.suspendUser(id, actor.id);
   }
 
   @Get('page-permissions')
@@ -274,8 +283,8 @@ export class AdminController {
   }
 
   @Delete('forum/topics/:id')
-  deleteForumTopic(@Param('id') id: string) {
-    return this.adminService.deleteForumTopic(id);
+  deleteForumTopic(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.deleteForumTopic(id, actor.id);
   }
 
   @Patch('forum/replies/:id')
@@ -284,8 +293,8 @@ export class AdminController {
   }
 
   @Delete('forum/replies/:id')
-  deleteForumReply(@Param('id') id: string) {
-    return this.adminService.deleteForumReply(id);
+  deleteForumReply(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.deleteForumReply(id, actor.id);
   }
 
   // ─── Etkinlikler ─────────────────────────────────────────────────────────
@@ -314,18 +323,22 @@ export class AdminController {
   }
 
   @Delete('events/:id')
-  deleteEvent(@Param('id') id: string) {
-    return this.adminService.deleteEvent(id);
+  deleteEvent(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.deleteEvent(id, actor.id);
   }
 
   @Patch('events/:id/approve')
-  approveEvent(@Param('id') id: string) {
-    return this.adminService.approveEvent(id);
+  approveEvent(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.approveEvent(id, actor.id);
   }
 
   @Patch('events/:id/reject')
-  rejectEvent(@Param('id') id: string, @Body('reason') reason?: string) {
-    return this.adminService.rejectEvent(id, reason);
+  rejectEvent(
+    @Param('id') id: string,
+    @Body('reason') reason: string | undefined,
+    @CurrentUser() actor: { id: string },
+  ) {
+    return this.adminService.rejectEvent(id, reason, actor.id);
   }
 
   // ─── İşletmeler ──────────────────────────────────────────────────────────
@@ -364,8 +377,8 @@ export class AdminController {
   }
 
   @Delete('businesses/reviews/:id')
-  deleteBusinessReview(@Param('id') id: string) {
-    return this.adminService.deleteBusinessReview(id);
+  deleteBusinessReview(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.deleteBusinessReview(id, actor.id);
   }
 
   @Get('businesses')
@@ -387,8 +400,8 @@ export class AdminController {
   }
 
   @Patch('businesses/:id/approve')
-  approveBusiness(@Param('id') id: string) {
-    return this.adminService.approveBusiness(id);
+  approveBusiness(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.approveBusiness(id, actor.id);
   }
 
   @Patch('businesses/:id')
@@ -397,8 +410,8 @@ export class AdminController {
   }
 
   @Delete('businesses/:id')
-  deleteBusiness(@Param('id') id: string) {
-    return this.adminService.deleteBusiness(id);
+  deleteBusiness(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.deleteBusiness(id, actor.id);
   }
 
   // ─── Raporlar ────────────────────────────────────────────────────────────
@@ -422,8 +435,8 @@ export class AdminController {
   }
 
   @Patch('reports/:id/resolve')
-  resolveReport(@Param('id') id: string) {
-    return this.adminService.resolveReport(id, ReportStatus.RESOLVED, 'system');
+  resolveReport(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.resolveReport(id, ReportStatus.RESOLVED, actor.id);
   }
 
   // ─── İş ilanları ─────────────────────────────────────────────────────────
@@ -450,13 +463,13 @@ export class AdminController {
   }
 
   @Patch('jobs/:id/approve')
-  approveJob(@Param('id') id: string) {
-    return this.adminService.approveJob(id);
+  approveJob(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.approveJob(id, actor.id);
   }
 
   @Patch('jobs/:id/reject')
-  rejectJob(@Param('id') id: string) {
-    return this.adminService.rejectJob(id);
+  rejectJob(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.rejectJob(id, actor.id);
   }
 
   @Patch('jobs/:id')
@@ -465,8 +478,8 @@ export class AdminController {
   }
 
   @Delete('jobs/:id')
-  deleteJob(@Param('id') id: string) {
-    return this.adminService.deleteJob(id);
+  deleteJob(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.deleteJob(id, actor.id);
   }
 
   @Get('courier/requests')
@@ -486,8 +499,8 @@ export class AdminController {
   }
 
   @Delete('courier/requests/:id')
-  deleteCourierRequest(@Param('id') id: string) {
-    return this.adminService.deleteCourierRequest(id);
+  deleteCourierRequest(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.deleteCourierRequest(id, actor.id);
   }
 
   @Get('courier/carry-relations')
@@ -594,8 +607,30 @@ export class AdminController {
   }
 
   @Patch('chat/spam-unban/:userId')
-  unbanChatUser(@Param('userId') userId: string) {
-    return this.adminService.unbanChatUser(userId);
+  unbanChatUser(@Param('userId') userId: string, @CurrentUser() actor: { id: string }) {
+    return this.adminService.unbanChatUser(userId, actor.id);
+  }
+
+  // ─── Audit log ─────────────────────────────────────────────────────────────
+
+  @Get('audit-log')
+  @Roles(UserRole.ADMIN)
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'action', required: false })
+  @ApiQuery({ name: 'entityType', required: false })
+  @ApiQuery({ name: 'userId', required: false })
+  listAuditLogs(
+    @Query('page') page?: string,
+    @Query('action') action?: string,
+    @Query('entityType') entityType?: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.adminService.listAuditLogs({
+      page: page ? parseInt(page, 10) : 1,
+      action,
+      entityType,
+      userId,
+    });
   }
 
   // ─── Analytics ─────────────────────────────────────────────────────────────

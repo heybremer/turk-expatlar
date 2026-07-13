@@ -1,4 +1,6 @@
-import * as Sentry from '@sentry/node';
+// Sentry'nin otomatik enstrümantasyonu için ilk import bu olmalı
+import './instrument';
+
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -7,23 +9,6 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { join } from 'path';
 import { AppModule } from './app.module';
-
-// Sentry'yi NestJS bootstrap'tan önce başlat
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV ?? 'development',
-    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.05 : 0,
-    beforeSend(event) {
-      // Hassas verileri temizle
-      if (event.request?.headers) {
-        delete event.request.headers['cookie'];
-        delete event.request.headers['authorization'];
-      }
-      return event;
-    },
-  });
-}
 
 async function bootstrap() {
   // rawBody: true — Stripe webhook imza doğrulaması req.rawBody'ye ihtiyaç duyar

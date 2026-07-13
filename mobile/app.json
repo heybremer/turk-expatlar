@@ -67,6 +67,12 @@
         {
           "microphonePermission": "Sesli mesaj göndermek için mikrofon izni gereklidir."
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "disableAutoUpload": true
+        }
       ]
     ],
     "experiments": {
