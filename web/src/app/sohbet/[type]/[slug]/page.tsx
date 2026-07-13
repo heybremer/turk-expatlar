@@ -934,7 +934,7 @@ export default function SohbetOdasiPage() {
 
   /* ─── Main layout ────────────────────────────────────────────────── */
   return (
-    <div className={cn("flex min-h-0 w-full flex-1 flex-col overflow-hidden md:py-8", siteContentClass)}>
+    <div className={cn("flex min-h-0 w-full flex-1 flex-col overflow-hidden md:py-4", siteContentClass)}>
 
       {/* ── Mobile header (WhatsApp/Telegram style) ─── */}
       <div className="flex items-center gap-1 border-b border-border bg-surface px-1 py-1 md:hidden">

@@ -14,3 +14,14 @@ export function isFullBleedRoute(pathname: string): boolean {
   if (pathname.startsWith("/sohbet")) return true;
   return false;
 }
+
+/**
+ * Uygulama benzeri sohbet ekranları (kanal, DM, mesaj listesi): sayfa scroll'u yerine
+ * mesaj listesi kendi içinde scroll eder; body viewport yüksekliğine sabitlenir.
+ * /sohbet dizini ve /sohbet/kurallar normal scroll'lu içerik sayfalarıdır.
+ */
+export function isChatAppRoute(pathname: string): boolean {
+  if (!pathname.startsWith("/sohbet/")) return false;
+  if (pathname.startsWith("/sohbet/kurallar")) return false;
+  return true;
+}

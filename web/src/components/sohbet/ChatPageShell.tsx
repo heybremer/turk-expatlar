@@ -17,7 +17,7 @@ type Props = {
 
 export function ChatPageShell({ title, subtitle, status, headerActions, backHref = "/sohbet", children }: Props) {
   return (
-    <div className={cn("flex min-h-0 w-full flex-1 flex-col overflow-hidden md:py-8", siteContentClass)}>
+    <div className={cn("flex min-h-0 w-full flex-1 flex-col overflow-hidden md:py-4", siteContentClass)}>
       {/* Desktop header — mobilde gizli; mobil başlık her sayfa kendi içinde yönetir */}
       <div className="mb-3 hidden items-center gap-3 md:flex">
         <Link href={backHref} className="flex items-center gap-1.5 text-sm text-muted hover:text-text">
