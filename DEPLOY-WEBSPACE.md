@@ -2,7 +2,7 @@
 
 ## Yapılanlar
 
-- Sunucu erişimi test edildi (`access-5020523952.webspace-host.com`, port 22)
+- Sunucu erişimi test edildi (IONOS Webspace SSH erişimi, port 22)
 - Node.js **v18.20.4**, npm, git mevcut
 - PM2 `npx pm2` ile kullanılabilir (v7)
 - Proje `~/turkexpatlar` dizinine yüklendi
@@ -65,16 +65,16 @@ Mevcut `ecosystem.config.js` ve `.github/workflows/deploy.yml` tam VPS (Hetzner,
 
 ```powershell
 # Sunucu kontrolü
-$env:SSH_PASS="..." ; node scripts/server-probe.js
+$env:SSH_HOST="..." ; $env:SSH_USER="..." ; $env:SSH_PASS="..." ; node scripts/server-probe.js
 
 # Kaynak kodu yükle
-$env:SSH_PASS="..." ; node scripts/deploy-to-webspace.js
+$env:SSH_HOST="..." ; $env:SSH_USER="..." ; $env:SSH_PASS="..." ; node scripts/deploy-to-webspace.js
 ```
 
 ## SSH bağlantısı
 
 ```bash
-ssh su1182926@access-5020523952.webspace-host.com
+ssh KULLANICI@SUNUCU_HOST
 ```
 
-Panelde görünen `erişim-...` adresi ASCII olarak `access-5020523952.webspace-host.com` şeklinde çözülür.
+IONOS panelinde görünen `erişim-...` adresi, SSH host adının Türkçe/ASCII çözümlemesidir (panelde tam adresi görebilirsiniz).

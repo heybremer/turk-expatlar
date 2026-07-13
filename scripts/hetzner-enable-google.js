@@ -11,8 +11,8 @@ const PASS = process.env.HETZNER_PASS;
 const ROOT = path.resolve(__dirname, "..");
 const google = loadGoogleOAuthEnv(ROOT);
 
-if (!PASS) {
-  console.error("HETZNER_PASS gerekli");
+if (!process.env.HETZNER_HOST || !PASS) {
+  console.error("HETZNER_HOST ve HETZNER_PASS ortam değişkenleri gerekli");
   process.exit(1);
 }
 
@@ -64,4 +64,4 @@ conn
       conn.end();
     }
   })
-  .connect({ host: "159.69.23.193", port: 22, username: "root", password: PASS });
+  .connect({ host: process.env.HETZNER_HOST, port: 22, username: "root", password: PASS });

@@ -4,8 +4,8 @@
  */
 const { Client } = require("ssh2");
 
-const host = process.env.SSH_HOST || "access-5020523952.webspace-host.com";
-const user = process.env.SSH_USER || "su1182926";
+const host = process.env.SSH_HOST;
+const user = process.env.SSH_USER;
 const pass = process.env.SSH_PASS;
 
 if (!pass) {
