@@ -1,7 +1,23 @@
 const { Client } = require("ssh2");
 const pass = process.env.SSH_PASS;
 
-const redisUrl = `rediss://default:${process.env.UPSTASH_TOKEN}@modest-weevil-125875.upstash.io:6379`;
+const required = [
+  "SSH_HOST",
+  "SSH_USER",
+  "SSH_PASS",
+  "UPSTASH_TOKEN",
+  "UPSTASH_HOST",
+  "JWT_SECRET",
+  "SUPABASE_URL",
+  "SUPABASE_PUBLISHABLE_KEY",
+];
+const missing = required.filter((k) => !process.env[k]);
+if (missing.length) {
+  console.error(`Eksik ortam değişkenleri: ${missing.join(", ")}`);
+  process.exit(1);
+}
+
+const redisUrl = `rediss://default:${process.env.UPSTASH_TOKEN}@${process.env.UPSTASH_HOST}:6379`;
 
 const setupEnv = `
 export NVM_DIR="$HOME/.nvm"
@@ -16,7 +32,7 @@ NODE_ENV=production
 PORT=3201
 DATABASE_URL=PLACEHOLDER_DATABASE_URL
 REDIS_URL=${redisUrl.replace(/'/g, "")}
-JWT_SECRET=turkexpatlar-prod-jwt-change-after-launch-2026
+JWT_SECRET=${process.env.JWT_SECRET}
 JWT_EXPIRES_IN=7d
 CORS_ORIGIN=https://turkexpatlar.de
 WEB_URL=https://turkexpatlar.de
@@ -29,9 +45,9 @@ ENVEOF
 
 cat > ~/turkexpatlar/web/.env.local << 'ENVEOF'
 NEXT_PUBLIC_API_URL=https://turkexpatlar.de
-JWT_SECRET=turkexpatlar-prod-jwt-change-after-launch-2026
-NEXT_PUBLIC_SUPABASE_URL=https://puixogwequambqxjhzja.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ToyLTRHfaqXs-SGGVwjeyw_58QjOhrj
+JWT_SECRET=${process.env.JWT_SECRET}
+NEXT_PUBLIC_SUPABASE_URL=${process.env.SUPABASE_URL}
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${process.env.SUPABASE_PUBLISHABLE_KEY}
 ENVEOF
 
 echo "==> .env dosyalari olusturuldu"
@@ -51,8 +67,8 @@ c.on("ready", () => {
     s.on("close", () => c.end());
   });
 }).connect({
-  host: "access-5020523952.webspace-host.com",
+  host: process.env.SSH_HOST,
   port: 22,
-  username: "su1182926",
+  username: process.env.SSH_USER,
   password: pass,
 });

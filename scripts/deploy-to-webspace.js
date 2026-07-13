@@ -9,13 +9,13 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const TAR = path.join(ROOT, "deploy.tar.gz");
-const host = process.env.SSH_HOST || "access-5020523952.webspace-host.com";
-const user = process.env.SSH_USER || "su1182926";
+const host = process.env.SSH_HOST;
+const user = process.env.SSH_USER;
 const pass = process.env.SSH_PASS;
 const remoteDir = process.env.APP_DIR || "turkexpatlar";
 
-if (!pass) {
-  console.error("SSH_PASS gerekli");
+if (!host || !user || !pass) {
+  console.error("SSH_HOST, SSH_USER ve SSH_PASS ortam değişkenleri gerekli.");
   process.exit(1);
 }
 

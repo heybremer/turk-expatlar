@@ -10,14 +10,22 @@ const PASS = process.env.HETZNER_PASS;
 const ROOT = path.resolve(__dirname, "..");
 const TAR = path.join(ROOT, "hetzner-deploy.tar.gz");
 
+if (!process.env.HETZNER_HOST || !PASS) {
+  console.error("HETZNER_HOST ve HETZNER_PASS ortam değişkenleri gerekli");
+  process.exit(1);
+}
+
 const { loadGoogleOAuthEnv } = require("./load-google-oauth-env");
 
 function productionEnv(rootDir) {
-  const dbUrl =
-    "postgresql://postgres.puixogwequambqxjhzja:TurkExpatlar88@aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require";
-  const redisUrl =
-    "rediss://default:gQAAAAAAAeuzAAIgcDIxMjJkZmY2Mzg4NDk0Nzk4Yjg0YTVlZjYyMDY4NWNiZQ@modest-weevil-125875.upstash.io:6379";
-  const jwt = "turkexpatlar-prod-jwt-hetzner-2026";
+  const dbUrl = process.env.DATABASE_URL;
+  const redisUrl = process.env.REDIS_URL;
+  const jwt = process.env.JWT_SECRET;
+  if (!dbUrl || !redisUrl || !jwt) {
+    throw new Error(
+      "DATABASE_URL, REDIS_URL ve JWT_SECRET ortam değişkenleri gerekli",
+    );
+  }
   const google = loadGoogleOAuthEnv(rootDir);
   const apiEnv = [
     "NODE_ENV=production",
@@ -107,4 +115,4 @@ conn
       conn.end();
     }
   })
-  .connect({ host: "159.69.23.193", port: 22, username: "root", password: PASS });
+  .connect({ host: process.env.HETZNER_HOST, port: 22, username: "root", password: PASS });

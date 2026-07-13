@@ -3,6 +3,10 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const pass = process.env.SSH_PASS;
+if (!process.env.SSH_HOST || !process.env.SSH_USER || !pass) {
+  console.error("SSH_HOST, SSH_USER ve SSH_PASS ortam değişkenleri gerekli.");
+  process.exit(1);
+}
 const ROOT = path.resolve(__dirname, "..");
 const TAR = path.join(ROOT, "api-dist.tar.gz");
 
@@ -45,8 +49,8 @@ echo ""
     r.pipe(w);
   });
 }).connect({
-  host: "access-5020523952.webspace-host.com",
+  host: process.env.SSH_HOST,
   port: 22,
-  username: "su1182926",
+  username: process.env.SSH_USER,
   password: pass,
 });

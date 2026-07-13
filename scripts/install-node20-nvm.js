@@ -1,7 +1,7 @@
 const { Client } = require("ssh2");
 const pass = process.env.SSH_PASS;
-if (!pass) {
-  console.error("SSH_PASS gerekli");
+if (!pass || !process.env.SSH_HOST || !process.env.SSH_USER) {
+  console.error("SSH_HOST, SSH_USER ve SSH_PASS ortam değişkenleri gerekli.");
   process.exit(1);
 }
 
@@ -47,8 +47,8 @@ conn
     process.exit(1);
   })
   .connect({
-    host: process.env.SSH_HOST || "access-5020523952.webspace-host.com",
+    host: process.env.SSH_HOST,
     port: 22,
-    username: process.env.SSH_USER || "su1182926",
+    username: process.env.SSH_USER,
     password: pass,
   });
