@@ -93,14 +93,14 @@ export default async function UygulamalarPage() {
                   {app.badge}
                 </span>
               )}
-              <div className="flex h-13 w-13 items-center justify-center rounded-xl bg-primary/8">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/8">
                 {app.icon}
               </div>
               <div className="flex-1">
                 <p className="font-semibold text-text">{app.label}</p>
                 <p className="mt-1 text-sm leading-relaxed text-muted">{app.desc}</p>
               </div>
-              <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="flex items-center gap-1 text-xs font-medium text-primary opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                 Aç <ArrowRight className="h-3.5 w-3.5" />
               </div>
             </Link>

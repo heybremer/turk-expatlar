@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import {
   FlatList,
   RefreshControl,
@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { api, ForumTopic } from "@/lib/api";
@@ -83,15 +83,8 @@ export default function ForumIndex() {
   const [sort, setSort] = useState<ForumSort>("newest");
   const [page, setPage] = useState(1);
 
-  // Bir konuya girip geri döndüğünde forum listesi her zaman tüm konuları göstersin.
-  useFocusEffect(
-    useCallback(() => {
-      setSearch("");
-      setActiveCat("all");
-      setSort("newest");
-      setPage(1);
-    }, []),
-  );
+  // Not: Konudan geri dönüldüğünde filtre/arama/sıralama korunur; kullanıcı
+  // kaldığı yerden devam eder. (Önceki sıfırlama davranışı bağlam kaybettiriyordu.)
 
   const { data: categories } = useQuery({
     queryKey: ["forum-categories"],

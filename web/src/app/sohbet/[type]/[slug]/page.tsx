@@ -1228,12 +1228,13 @@ export default function SohbetOdasiPage() {
                     />
                   )}
 
+                  {/* Mobil klavyede emoji zaten var; dar ekranda yer açmak için gizle */}
                   <button
                     ref={emojiBtnRef}
                     type="button"
                     title="Emoji"
                     onClick={() => setShowEmoji((v) => !v)}
-                    className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary active:bg-background ${showEmoji ? "bg-background text-primary" : ""}`}
+                    className={`hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary active:bg-background sm:flex ${showEmoji ? "bg-background text-primary" : ""}`}
                   >
                     <Smile className="h-4 w-4" />
                   </button>
@@ -1253,7 +1254,7 @@ export default function SohbetOdasiPage() {
                     <Clock className="h-4 w-4" />
                   </button>
 
-                  <form onSubmit={sendMessage} className="flex flex-1 items-center gap-1.5">
+                  <form onSubmit={sendMessage} className="flex min-w-0 flex-1 items-center gap-1.5">
                     <input ref={inputRef} type="text" value={input}
                       onChange={(e) => setInput(e.target.value)}
                       placeholder={editingMsg
@@ -1263,7 +1264,7 @@ export default function SohbetOdasiPage() {
                         : `#${roomName} kanalına mesaj yaz…`}
                       maxLength={1000}
                       enterKeyHint="send"
-                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                     <button type="submit"
                       disabled={(!input.trim() && pendingAttachments.length === 0) || !connected}

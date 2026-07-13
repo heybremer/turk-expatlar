@@ -838,12 +838,13 @@ export default function DmPage() {
                         onError={(msg) => { setModerationNotice(msg); setModerationCode("MIC"); }}
                       />
                     )}
+                    {/* Mobil klavyede emoji zaten var; dar ekranda yer açmak için gizle */}
                     <button
                       ref={emojiBtnRef}
                       type="button"
                       title="Emoji"
                       onClick={() => setShowEmoji((v) => !v)}
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary ${showEmoji ? "bg-background text-primary" : ""}`}
+                      className={`hidden h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-background hover:text-primary sm:flex ${showEmoji ? "bg-background text-primary" : ""}`}
                     >
                       <Smile className="h-4 w-4" />
                     </button>
@@ -868,7 +869,7 @@ export default function DmPage() {
                         : `@${partnerName} mesaj yaz…`}
                       maxLength={1000}
                       enterKeyHint="send"
-                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                     <button type="submit"
                       disabled={(!input.trim() && pendingAttachments.length === 0) || !connected}

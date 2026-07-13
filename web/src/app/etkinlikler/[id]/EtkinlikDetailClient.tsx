@@ -143,7 +143,7 @@ export default function EtkinlikDetailClient() {
         {isFull && <Badge variant="warning">Dolu</Badge>}
       </div>
 
-      <h1 className="mt-3 text-2xl font-bold">{event.title}</h1>
+      <h1 className="mt-3 break-words text-2xl font-bold">{event.title}</h1>
 
       <div className="mt-4 grid gap-2 text-sm text-muted">
         <p className="flex items-center gap-2"><Calendar className="h-4 w-4" />{formatDate(event.startsAt)}</p>

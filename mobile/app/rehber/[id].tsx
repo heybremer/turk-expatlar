@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { StarRating } from "@/components/ui/StarRating";
 import { DetailHeader } from "@/components/navigation/DetailHeader";
 
@@ -20,13 +21,21 @@ export default function BusinessDetailScreen() {
   const { token } = useAuth();
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ["business", id],
     queryFn: () => api.get<BusinessDetail>(`/businesses/${id}`, token),
     enabled: !!id,
   });
 
-  if (isLoading || !data) return <LoadingScreen />;
+  if (isLoading) return <LoadingScreen />;
+  if (!data) {
+    return (
+      <View className="flex-1 bg-background">
+        <DetailHeader title="İşletme" />
+        <ErrorState title="İşletme yüklenemedi" onRetry={() => void refetch()} />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-background">

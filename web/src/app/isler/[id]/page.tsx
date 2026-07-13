@@ -71,7 +71,7 @@ export default function JobDetailPage() {
         <Badge variant="muted">{getCategoryLabel(job.category)}</Badge>
       </div>
 
-      <h1 className="mt-3 text-2xl font-bold">{job.title}</h1>
+      <h1 className="mt-3 break-words text-2xl font-bold">{job.title}</h1>
 
       <div className="mt-2 grid gap-1 text-sm text-muted">
         {isSeeker ? (

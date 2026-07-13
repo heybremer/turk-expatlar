@@ -104,14 +104,14 @@ export default async function RehberPage({
         {verified && <input type="hidden" name="verified" value="true" />}
 
         <div className="flex gap-2">
-          <div className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
             <Search className="h-5 w-5 shrink-0 text-muted" />
             <input
               type="search"
               name="q"
               defaultValue={q}
               placeholder="Köln Türkçe bilen avukat ara…"
-              className="flex-1 bg-transparent text-sm outline-none"
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
               autoComplete="off"
             />
           </div>

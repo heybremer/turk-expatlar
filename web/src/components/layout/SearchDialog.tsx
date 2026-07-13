@@ -171,7 +171,10 @@ export function SearchDialog() {
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Site içi arama"
+            className="flex max-h-[min(70vh,100dvh-14vh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Input */}
@@ -200,7 +203,7 @@ export function SearchDialog() {
 
             {/* Quick results */}
             {results.length > 0 && (
-              <ul className="border-t border-border">
+              <ul className="min-h-0 flex-1 overflow-y-auto border-t border-border">
                 {results.map((item, i) => {
                   const Icon = TYPE_ICONS[item.type];
                   return (
@@ -216,10 +219,10 @@ export function SearchDialog() {
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                           <Icon className="h-3.5 w-3.5" />
                         </span>
-                        <span className="flex flex-col">
-                          <span className="font-medium text-text leading-tight">{item.title}</span>
+                        <span className="flex min-w-0 flex-col">
+                          <span className="truncate font-medium text-text leading-tight">{item.title}</span>
                           {item.subtitle && (
-                            <span className="text-xs text-muted">
+                            <span className="truncate text-xs text-muted">
                               {TYPE_LABELS[item.type]} · {item.subtitle}
                             </span>
                           )}
@@ -233,7 +236,7 @@ export function SearchDialog() {
 
             {/* Footer / search all */}
             <div className={cn(
-              "flex items-center justify-between border-t border-border px-4 py-2",
+              "flex flex-shrink-0 items-center justify-between gap-2 border-t border-border px-4 py-2",
               results.length === 0 && "border-t-0",
             )}>
               {q.trim().length >= 2 ? (
@@ -241,17 +244,18 @@ export function SearchDialog() {
                   type="button"
                   onClick={submitSearch}
                   className={cn(
-                    "flex items-center gap-1.5 text-xs text-primary hover:underline",
+                    "flex min-w-0 items-center gap-1.5 text-xs text-primary hover:underline",
                     selected === results.length && "font-semibold",
                   )}
                 >
-                  <Search className="h-3.5 w-3.5" />
-                  &quot;{q}&quot; için tüm sonuçları gör
+                  <Search className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="truncate">&quot;{q}&quot; için tüm sonuçları gör</span>
                 </button>
               ) : (
                 <span className="text-xs text-muted">En az 2 karakter yazın</span>
               )}
-              <span className="text-xs text-muted">
+              {/* Klavye ipuçları dokunmatik cihazlarda anlamsız — mobilde gizle */}
+              <span className="hidden flex-shrink-0 text-xs text-muted sm:inline">
                 <kbd className="rounded border border-border px-1 py-0.5">↑↓</kbd> gezin ·{" "}
                 <kbd className="rounded border border-border px-1 py-0.5">↵</kbd> seç ·{" "}
                 <kbd className="rounded border border-border px-1 py-0.5">Esc</kbd> kapat

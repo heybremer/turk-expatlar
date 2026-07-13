@@ -1,4 +1,4 @@
-import { Alert, KeyboardAvoidingView, Platform, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { useMutation } from "@tanstack/react-query";
@@ -34,7 +34,10 @@ export default function SifreDegistir() {
     <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <DetailHeader title="Şifre Değiştir" />
 
-      <View className="p-6 gap-4">
+      <ScrollView
+        contentContainerStyle={{ padding: 24, gap: 16 }}
+        keyboardShouldPersistTaps="handled"
+      >
         {[
           { label: "Mevcut Şifre", value: current, onChange: setCurrent },
           { label: "Yeni Şifre", value: next, onChange: setNext },
@@ -47,7 +50,7 @@ export default function SifreDegistir() {
         ))}
 
         <Button label="Şifreyi Değiştir" loading={changeMut.isPending} onPress={handleSubmit} size="lg" className="mt-2" />
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }

@@ -9,7 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/akis",
     display: "standalone",
     background_color: "#0f172a",
-    theme_color: "#c0392b",
+    // Tasarım token'ı ile eşleşmeli (globals.css --primary)
+    theme_color: "#0f766e",
     orientation: "portrait",
     lang: "tr",
     icons: [

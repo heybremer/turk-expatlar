@@ -38,11 +38,20 @@ export function NewMessageModal({ open, onClose }: Props) {
       setResults([]);
       return;
     }
-    function onClickOutside(e: MouseEvent) {
+    function onClickOutside(e: MouseEvent | TouchEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) onClose();
     }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
     document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    document.addEventListener("touchstart", onClickOutside);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("touchstart", onClickOutside);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open, onClose]);
 
   useEffect(() => {
@@ -80,7 +89,13 @@ export function NewMessageModal({ open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-20">
-      <div ref={searchRef} className="w-full max-w-md rounded-2xl border border-border bg-surface shadow-xl">
+      <div
+        ref={searchRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Yeni mesaj"
+        className="w-full max-w-md rounded-2xl border border-border bg-surface shadow-xl"
+      >
         <div className="flex items-center gap-3 border-b border-border px-4 py-3">
           <Search className="h-4 w-4 flex-shrink-0 text-muted" />
           <input
@@ -91,11 +106,16 @@ export function NewMessageModal({ open, onClose }: Props) {
             placeholder="İsim veya kullanıcı adı ara…"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
           />
-          <button type="button" onClick={onClose} className="text-muted hover:text-text">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Kapat"
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-muted hover:bg-background hover:text-text"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="max-h-80 overflow-y-auto">
+        <div className="max-h-[min(20rem,60vh)] overflow-y-auto">
           {query.trim().length < 2 && (
             <p className="px-4 py-6 text-center text-sm text-muted">En az 2 karakter girin</p>
           )}

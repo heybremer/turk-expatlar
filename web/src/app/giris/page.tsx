@@ -48,7 +48,7 @@ function GirisForm() {
   }
 
   return (
-    <div className="w-full min-w-0">
+    <div className="mx-auto w-full min-w-0 max-w-md py-8">
       {!hydrated || token ? (
         <div className="py-12 text-center text-sm text-muted">Yönlendiriliyor…</div>
       ) : (
