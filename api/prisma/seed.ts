@@ -359,6 +359,14 @@ async function main() {
       cityId: berlinCity?.id,
       userStatus: 'isadami',
     },
+    // Forum "cevap" botu — konu açmaz, açılan konulara yorum yazar
+    {
+      email: 'bot-derya@turkexpatlar.de',
+      displayName: 'Derya_10yil',
+      stateId: berlin?.id,
+      cityId: berlinCity?.id,
+      userStatus: 'calisani',
+    },
   ];
 
   for (const bot of bots) {
