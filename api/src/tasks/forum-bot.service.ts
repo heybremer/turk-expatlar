@@ -19,27 +19,27 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'resmi-islemler',
     title: 'Anmeldung için randevu alamıyorum, başka yolu var mı?',
-    body: 'Bürgeramt\'a online randevu almaya çalışıyorum ama tüm slotlar hep dolu. 3 haftadır deniyorum olmadı. Doğrudan gidip sıraya girsem alırlar mı? Yoksa başka bir çözüm yolu var mı bilen var mı?',
+    body: "Bürgeramt'a online randevu almaya çalışıyorum ama tüm slotlar hep dolu. 3 haftadır deniyorum olmadı. Doğrudan gidip sıraya girsem alırlar mı? Yoksa başka bir çözüm yolu var mı bilen var mı?",
   },
   {
     categorySlug: 'resmi-islemler',
     title: 'Aufenthaltserlaubnis başvurusu ne kadar sürüyor?',
-    body: 'İlk oturumumu almam için Ausländerbehörde\'ye başvurdum, bir ay oldu haber yok. Normal mi bu kadar bekleme? Arayıp sormam mı lazım yoksa beklemeye devam mı?',
+    body: "İlk oturumumu almam için Ausländerbehörde'ye başvurdum, bir ay oldu haber yok. Normal mi bu kadar bekleme? Arayıp sormam mı lazım yoksa beklemeye devam mı?",
   },
   {
     categorySlug: 'resmi-islemler',
     title: 'Freizügigkeitsbescheinigung ne işe yarar?',
-    body: 'AB vatandaşı olarak Almanya\'ya taşındım. Freizügigkeitsbescheinigung almam gerekiyor mu? Olmadan da oturabilir miyim, yoksa zorunlu mu?',
+    body: "AB vatandaşı olarak Almanya'ya taşındım. Freizügigkeitsbescheinigung almam gerekiyor mu? Olmadan da oturabilir miyim, yoksa zorunlu mu?",
   },
   {
     categorySlug: 'resmi-islemler',
-    title: 'Türk pasaportumun süresi doldu, Almanya\'da yenileyebilir miyim?',
-    body: 'Türkiye\'ye gidemiyorum şu an, pasaportum 2 ay sonra bitiyor. Almanya\'daki Türk konsolosluğunda yenilenebiliyor mu? Randevu ne kadar sürede çıkıyor?',
+    title: "Türk pasaportumun süresi doldu, Almanya'da yenileyebilir miyim?",
+    body: "Türkiye'ye gidemiyorum şu an, pasaportum 2 ay sonra bitiyor. Almanya'daki Türk konsolosluğunda yenilenebiliyor mu? Randevu ne kadar sürede çıkıyor?",
   },
   {
     categorySlug: 'resmi-islemler',
     title: 'Mavi Kart başvurusu için hangi belgeler lazım?',
-    body: 'Yazılım mühendisiyim, Almanya\'da iş teklifim var. Mavi Kart için ne hazırlayayım? Üniversite diplomam Türkiye\'den, tanınma işlemi ne kadar sürüyor acaba?',
+    body: "Yazılım mühendisiyim, Almanya'da iş teklifim var. Mavi Kart için ne hazırlayayım? Üniversite diplomam Türkiye'den, tanınma işlemi ne kadar sürüyor acaba?",
   },
   {
     categorySlug: 'resmi-islemler',
@@ -48,8 +48,8 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'resmi-islemler',
-    title: 'Almanya\'ya taşınırken araç kaydını nasıl yaptırmalıyım?',
-    body: 'Türkiye\'den arabamı getirdim. Zulassungsstelle\'ye gitmem mi gerekiyor? Hangi belgeler lazım, TÜV muayenesi şart mı? Kısa süreliğine Türk plakasıyla sürebilir miyim?',
+    title: "Almanya'ya taşınırken araç kaydını nasıl yaptırmalıyım?",
+    body: "Türkiye'den arabamı getirdim. Zulassungsstelle'ye gitmem mi gerekiyor? Hangi belgeler lazım, TÜV muayenesi şart mı? Kısa süreliğine Türk plakasıyla sürebilir miyim?",
   },
   {
     categorySlug: 'resmi-islemler',
@@ -59,12 +59,12 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'resmi-islemler',
     title: 'Schufa kaydım neden kötü çıktı, hiç borç yapmadım ki?',
-    body: 'İlk kez kredi çekmeye çalıştım, Schufa skorun düşük dediler. Almanya\'ya 1,5 yıl önce geldim ve hiç borcum olmadı. Neden düşük olabilir? Nasıl yükseltirim?',
+    body: "İlk kez kredi çekmeye çalıştım, Schufa skorun düşük dediler. Almanya'ya 1,5 yıl önce geldim ve hiç borcum olmadı. Neden düşük olabilir? Nasıl yükseltirim?",
   },
   {
     categorySlug: 'resmi-islemler',
-    title: 'Kindergeld başvurusunda çocuk Türkiye\'de kalıyorsa nasıl oluyor?',
-    body: 'Eşim ve çocuğum henüz Türkiye\'de, 3-4 ay sonra gelecekler. Şimdiden Kindergeld başvurabilir miyim? Çocuğun Almanya\'da olması şart mı?',
+    title: "Kindergeld başvurusunda çocuk Türkiye'de kalıyorsa nasıl oluyor?",
+    body: "Eşim ve çocuğum henüz Türkiye'de, 3-4 ay sonra gelecekler. Şimdiden Kindergeld başvurabilir miyim? Çocuğun Almanya'da olması şart mı?",
   },
   {
     categorySlug: 'resmi-islemler',
@@ -73,7 +73,8 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'resmi-islemler',
-    title: 'Vergi numarası (Steueridentifikationsnummer) otomatik gönderiliyor mu?',
+    title:
+      'Vergi numarası (Steueridentifikationsnummer) otomatik gönderiliyor mu?',
     body: 'Anmeldung yaptırdım, vergi numarası ne zaman gelir? Posta mı geliyor yoksa online mi alınıyor? Maaş ödemesi için şirkete vermem lazım',
   },
   {
@@ -93,15 +94,15 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'resmi-islemler',
-    title: 'Almanya\'da evlenmek için hangi belgeler gerekiyor?',
-    body: 'Türkiye\'deki eşimle burada nikah kıydırmak istiyoruz. Standesamt için Türkiye\'den apostilli belgeler lazım mı? Tüm süreci baştan anlatan var mı?',
+    title: "Almanya'da evlenmek için hangi belgeler gerekiyor?",
+    body: "Türkiye'deki eşimle burada nikah kıydırmak istiyoruz. Standesamt için Türkiye'den apostilli belgeler lazım mı? Tüm süreci baştan anlatan var mı?",
   },
 
   // ── Ev Bulma ──────────────────────────────────────────────────────────────
   {
     categorySlug: 'ev-bulma',
-    title: 'WG\'de yaşayan var mı, ilk başta nasıl buldunuz?',
-    body: 'Almanya\'ya yeni geldim, önce WG\'de kalmayı düşünüyorum. WG-Gesucht haricinde başka platform var mı? Türklerin çok olduğu semtlerde daha mı kolay buluyor?',
+    title: "WG'de yaşayan var mı, ilk başta nasıl buldunuz?",
+    body: "Almanya'ya yeni geldim, önce WG'de kalmayı düşünüyorum. WG-Gesucht haricinde başka platform var mı? Türklerin çok olduğu semtlerde daha mı kolay buluyor?",
   },
   {
     categorySlug: 'ev-bulma',
@@ -110,7 +111,7 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'ev-bulma',
-    title: 'Almanya\'da ev tutarken Schufa belgesi nasıl alınıyor?',
+    title: "Almanya'da ev tutarken Schufa belgesi nasıl alınıyor?",
     body: 'Ev bakarken Schufa istiyor kiracılar. Ücretsiz Schufa nasıl alıyoruz? Yeni geldim, Schufa bilgim bile yok henüz, bu sorun olmaz mı?',
   },
   {
@@ -121,17 +122,17 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'ev-bulma',
     title: 'Evcil hayvanım var, ev bulmak çok mu zorlaşıyor?',
-    body: 'Bir kedim var. Almanya\'da evcil hayvanlı kiracıyı çok istemiyorlar diye duydum. Bu kadar büyük bir engel mi gerçekten? Hayvan dostu ev bulmak için ne yapmalıyım?',
+    body: "Bir kedim var. Almanya'da evcil hayvanlı kiracıyı çok istemiyorlar diye duydum. Bu kadar büyük bir engel mi gerçekten? Hayvan dostu ev bulmak için ne yapmalıyım?",
   },
   {
     categorySlug: 'ev-bulma',
     title: 'Kira sözleşmesinde nelere dikkat etmeliyim?',
-    body: 'İlk defa Almanya\'da kira sözleşmesi imzalayacağım. Almancam iyi değil, nelere özellikle bakmalıyım? Sözleşmede olmaması gereken maddeler var mı?',
+    body: "İlk defa Almanya'da kira sözleşmesi imzalayacağım. Almancam iyi değil, nelere özellikle bakmalıyım? Sözleşmede olmaması gereken maddeler var mı?",
   },
   {
     categorySlug: 'ev-bulma',
     title: 'Untervermietung (kiracıya kiraya vermek) yasal mı?',
-    body: 'Birkaç ay Türkiye\'ye gideceğim, evimi başkasına kiralayabilir miyim? Ev sahibinden izin almak mı gerekiyor? İzin vermezse ne yapabilirim?',
+    body: "Birkaç ay Türkiye'ye gideceğim, evimi başkasına kiralayabilir miyim? Ev sahibinden izin almak mı gerekiyor? İzin vermezse ne yapabilirim?",
   },
   {
     categorySlug: 'ev-bulma',
@@ -141,7 +142,7 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'ev-bulma',
     title: 'Öğrenci yurdu mu, WG mi, yoksa kendi dairesi mi daha mantıklı?',
-    body: 'Üniversiteye başlıyorum, nerede kalsam daha iyi olur? Öğrenci yurdu için Studentenwerk\'e başvuru çok geç mi kaldım? WG ile kendi dairesi arasında mali olarak ne fark var?',
+    body: "Üniversiteye başlıyorum, nerede kalsam daha iyi olur? Öğrenci yurdu için Studentenwerk'e başvuru çok geç mi kaldım? WG ile kendi dairesi arasında mali olarak ne fark var?",
   },
   {
     categorySlug: 'ev-bulma',
@@ -152,8 +153,8 @@ const QUESTION_POOL: BotQuestion[] = [
   // ── İş Bulma ──────────────────────────────────────────────────────────────
   {
     categorySlug: 'is-bulma',
-    title: 'Almanya\'da CV nasıl hazırlanıyor, fotoğraf eklemeli miyim?',
-    body: 'Türkiye\'deki CV formatım Almanya\'da işe yarar mı? Lebenslauf nasıl olmalı? Fotoğraf ekliyorlar diye duydum, bu hala geçerli mi?',
+    title: "Almanya'da CV nasıl hazırlanıyor, fotoğraf eklemeli miyim?",
+    body: "Türkiye'deki CV formatım Almanya'da işe yarar mı? Lebenslauf nasıl olmalı? Fotoğraf ekliyorlar diye duydum, bu hala geçerli mi?",
   },
   {
     categorySlug: 'is-bulma',
@@ -162,8 +163,8 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'is-bulma',
-    title: 'Türkiye\'de aldığım diploma Almanya\'da tanınıyor mu?',
-    body: 'Makine mühendisliği mezunuyum, üniversitem Türkiye\'de. Almanya\'da çalışmak için denklik almam gerekiyor mu? Anabin sitesine baktım biraz karıştı.',
+    title: "Türkiye'de aldığım diploma Almanya'da tanınıyor mu?",
+    body: "Makine mühendisliği mezunuyum, üniversitem Türkiye'de. Almanya'da çalışmak için denklik almam gerekiyor mu? Anabin sitesine baktım biraz karıştı.",
   },
   {
     categorySlug: 'is-bulma',
@@ -172,8 +173,8 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'is-bulma',
-    title: 'Networking yapmak Almanya\'da nasıl oluyor?',
-    body: 'LinkedIn profilimi güncelliyorum ama Almanya\'daki iş networkuma nasıl girerim? Messe gibi etkinliklere gitmek işe yarıyor mu? İlk girişimde neler yapmalıyım?',
+    title: "Networking yapmak Almanya'da nasıl oluyor?",
+    body: "LinkedIn profilimi güncelliyorum ama Almanya'daki iş networkuma nasıl girerim? Messe gibi etkinliklere gitmek işe yarıyor mu? İlk girişimde neler yapmalıyım?",
   },
   {
     categorySlug: 'is-bulma',
@@ -183,7 +184,7 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'is-bulma',
     title: 'Serbest çalışmak (Freiberufler) için nasıl kayıt olunuyor?',
-    body: 'Tasarımcıyım, freelance çalışmak istiyorum. Finanzamt\'a mı gitmem lazım? Gewerbe mi açmam gerekiyor? İkisi arasındaki fark ne tam olarak?',
+    body: "Tasarımcıyım, freelance çalışmak istiyorum. Finanzamt'a mı gitmem lazım? Gewerbe mi açmam gerekiyor? İkisi arasındaki fark ne tam olarak?",
   },
   {
     categorySlug: 'is-bulma',
@@ -192,8 +193,8 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'is-bulma',
-    title: 'Ausbildung\'u mu yoksa üniversiteyi mi önerirsiniz?',
-    body: 'Almanya\'ya yeni geldim ve 20 yaşındayım. Ausbildung mu yapsam üniversiteye mi devam etsem? Ekonomik açıdan hangisi daha mantıklı, bilen var mı?',
+    title: "Ausbildung'u mu yoksa üniversiteyi mi önerirsiniz?",
+    body: "Almanya'ya yeni geldim ve 20 yaşındayım. Ausbildung mu yapsam üniversiteye mi devam etsem? Ekonomik açıdan hangisi daha mantıklı, bilen var mı?",
   },
 
   // ── Sağlık ────────────────────────────────────────────────────────────────
@@ -205,7 +206,7 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'saglik',
     title: 'Aile hekimi mi yoksa hastaneye direkt gitmeli miyim?',
-    body: 'Almanya\'da hastalığımda ne yapmalıyım? Türkiye\'deki gibi direkt hastaneye gidilmiyor mu? Hausarzt\'a gitmeden acile gidebilir miyim?',
+    body: "Almanya'da hastalığımda ne yapmalıyım? Türkiye'deki gibi direkt hastaneye gidilmiyor mu? Hausarzt'a gitmeden acile gidebilir miyim?",
   },
   {
     categorySlug: 'saglik',
@@ -224,13 +225,13 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'saglik',
-    title: 'Almanya\'da göz muayenesi ve gözlük bedava mı?',
-    body: 'Krankenkasse göz muayenesini karşılıyor mu? Reçeteli gözlük için de ödeme yapıyor mu? Optiker\'e git desinler mi yoksa Augenarzt\'a mı gitmem lazım?',
+    title: "Almanya'da göz muayenesi ve gözlük bedava mı?",
+    body: "Krankenkasse göz muayenesini karşılıyor mu? Reçeteli gözlük için de ödeme yapıyor mu? Optiker'e git desinler mi yoksa Augenarzt'a mı gitmem lazım?",
   },
   {
     categorySlug: 'saglik',
     title: 'İlaçlar için recete olmadan eczaneden alınabiliyor mu?',
-    body: 'Türkiye\'de reçetesiz alabildiğim bazı ilaçları burada reçete istiyorlar. Almanya\'da hangi ilaçlar reçetesiz alınabiliyor? Hekime gitmeden seçenek var mı?',
+    body: "Türkiye'de reçetesiz alabildiğim bazı ilaçları burada reçete istiyorlar. Almanya'da hangi ilaçlar reçetesiz alınabiliyor? Hekime gitmeden seçenek var mı?",
   },
   {
     categorySlug: 'saglik',
@@ -241,7 +242,7 @@ const QUESTION_POOL: BotQuestion[] = [
   // ── Eğitim ────────────────────────────────────────────────────────────────
   {
     categorySlug: 'egitim',
-    title: 'Almanya\'da üniversiteye başvuru nasıl yapılıyor?',
+    title: "Almanya'da üniversiteye başvuru nasıl yapılıyor?",
     body: 'Türk lisesinden mezun oldum ve burada üniversite okumak istiyorum. Uni-Assist nedir, nasıl başvuruluyor? Tüm üniversiteler için mi geçerli?',
   },
   {
@@ -252,7 +253,7 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'egitim',
     title: 'TestDaF mı yoksa DSH mi yapmam gerekiyor?',
-    body: 'Almanya\'da üniversiteye başvuracağım, Almanca dil sınavı seçimim lazım. TestDaF ile DSH arasındaki fark ne? Hangi üniversiteler hangi sınavı kabul ediyor?',
+    body: "Almanya'da üniversiteye başvuracağım, Almanca dil sınavı seçimim lazım. TestDaF ile DSH arasındaki fark ne? Hangi üniversiteler hangi sınavı kabul ediyor?",
   },
   {
     categorySlug: 'egitim',
@@ -261,7 +262,7 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'egitim',
-    title: 'Almanya\'da öğrenci olarak çalışmanın sınırı nedir?',
+    title: "Almanya'da öğrenci olarak çalışmanın sınırı nedir?",
     body: 'Üniversite okuyorum, aynı zamanda part-time çalışmak istiyorum. Yılda kaç saat çalışabilirim? Aşarsam ne olur, oturum iptal mi oluyor?',
   },
   {
@@ -271,8 +272,8 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'egitim',
-    title: 'Çocuğumu Kita\'ya kaydettirmek için bekleme listesi ne kadar uzun?',
-    body: 'Çocuğum 1,5 yaşında ve Kita\'ya kaydetmem lazım. Bekleme listesi 2 yıla kadar çıkabiliyor duydum. Bu doğru mu? Daha hızlı yer bulmanın yolu var mı?',
+    title: "Çocuğumu Kita'ya kaydettirmek için bekleme listesi ne kadar uzun?",
+    body: "Çocuğum 1,5 yaşında ve Kita'ya kaydetmem lazım. Bekleme listesi 2 yıla kadar çıkabiliyor duydum. Bu doğru mu? Daha hızlı yer bulmanın yolu var mı?",
   },
   {
     categorySlug: 'egitim',
@@ -283,8 +284,9 @@ const QUESTION_POOL: BotQuestion[] = [
   // ── Hukuk ─────────────────────────────────────────────────────────────────
   {
     categorySlug: 'hukuk',
-    title: 'İşveren sözleşmede yazandan farklı çalışma saati uyguluyor ne yapabilirim?',
-    body: 'Sözleşmemde 40 saat yazıyor ama hep 48-50 saat çalıştırılıyorum, fazla mesai ödenmiyor. Bu durumda hukuki yolum nedir? Arbeitsgericht\'e gitmeyi düşünüyorum.',
+    title:
+      'İşveren sözleşmede yazandan farklı çalışma saati uyguluyor ne yapabilirim?',
+    body: "Sözleşmemde 40 saat yazıyor ama hep 48-50 saat çalıştırılıyorum, fazla mesai ödenmiyor. Bu durumda hukuki yolum nedir? Arbeitsgericht'e gitmeyi düşünüyorum.",
   },
   {
     categorySlug: 'hukuk',
@@ -294,7 +296,7 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'hukuk',
     title: 'Alman vatandaşlığı için en az kaç yıl oturmuş olmak lazım?',
-    body: 'Almanya\'da 6 yıldır yaşıyorum. Vatandaşlık için başvurabilir miyim? Şartlar neler ve birden fazla vatandaşlık mümkün mü artık?',
+    body: "Almanya'da 6 yıldır yaşıyorum. Vatandaşlık için başvurabilir miyim? Şartlar neler ve birden fazla vatandaşlık mümkün mü artık?",
   },
   {
     categorySlug: 'hukuk',
@@ -303,30 +305,30 @@ const QUESTION_POOL: BotQuestion[] = [
   },
   {
     categorySlug: 'hukuk',
-    title: 'Türkiye\'deki mülküm Almanya vergi idaresine etki eder mi?',
-    body: 'Türkiye\'de annemden miras kalan bir ev var. Almanya\'daki vergi beyannamemde bunu belirtmem gerekiyor mu? Yurt dışı varlıkları nasıl beyan edilir?',
+    title: "Türkiye'deki mülküm Almanya vergi idaresine etki eder mi?",
+    body: "Türkiye'de annemden miras kalan bir ev var. Almanya'daki vergi beyannamemde bunu belirtmem gerekiyor mu? Yurt dışı varlıkları nasıl beyan edilir?",
   },
   {
     categorySlug: 'hukuk',
-    title: 'Trafik kazasında Almanya\'da ilk ne yapılmalı?',
-    body: 'Arabam hasarlı, karşı taraf kusurlu gözüküyor. Almanya\'da kaza sonrası atılacak adımlar neler? Hemen polisi mi çağırmalıyım, yoksa kendi aralarında halledebilir miyiz?',
+    title: "Trafik kazasında Almanya'da ilk ne yapılmalı?",
+    body: "Arabam hasarlı, karşı taraf kusurlu gözüküyor. Almanya'da kaza sonrası atılacak adımlar neler? Hemen polisi mi çağırmalıyım, yoksa kendi aralarında halledebilir miyiz?",
   },
   {
     categorySlug: 'hukuk',
     title: 'Abonelik iptal ettim ama para çekiyorlar, ne yapabilirim?',
-    body: 'Bir fitness kulübü üyeliğini iptal ettim ama fatura gelmeye devam ediyor. Yazılı iptal ettim elimde de var. Incasso\'ya vermekle tehdit ediyorlar. Hukuki durumum nedir?',
+    body: "Bir fitness kulübü üyeliğini iptal ettim ama fatura gelmeye devam ediyor. Yazılı iptal ettim elimde de var. Incasso'ya vermekle tehdit ediyorlar. Hukuki durumum nedir?",
   },
   {
     categorySlug: 'hukuk',
     title: 'İşten çıkarılınca işsizlik parasını hemen alabilir miyim?',
-    body: 'İşim bitti, Agentur für Arbeit\'e başvuracağım. Hemen Arbeitslosengeld başlar mı yoksa Sperrzeit mi uygulanır? Kendin istifa edersen farklı oluyor mu?',
+    body: "İşim bitti, Agentur für Arbeit'e başvuracağım. Hemen Arbeitslosengeld başlar mı yoksa Sperrzeit mi uygulanır? Kendin istifa edersen farklı oluyor mu?",
   },
 
   // ── Vergi ─────────────────────────────────────────────────────────────────
   {
     categorySlug: 'vergi',
     title: 'Yıllık vergi beyannamesi zorunlu mu, her şey otomatik değil mi?',
-    body: 'Türkiye\'de vergi beyannamesi vermek zorunda kalmıyordum. Almanya\'da da vermem gerekiyor mu? Eğer vermezsem para cezası var mı?',
+    body: "Türkiye'de vergi beyannamesi vermek zorunda kalmıyordum. Almanya'da da vermem gerekiyor mu? Eğer vermezsem para cezası var mı?",
   },
   {
     categorySlug: 'vergi',
@@ -336,12 +338,12 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'vergi',
     title: 'Ev ofisi için vergi indirimi alınabiliyor mu?',
-    body: 'Homeoffice\'te çalışıyorum, oturduğum daireden bir oda ofis olarak kullanıyorum. Bunu vergi beyannamesinde gider olarak gösterebilir miyim? Belge almam lazım mı?',
+    body: "Homeoffice'te çalışıyorum, oturduğum daireden bir oda ofis olarak kullanıyorum. Bunu vergi beyannamesinde gider olarak gösterebilir miyim? Belge almam lazım mı?",
   },
   {
     categorySlug: 'vergi',
-    title: 'Türkiye\'ye para göndermek vergiye tabi mi?',
-    body: 'Her ay aileye Türkiye\'ye para gönderiyorum. Bu Almanya\'da vergiden düşülebilir mi? Ya da Steuer açısından bir riski var mı?',
+    title: "Türkiye'ye para göndermek vergiye tabi mi?",
+    body: "Her ay aileye Türkiye'ye para gönderiyorum. Bu Almanya'da vergiden düşülebilir mi? Ya da Steuer açısından bir riski var mı?",
   },
   {
     categorySlug: 'vergi',
@@ -356,7 +358,7 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'vergi',
     title: 'Alman-Türk vergi anlaşması çifte vergilendirmeyi engelliyor mu?',
-    body: 'Türkiye\'de kira gelirim var. Bunu hem Türkiye\'ye hem Almanya\'ya ödemek zorunda kalır mıyım? İki ülke arasında çifte vergi anlaşması var mı?',
+    body: "Türkiye'de kira gelirim var. Bunu hem Türkiye'ye hem Almanya'ya ödemek zorunda kalır mıyım? İki ülke arasında çifte vergi anlaşması var mı?",
   },
   {
     categorySlug: 'vergi',
@@ -373,7 +375,7 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'almanca',
     title: 'Almanca B2 sınavına hazırlanmak için ne kadar süre yeterli?',
-    body: 'A2 seviyesindeyim. B2\'ye çıkmak kaç aylık çalışma gerektirir? Her gün ne kadar çalışmak lazım, sınavı zor mu?',
+    body: "A2 seviyesindeyim. B2'ye çıkmak kaç aylık çalışma gerektirir? Her gün ne kadar çalışmak lazım, sınavı zor mu?",
   },
   {
     categorySlug: 'almanca',
@@ -403,7 +405,217 @@ const QUESTION_POOL: BotQuestion[] = [
   {
     categorySlug: 'almanca',
     title: 'İşyerinde mesleki Almanca nasıl öğrenilir, kurs var mı?',
-    body: 'Genel Almancam iyi ama işle ilgili teknik dil çok eksik. Mesleki Almanca kursu devlet destekli olarak yapılabiliyor mu? Bunun için Agentur für Arbeit\'e mi başvurmam lazım?',
+    body: "Genel Almancam iyi ama işle ilgili teknik dil çok eksik. Mesleki Almanca kursu devlet destekli olarak yapılabiliyor mu? Bunun için Agentur für Arbeit'e mi başvurmam lazım?",
+  },
+
+  /* ── Ek sorular — havuzu genişletmek için (2026-07-16) ─────────────────── */
+
+  // ── Resmi İşlemler (ek) ─────────────────────────────────────────────────
+  {
+    categorySlug: 'resmi-islemler',
+    title: "Almanya'da adres değişikliğini kimlere bildirmem gerekiyor?",
+    body: 'Ummeldung dışında kime haber vermem lazım taşınınca? Banka, sigorta, Finanzamt hepsine ayrı ayrı mı yazmalıyım yoksa otomatik güncelleniyor mu?',
+  },
+  {
+    categorySlug: 'resmi-islemler',
+    title: "Führerschein Türkiye'den Almanya'ya nasıl çevriliyor?",
+    body: "Türk ehliyetim var, Almanya'da geçerli mi hala? Belirli bir süre sonra Alman ehliyetine çevirmek zorunlu mu, sınav gerekiyor mu?",
+  },
+  {
+    categorySlug: 'resmi-islemler',
+    title: 'Yeni doğan bebek için doğum kaydı nereye yapılıyor?',
+    body: "Bebeğimiz burada doğdu. Standesamt'a mı gitmemiz lazım önce? Türk konsolosluğuna da bildirmemiz gerekiyor mu, süresi ne kadar?",
+  },
+  {
+    categorySlug: 'resmi-islemler',
+    title: "Alman IBAN'ı olmadan maaş alabilir miyim?",
+    body: "İşe başlıyorum ama henüz banka hesabım yok. Türk banka hesabımın IBAN'ını verebilir miyim yoksa şart mı Alman hesabı?",
+  },
+  {
+    categorySlug: 'resmi-islemler',
+    title: 'Fiktionsbescheinigung ile yurt dışına çıkabilir miyim?',
+    body: "Oturum kartım henüz gelmedi, Fiktionsbescheinigung ile geziyorum. Bu belgeyle Türkiye'ye gidip dönebilir miyim, sınırda sorun çıkar mı?",
+  },
+  {
+    categorySlug: 'resmi-islemler',
+    title: "Nüfus cüzdanımı kaybettim, Almanya'dan nasıl yeniletebilirim?",
+    body: 'Türk nüfus cüzdanımı kaybettim. Konsolosluğa mı başvurmalıyım? Yenisi gelene kadar ne kullanmam lazım kimlik olarak?',
+  },
+  {
+    categorySlug: 'resmi-islemler',
+    title: 'Aile birleşimi vizesi için gelir şartı ne kadar?',
+    body: "Eşimi Türkiye'den getirmek istiyorum, aile birleşimi başvurusu için ne kadar gelirim olmalı? Almanca bilmesi şart mı onun da?",
+  },
+
+  // ── Ev Bulma (ek) ─────────────────────────────────────────────────────────
+  {
+    categorySlug: 'ev-bulma',
+    title: 'İlk ev başvurusunda Selbstauskunft nasıl doldurulur?',
+    body: 'Ev başvurusu için Selbstauskunft formu isteniyor her yerde. İlk defa dolduracağım, hangi bilgileri detaylı vermem lazım, hangi kısımları boş bırakabilirim?',
+  },
+  {
+    categorySlug: 'ev-bulma',
+    title: 'Möbliert (eşyalı) daire kiralamak avantajlı mı?',
+    body: 'Kısa süreliğine kalacağım, eşyalı daire mi bakmalıyım? Fiyat farkı çok mu oluyor boş daireye göre, sözleşme süresi de farklı mı?',
+  },
+  {
+    categorySlug: 'ev-bulma',
+    title: 'Ev sahibi kirayı her yıl artırabiliyor mu, sınırı var mı?',
+    body: "Kira sözleşmemde artış maddesi var. Almanya'da kira artışının yasal bir sınırı var mı, ev sahibi istediği kadar artıramıyor değil mi?",
+  },
+  {
+    categorySlug: 'ev-bulma',
+    title: 'Taşınma şirketi (Umzugsfirma) tutmak mı, kendimiz mi taşınmalıyız?',
+    body: 'Başka şehre taşınıyoruz, eşya çok. Umzugsfirma tutmak ne kadara geliyor ortalama? Kendimiz kiralık van ile taşımak daha mı mantıklı?',
+  },
+  {
+    categorySlug: 'ev-bulma',
+    title: 'Sosyal konut (Sozialwohnung) başvurusu nasıl yapılıyor?',
+    body: 'Gelirim düşük, sosyal konuta uygun olabilirim diye düşünüyorum. WBS belgesi nereden alınıyor, başvuru süreci ne kadar sürüyor?',
+  },
+  {
+    categorySlug: 'ev-bulma',
+    title: 'Ev bakarken tuzağa düşmemek için nelere dikkat etmeliyim?',
+    body: 'Online ilanlarda çok cazip fiyatlı daireler görüyorum ama şüpheli geliyor bazıları. Sahte ilanları nasıl ayırt edebilirim, para göndermeden önce nelere bakmalıyım?',
+  },
+
+  // ── İş Bulma (ek) ─────────────────────────────────────────────────────────
+  {
+    categorySlug: 'is-bulma',
+    title: 'Zeugnis (referans mektubu) almadan işten çıkabilir miyim?',
+    body: 'İşten ayrılıyorum, Arbeitszeugnis istemem gerekiyor mu yoksa otomatik veriyorlar mı? Bir sonraki işe başvururken bu şart mı?',
+  },
+  {
+    categorySlug: 'is-bulma',
+    title: 'Kısa çalışma ödeneği (Kurzarbeitergeld) nasıl işliyor?',
+    body: "Şirket Kurzarbeit'e geçti, maaşımın bir kısmı kesiliyor. Bu ödenek otomatik mi geliyor, başvuru yapmam gerekiyor mu?",
+  },
+  {
+    categorySlug: 'is-bulma',
+    title: "LinkedIn üzerinden Almanya'da iş bulmak gerçekten işe yarıyor mu?",
+    body: "Profilimi güncelledim, İK'lardan mesaj bekliyorum ama pek dönüş olmuyor. Almanya'da LinkedIn üzerinden iş bulanlar var mı, ne gibi taktikler kullandınız?",
+  },
+  {
+    categorySlug: 'is-bulma',
+    title: 'İşveren değiştirince oturum izni etkileniyor mu?',
+    body: 'Mavi Kart ile çalışıyorum, başka bir şirketten teklif aldım. İşveren değişikliğinde oturuma bir şey olur mu, bildirmem gereken bir yer var mı?',
+  },
+  {
+    categorySlug: 'is-bulma',
+    title: 'Home office (uzaktan çalışma) için sözleşmede ne belirtilmeli?',
+    body: 'İşveren tamamen home office öneriyor. Sözleşmede bunun net yazılması mı lazım, yoksa şirket politikası olarak mı bırakılıyor genelde?',
+  },
+
+  // ── Sağlık (ek) ────────────────────────────────────────────────────────────
+  {
+    categorySlug: 'saglik',
+    title: 'Acil serviste Türkçe tercüman talep edebiliyor muyum?',
+    body: 'Acile gittim, Almancam yetersizdi çok zorlandım. Hastanelerde tercüman hizmeti var mı, nasıl talep ediliyor?',
+  },
+  {
+    categorySlug: 'saglik',
+    title: 'Krankengeld ne zaman devreye giriyor, maaşımdan farkı ne?',
+    body: '6 haftadan uzun raporluyum. İşveren maaş ödemeyi kesince Krankengeld başlıyor duydum, ne kadarını karşılıyor tam olarak?',
+  },
+  {
+    categorySlug: 'saglik',
+    title: "Almanya'da aşı takvimi Türkiye'den farklı mı?",
+    body: "Çocuğumun aşılarını Türkiye'de yaptırmıştık, buraya geldik. Almanya'nın aşı takvimine göre eksik olan var mı kontrol ettirmem gerekiyor mu?",
+  },
+  {
+    categorySlug: 'saglik',
+    title: 'Özel sağlık sigortası (PKV) mı yasal sigorta mı daha mantıklı?',
+    body: "Serbest çalışıyorum, PKV'ye geçmemi öneriyorlar. Yasal sigortadan (GKV) farkı ne, geri dönüşü var mı PKV'ye geçince?",
+  },
+  {
+    categorySlug: 'saglik',
+    title: 'Fizyoterapi için doktor sevki olmadan gidilebiliyor mu?',
+    body: "Sırtım ağrıyor, direkt fizyoterapiste mi gitsem yoksa önce Hausarzt'tan sevk mi almam lazım? Sigorta sevksiz karşılamıyor mu?",
+  },
+
+  // ── Eğitim (ek) ──────────────────────────────────────────────────────────
+  {
+    categorySlug: 'egitim',
+    title:
+      "Almanya'da liseye geçiş yapan çocuk için hangi sınıfa yerleştiriliyor?",
+    body: "Çocuğumuz 14 yaşında, Türkiye'de 8. sınıftaydı. Almanya'ya gelince hangi sınıfa/okul türüne yerleştiriliyor, Almanca bilmemesi sorun olur mu?",
+  },
+  {
+    categorySlug: 'egitim',
+    title: "Yüksek lisans için Almanya'da burs bulmak mümkün mü?",
+    body: 'Master yapmak istiyorum, DAAD bursu duydum ama şartları karışık geldi. Türk öğrenciler için başka burs önerisi olan var mı?',
+  },
+  {
+    categorySlug: 'egitim',
+    title: "Denklik almadan Almanya'da öğretmenlik yapılabiliyor mu?",
+    body: "Türkiye'de öğretmenim, Almanya'ya taşınıyoruz. Diplomamın denkliği olmadan hiç çalışamıyor muyum, yoksa özel okullarda şans var mı?",
+  },
+  {
+    categorySlug: 'egitim',
+    title: "Erasmus ile Almanya'ya gelen biri sonradan oturum alabiliyor mu?",
+    body: "Erasmus değişim programıyla bir dönem Almanya'da okuyacağım. Bu süre bittiğinde tekrar normal öğrenci vizesine geçiş yapmak zor mu?",
+  },
+
+  // ── Hukuk (ek) ──────────────────────────────────────────────────────────
+  {
+    categorySlug: 'hukuk',
+    title: 'Komşu şikayeti yüzünden ev sahibi tahliye edebilir mi?',
+    body: 'Komşumla anlaşmazlığımız var, gürültü şikayeti etti. Bu yüzden ev sahibi beni tahliye edebilir mi, önce uyarı vermesi gerekmiyor mu?',
+  },
+  {
+    categorySlug: 'hukuk',
+    title: 'Online alışverişte iade hakkım ne kadar sürüyor?',
+    body: 'Bir siteden ürün aldım, beğenmedim. Widerrufsrecht diye bir şey duydum, kaç gün içinde iade edebiliyorum ücretsiz olarak?',
+  },
+  {
+    categorySlug: 'hukuk',
+    title: 'Boşanma sürecinde çocuğun velayeti nasıl belirleniyor?',
+    body: "Boşanma sürecindeyiz, bir çocuğumuz var. Almanya'da velayet genelde nasıl paylaştırılıyor, ortak velayet mi standart?",
+  },
+  {
+    categorySlug: 'hukuk',
+    title: 'Mietschuldenfreiheitsbescheinigung nedir, neden isteniyor?',
+    body: 'Yeni ev başvurusunda eski ev sahibimden bu belgeyi istiyorlar. Eski ev sahibim vermek istemezse ne yapabilirim?',
+  },
+
+  // ── Vergi (ek) ──────────────────────────────────────────────────────────
+  {
+    categorySlug: 'vergi',
+    title: 'Steuerberater tutmak ne kadara geliyor, gerekli mi?',
+    body: 'Vergi işlerim biraz karışık, Steuerberater tutmayı düşünüyorum. Ortalama ücretleri nasıl, basit bir çalışan için gerekli mi gerçekten?',
+  },
+  {
+    categorySlug: 'vergi',
+    title: 'Kirche vergisi (Kirchensteuer) nasıl kaldırılıyor?',
+    body: 'Maaşımdan Kirchensteuer kesiliyor, dini bir bağlılığım yok. Bunu nasıl iptal ettirebilirim, Kirchenaustritt için nereye gitmem lazım?',
+  },
+  {
+    categorySlug: 'vergi',
+    title:
+      "Almanya'dan Türkiye'ye ev/araba göndermek gümrük vergisine tabi mi?",
+    body: "Kesin dönüş yapıyorum, eşyalarımı Türkiye'ye göndereceğim. Gümrükte vergi ödemem gerekiyor mu, muafiyet var mı uzun süre yaşamış olanlara?",
+  },
+  {
+    categorySlug: 'vergi',
+    title: 'Werbungskosten olarak neler gösterilebiliyor?',
+    body: 'Vergi beyannamesinde iş ile ilgili giderleri düşürebiliyormuşum. Ev-iş yol masrafı, laptop gibi şeyler dahil mi tam olarak neler sayılıyor?',
+  },
+
+  // ── Almanca (ek) ──────────────────────────────────────────────────────────
+  {
+    categorySlug: 'almanca',
+    title: 'İş yerinde lehçe (Dialekt) anlamakta çok zorlanıyorum, normal mi?',
+    body: "Standart Almanca öğrendim ama Bavyera'da işe başladım, kimseyi anlamıyorum ilk günlerde. Bu kadar zorlanmak normal mi, alışmak ne kadar sürer?",
+  },
+  {
+    categorySlug: 'almanca',
+    title: 'C1 seviyesine çıkmak gerçekten iş bulmada fark yaratıyor mu?',
+    body: "B2'deyim, C1'e çıkmak için ekstra çalışmalı mıyım yoksa B2 çoğu iş için yeterli mi? Süre ve efor açısından değer mi gerçekten?",
+  },
+  {
+    categorySlug: 'almanca',
+    title: 'Çocuğuma evde hem Türkçe hem Almanca öğretmek karıştırır mı?',
+    body: 'İki dilli büyütmek istiyoruz çocuğumuzu. Evde ikisini birden kullanmak kafasını karıştırır mı, yoksa erken yaşta iki dil öğrenmek avantaj mı?',
   },
 ];
 
@@ -431,24 +643,35 @@ export class ForumBotService {
   /** Dashboard için tüm havuzu ve kullanım durumunu döndür */
   async getDashboardData() {
     const botIds = await this.getBotUserIds();
-    const usedTitles = await this.getRecentBotTitles(botIds);
+    const lastUsedMap = await this.getTitleLastUsedMap(botIds);
     const categoryMap = await this.getCategoryMap();
+    const recentWindowStart = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const usedRecently = (title: string) => {
+      const d = lastUsedMap.get(title);
+      return !!d && d.getTime() >= recentWindowStart;
+    };
 
     const questions = QUESTION_POOL.map((q) => ({
       categorySlug: q.categorySlug,
       title: q.title,
       body: q.body,
-      used: usedTitles.has(q.title),
+      used: usedRecently(q.title),
     }));
 
     // Son 30 gün içinde botların açtığı konular
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const recentTopics = await this.prisma.forumTopic.findMany({
-      where: { userId: { in: botIds }, deletedAt: null, createdAt: { gte: since } },
+      where: {
+        userId: { in: botIds },
+        deletedAt: null,
+        createdAt: { gte: since },
+      },
       orderBy: { createdAt: 'desc' },
       take: 50,
       select: {
-        id: true, title: true, createdAt: true,
+        id: true,
+        title: true,
+        createdAt: true,
         user: { select: { profile: { select: { displayName: true } } } },
         category: { select: { name: true } },
       },
@@ -474,8 +697,8 @@ export class ForumBotService {
 
     return {
       totalQuestions: QUESTION_POOL.length,
-      usedCount: usedTitles.size,
-      remainingCount: QUESTION_POOL.filter((q) => !usedTitles.has(q.title)).length,
+      usedCount: questions.filter((q) => q.used).length,
+      remainingCount: questions.filter((q) => !q.used).length,
       categories: [...new Set(QUESTION_POOL.map((q) => q.categorySlug))],
       questions,
       recentTopics,
@@ -492,11 +715,12 @@ export class ForumBotService {
       this.getCategoryMap(),
     ]);
     if (botIds.length === 0) throw new Error('Bot kullanıcıları bulunamadı');
-    const usedTitles = await this.getRecentBotTitles(botIds);
-    const picks = await this.pickQuestions(1, usedTitles, categoryMap);
-    if (picks.length === 0) throw new Error('Tüm sorular son 30 günde kullanıldı');
+    const lastUsedMap = await this.getTitleLastUsedMap(botIds);
+    const picks = this.pickQuestions(1, lastUsedMap, categoryMap);
+    if (picks.length === 0)
+      throw new Error('Havuzda kategoriyle eşleşen soru bulunamadı');
     const q = picks[0];
-    const totalPosted = usedTitles.size;
+    const totalPosted = await this.getTotalPostedCount(botIds);
     const botUserId = botIds[totalPosted % botIds.length];
     await this.postTopic(botUserId, q.categoryId, q.title, q.body);
     return { title: q.title };
@@ -512,43 +736,75 @@ export class ForumBotService {
     return this.botUserIds;
   }
 
-  /** Son 30 günde bot kullanıcıların açtığı konu başlıklarını döndür */
-  private async getRecentBotTitles(botIds: string[]): Promise<Set<string>> {
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  /** Bot kullanıcıların paylaştığı tüm konuların toplam sayısı (rotasyon için) */
+  private async getTotalPostedCount(botIds: string[]): Promise<number> {
+    return this.prisma.forumTopic.count({
+      where: { userId: { in: botIds }, deletedAt: null },
+    });
+  }
+
+  /**
+   * Havuzdaki her soru başlığı için en son ne zaman paylaşıldığını döndürür
+   * (hiç paylaşılmamışsa map'te yok demektir). "Son 30 günde kullanılanları
+   * tamamen ele" yaklaşımı, havuz küçükse botu tamamen susturuyordu; bunun
+   * yerine en uzun süre önce kullanılmış (veya hiç kullanılmamış) sorular
+   * öncelikli seçilir — havuz ne kadar küçük olursa olsun paylaşım hep sürer.
+   */
+  private async getTitleLastUsedMap(
+    botIds: string[],
+  ): Promise<Map<string, Date>> {
     const topics = await this.prisma.forumTopic.findMany({
       where: {
         userId: { in: botIds },
-        createdAt: { gte: since },
         deletedAt: null,
+        title: { in: QUESTION_POOL.map((q) => q.title) },
       },
-      select: { title: true },
+      select: { title: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
     });
-    return new Set(topics.map((t) => t.title));
+    const map = new Map<string, Date>();
+    for (const t of topics) map.set(t.title, t.createdAt); // son tekrar üzerine yazar (asc sıralama)
+    return map;
   }
 
   /** Kategori slug'ı → ID map'ini döndür */
   private async getCategoryMap(): Promise<Map<string, string>> {
-    const cats = await this.prisma.topicCategory.findMany({ select: { id: true, slug: true } });
+    const cats = await this.prisma.topicCategory.findMany({
+      select: { id: true, slug: true },
+    });
     return new Map(cats.map((c) => [c.slug, c.id]));
   }
 
-  /** Havuzdan son 30 günde kullanılmamış soruları filtrele ve karıştır */
-  private async pickQuestions(
+  /**
+   * En uzun süredir kullanılmamış (veya hiç kullanılmamış) sorulardan seç.
+   * En eski/kullanılmamış olanlar arasından rastgelelik için biraz geniş bir
+   * havuzdan (count * 4) karıştırarak seçiyoruz — böylece hep aynı sıra ile
+   * tekrar etmiyor ama yakın zamanda kullanılanlar da atlanıyor.
+   */
+  private pickQuestions(
     count: number,
-    usedTitles: Set<string>,
+    lastUsedMap: Map<string, Date>,
     categoryMap: Map<string, string>,
-  ): Promise<(BotQuestion & { categoryId: string })[]> {
-    const available = QUESTION_POOL
-      .filter((q) => !usedTitles.has(q.title) && categoryMap.has(q.categorySlug))
-      .map((q) => ({ ...q, categoryId: categoryMap.get(q.categorySlug)! }));
+  ): (BotQuestion & { categoryId: string })[] {
+    const now = Date.now();
+    const scored = QUESTION_POOL.filter((q) => categoryMap.has(q.categorySlug))
+      .map((q) => {
+        const lastUsed = lastUsedMap.get(q.title);
+        const ageMs = lastUsed ? now - lastUsed.getTime() : Infinity;
+        return { ...q, categoryId: categoryMap.get(q.categorySlug)!, ageMs };
+      })
+      .sort((a, b) => b.ageMs - a.ageMs);
 
-    // Fisher-Yates karıştır
-    for (let i = available.length - 1; i > 0; i--) {
+    const candidatePool = scored.slice(0, Math.max(count * 4, 20));
+    for (let i = candidatePool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [available[i], available[j]] = [available[j], available[i]];
+      [candidatePool[i], candidatePool[j]] = [
+        candidatePool[j],
+        candidatePool[i],
+      ];
     }
 
-    return available.slice(0, count);
+    return candidatePool.slice(0, count);
   }
 
   /** Tek bir forum konusu oluştur */
@@ -572,24 +828,34 @@ export class ForumBotService {
   }
 
   /** Gün içinde rastgele 5 konu paylaş — saat 08:30 */
-  @Cron('30 6 * * *')   // UTC 06:30 = DE 08:30 (Yaz) / 07:30 (Kış)
-  async postMorning() { await this.postOneTopic(); }
+  @Cron('30 6 * * *') // UTC 06:30 = DE 08:30 (Yaz) / 07:30 (Kış)
+  async postMorning() {
+    await this.postOneTopic();
+  }
 
   /** Gün içinde rastgele 5 konu paylaş — saat 10:15 */
   @Cron('15 8 * * *')
-  async postMidMorning() { await this.postOneTopic(); }
+  async postMidMorning() {
+    await this.postOneTopic();
+  }
 
   /** Gün içinde rastgele 5 konu paylaş — saat 12:45 */
   @Cron('45 10 * * *')
-  async postLunch() { await this.postOneTopic(); }
+  async postLunch() {
+    await this.postOneTopic();
+  }
 
   /** Gün içinde rastgele 5 konu paylaş — saat 15:00 */
   @Cron('0 13 * * *')
-  async postAfternoon() { await this.postOneTopic(); }
+  async postAfternoon() {
+    await this.postOneTopic();
+  }
 
   /** Gün içinde rastgele 5 konu paylaş — saat 17:30 */
   @Cron('30 15 * * *')
-  async postEvening() { await this.postOneTopic(); }
+  async postEvening() {
+    await this.postOneTopic();
+  }
 
   /** Tek konu paylaş — ortak metot */
   private async postOneTopic(): Promise<void> {
@@ -604,17 +870,21 @@ export class ForumBotService {
         return;
       }
 
-      const usedTitles = await this.getRecentBotTitles(botIds);
-      const picks = await this.pickQuestions(1, usedTitles, categoryMap);
+      const [lastUsedMap, totalPosted] = await Promise.all([
+        this.getTitleLastUsedMap(botIds),
+        this.getTotalPostedCount(botIds),
+      ]);
+      const picks = this.pickQuestions(1, lastUsedMap, categoryMap);
 
       if (picks.length === 0) {
-        this.logger.warn('Tüm sorular son 30 günde kullanıldı, havuz tükendi.');
+        this.logger.warn(
+          'Havuzda kategoriyle eşleşen soru bulunamadı, kategoriler seed edildi mi?',
+        );
         return;
       }
 
       const q = picks[0];
       // Rotasyon: kaçıncı bot paylaşım yapacak
-      const totalPosted = usedTitles.size;
       const botUserId = botIds[totalPosted % botIds.length];
 
       await this.postTopic(botUserId, q.categoryId, q.title, q.body);

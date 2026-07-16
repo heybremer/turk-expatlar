@@ -65,7 +65,7 @@ const REPLY_BANK: Record<string, CategoryReplies> = {
     fallback: [
       'Bu konuda net bir tecrübem yok ama resmi işlerde evrakları eksiksiz teslim edince süreç genelde daha hızlı ilerliyor.',
       'Ben de benzer bir şey yaşadım, en sağlıklısı ilgili daireyi arayıp direkt sormak, telefonla bazen daha çabuk netleşiyor.',
-      "Şehre göre uygulamalar değişebiliyor, bulunduğun şehrin grubuna da sormanı öneririm.",
+      'Şehre göre uygulamalar değişebiliyor, bulunduğun şehrin grubuna da sormanı öneririm.',
     ],
   },
 
@@ -74,7 +74,7 @@ const REPLY_BANK: Record<string, CategoryReplies> = {
       {
         keywords: ['wg-gesucht', 'wg'],
         replies: [
-          "WG-Gesucht dışında şehir bazlı Facebook gruplarına da bakabilirsin, bazı yerlerde oradan daha hızlı dönüş oluyor.",
+          'WG-Gesucht dışında şehir bazlı Facebook gruplarına da bakabilirsin, bazı yerlerde oradan daha hızlı dönüş oluyor.',
         ],
       },
       {
@@ -178,7 +178,7 @@ const REPLY_BANK: Record<string, CategoryReplies> = {
       {
         keywords: ['türkçe konuşan doktor', 'türkçe doktor'],
         replies: [
-          "Jameda sitesinde dil filtresi var, Türkçe seçince listeleniyor. Şehir bazlı Türk gruplarında da çoğu zaman sorulur, oradan öneri alabilirsin.",
+          'Jameda sitesinde dil filtresi var, Türkçe seçince listeleniyor. Şehir bazlı Türk gruplarında da çoğu zaman sorulur, oradan öneri alabilirsin.',
         ],
       },
       {
@@ -201,7 +201,7 @@ const REPLY_BANK: Record<string, CategoryReplies> = {
       },
     ],
     fallback: [
-      "Sağlık sistemi ilk başta biraz karışık geliyor ama alışınca oturuyor. Bir Hausarzt bulman işleri kolaylaştırıyor.",
+      'Sağlık sistemi ilk başta biraz karışık geliyor ama alışınca oturuyor. Bir Hausarzt bulman işleri kolaylaştırıyor.',
       "Bu konuda net değilim ama Krankenkasse'yi arayıp direkt sormak en sağlıklısı, çoğu artık Türkçe de destek veriyor.",
     ],
   },
@@ -211,7 +211,7 @@ const REPLY_BANK: Record<string, CategoryReplies> = {
       {
         keywords: ['uni-assist', 'üniversite başvuru'],
         replies: [
-          "Uni-Assist bazı üniversiteler için zorunlu, hepsi için değil. Başvuracağın üniversitenin sitesinde direkt mi yoksa Uni-Assist üzerinden mi aldığı yazıyor.",
+          'Uni-Assist bazı üniversiteler için zorunlu, hepsi için değil. Başvuracağın üniversitenin sitesinde direkt mi yoksa Uni-Assist üzerinden mi aldığı yazıyor.',
         ],
       },
       {
@@ -262,7 +262,7 @@ const REPLY_BANK: Record<string, CategoryReplies> = {
       {
         keywords: ['depozito', 'kaution iade', 'kaution'],
         replies: [
-          "Ev sahibi eksik olduğunu söylüyorsa yazılı olarak neyin eksik olduğunu istemen hakkın. Gerekçesiz uzun süre tutması doğru değil, Mieterverein üyeliği bu gibi durumlarda gerçekten işe yarıyor.",
+          'Ev sahibi eksik olduğunu söylüyorsa yazılı olarak neyin eksik olduğunu istemen hakkın. Gerekçesiz uzun süre tutması doğru değil, Mieterverein üyeliği bu gibi durumlarda gerçekten işe yarıyor.',
         ],
       },
       {
@@ -479,7 +479,9 @@ async function generateAiReply(
     if (cleaned.length < 5) return null;
     return cleaned.slice(0, 600);
   } catch (err) {
-    logger.warn(`OpenAI çağrısı hata verdi, sabit cevap bankasına düşülüyor: ${String(err)}`);
+    logger.warn(
+      `OpenAI çağrısı hata verdi, sabit cevap bankasına düşülüyor: ${String(err)}`,
+    );
     return null;
   } finally {
     clearTimeout(timeout);
@@ -545,12 +547,17 @@ export class ForumReplyBotService {
       topic.category?.name,
       this.logger,
     );
-    const reply = aiReply ?? pickReply(topic.category?.slug, topic.title, topic.body);
+    const reply =
+      aiReply ?? pickReply(topic.category?.slug, topic.title, topic.body);
     return { reply, aiUsed: aiReply !== null };
   }
 
   /** Manuel tetikleme (admin) — hemen bir konuya cevap yaz */
-  async replyNow(): Promise<{ topicTitle: string; reply: string; aiUsed: boolean }> {
+  async replyNow(): Promise<{
+    topicTitle: string;
+    reply: string;
+    aiUsed: boolean;
+  }> {
     const botUserId = await this.getBotUserId();
     if (!botUserId) throw new Error('Cevap botu kullanıcısı bulunamadı');
 
@@ -600,7 +607,9 @@ export class ForumReplyBotService {
     try {
       const botUserId = await this.getBotUserId();
       if (!botUserId) {
-        this.logger.warn('Cevap botu kullanıcısı bulunamadı, seed çalıştırıldı mı?');
+        this.logger.warn(
+          'Cevap botu kullanıcısı bulunamadı, seed çalıştırıldı mı?',
+        );
         return;
       }
 
@@ -622,13 +631,31 @@ export class ForumReplyBotService {
 
   // Konu açma botunun paylaşım saatlerinden ~25-40 dk sonra + gün içine
   // yayılmış birkaç ek saat — toplamda günde 9 cevap, tek bot için doğal bir sıklık.
-  @Cron('58 6 * * *') async replyAfterMorning() { await this.replyToOneTopic(); }
-  @Cron('50 8 * * *') async replyAfterMidMorning() { await this.replyToOneTopic(); }
-  @Cron('40 9 * * *') async replyMidMorningExtra() { await this.replyToOneTopic(); }
-  @Cron('20 11 * * *') async replyAfterLunch() { await this.replyToOneTopic(); }
-  @Cron('10 12 * * *') async replyNoonExtra() { await this.replyToOneTopic(); }
-  @Cron('35 13 * * *') async replyAfterAfternoon() { await this.replyToOneTopic(); }
-  @Cron('5 16 * * *') async replyAfterEvening() { await this.replyToOneTopic(); }
-  @Cron('30 18 * * *') async replyEveningExtra() { await this.replyToOneTopic(); }
-  @Cron('45 20 * * *') async replyNightExtra() { await this.replyToOneTopic(); }
+  @Cron('58 6 * * *') async replyAfterMorning() {
+    await this.replyToOneTopic();
+  }
+  @Cron('50 8 * * *') async replyAfterMidMorning() {
+    await this.replyToOneTopic();
+  }
+  @Cron('40 9 * * *') async replyMidMorningExtra() {
+    await this.replyToOneTopic();
+  }
+  @Cron('20 11 * * *') async replyAfterLunch() {
+    await this.replyToOneTopic();
+  }
+  @Cron('10 12 * * *') async replyNoonExtra() {
+    await this.replyToOneTopic();
+  }
+  @Cron('35 13 * * *') async replyAfterAfternoon() {
+    await this.replyToOneTopic();
+  }
+  @Cron('5 16 * * *') async replyAfterEvening() {
+    await this.replyToOneTopic();
+  }
+  @Cron('30 18 * * *') async replyEveningExtra() {
+    await this.replyToOneTopic();
+  }
+  @Cron('45 20 * * *') async replyNightExtra() {
+    await this.replyToOneTopic();
+  }
 }
