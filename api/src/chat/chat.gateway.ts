@@ -21,6 +21,7 @@ import { ChatModerationService } from './chat-moderation.service';
 import { sanitizeAttachments } from './chat-upload.util';
 
 import { ExpoPushService } from '../notifications/expo-push.service';
+import { getCorsOrigins } from '../common/cors-origins';
 
 // Süreli mesaj üst sınırı: UI 24 saate izin verir, sunucu 7 güne kadar kabul
 // eder. Node setTimeout ~24,8 günü aşan değerlerde hemen tetiklendiği için
@@ -56,9 +57,7 @@ interface AuthSocket extends Socket {
 
 @WebSocketGateway({
   cors: {
-    // main.ts ile aynı biçim: virgülle ayrılmış çoklu origin desteklenir
-    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:3200'],
-
+    origin: getCorsOrigins(),
     credentials: true,
   },
 

@@ -17,22 +17,36 @@ interface PlzLocality {
 // Almanya federal eyalet isimlerini DB slug'larına eşleştir
 const STATE_SLUG_MAP: Record<string, string> = {
   'Baden-Württemberg': 'baden-wuerttemberg',
-  'Bayern': 'bayern',
-  'Berlin': 'berlin',
-  'Brandenburg': 'brandenburg',
-  'Bremen': 'bremen',
-  'Hamburg': 'hamburg',
-  'Hessen': 'hessen',
+  Bayern: 'bayern',
+  Berlin: 'berlin',
+  Brandenburg: 'brandenburg',
+  Bremen: 'bremen',
+  Hamburg: 'hamburg',
+  Hessen: 'hessen',
   'Mecklenburg-Vorpommern': 'mecklenburg-vorpommern',
-  'Niedersachsen': 'niedersachsen',
+  Niedersachsen: 'niedersachsen',
   'Nordrhein-Westfalen': 'nordrhein-westfalen',
   'Rheinland-Pfalz': 'rheinland-pfalz',
-  'Saarland': 'saarland',
-  'Sachsen': 'sachsen',
+  Saarland: 'saarland',
+  Sachsen: 'sachsen',
   'Sachsen-Anhalt': 'sachsen-anhalt',
   'Schleswig-Holstein': 'schleswig-holstein',
-  'Thüringen': 'thueringen',
+  Thüringen: 'thueringen',
 };
+
+/** München → muenchen, Köln → koeln vb. — şehir adı karşılaştırması için */
+function normalizeDeName(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
 
 @Injectable()
 export class LocationsService {
@@ -64,19 +78,23 @@ export class LocationsService {
   }
 
   async lookupPostalCode(plz: string) {
-    const url = `https://openplzapi.org/de/Localities?postalCode=${plz}&page=1&pageSize=1`;
-    let locality: PlzLocality | null = null;
-
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
-      if (res.ok) {
-        const data: PlzLocality[] = await res.json();
-        locality = data[0] ?? null;
-      }
-    } catch {
-      // API erişilemez — sadece null dön
+    if (!/^\d{5}$/.test(plz)) {
+      return { found: false, state: null, city: null };
     }
 
+    const url = `https://openplzapi.org/de/Localities?postalCode=${encodeURIComponent(plz)}&page=1&pageSize=5`;
+    let localities: PlzLocality[] = [];
+
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (res.ok) {
+        localities = (await res.json()) as PlzLocality[];
+      }
+    } catch {
+      // OpenPLZ erişilemez — found:false; istemci manuel seçime düşer
+    }
+
+    const locality = localities[0] ?? null;
     if (!locality) {
       return { found: false, state: null, city: null };
     }
@@ -98,25 +116,34 @@ export class LocationsService {
 
     let city = null;
     if (state) {
-      // Arama adayları: locality adı, municipality adı ve kısaltmalar
-      const candidates = [
-        localityName,
-        municipalityName,
-        localityName.split(' ')[0],
-        municipalityName.split(' ')[0],
-      ].filter((v, i, a) => v && a.indexOf(v) === i); // tekrarsız, boşsuz
+      const stateCities = await this.prisma.city.findMany({
+        where: { stateId: state.id },
+      });
 
-      for (const candidate of candidates) {
-        // Önce tam eşleşme dene
-        city = await this.prisma.city.findFirst({
-          where: { stateId: state.id, name: { equals: candidate, mode: 'insensitive' } },
-        });
-        if (city) break;
+      // OpenPLZ bazen aynı PLZ için birden fazla locality döner; hepsini dene
+      const nameCandidates = localities
+        .flatMap((l) => [
+          l.name,
+          l.municipality?.name ?? '',
+          (l.name ?? '').split(/[\s,/(-]/)[0],
+          (l.municipality?.name ?? '').split(/[\s,/(-]/)[0],
+        ])
+        .map((v) => v.trim())
+        .filter((v, i, a) => v && a.indexOf(v) === i);
 
-        // Kısmi eşleşme dene
-        city = await this.prisma.city.findFirst({
-          where: { stateId: state.id, name: { contains: candidate, mode: 'insensitive' } },
-        });
+      for (const candidate of nameCandidates) {
+        const norm = normalizeDeName(candidate);
+        city =
+          stateCities.find((c) => normalizeDeName(c.name) === norm) ??
+          stateCities.find((c) => {
+            const cn = normalizeDeName(c.name);
+            return cn.startsWith(norm) || norm.startsWith(cn);
+          }) ??
+          stateCities.find((c) => {
+            const cn = normalizeDeName(c.name);
+            return cn.includes(norm) || norm.includes(cn);
+          }) ??
+          null;
         if (city) break;
       }
     }

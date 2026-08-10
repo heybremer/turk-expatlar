@@ -99,7 +99,7 @@ function ProfilDuzenleForm() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [plzStatus, setPlzStatus] = useState<
-    "idle" | "loading" | "found" | "not_found"
+    "idle" | "loading" | "found" | "not_found" | "error"
   >("idle");
   const [plzLabel, setPlzLabel] = useState("");
   const plzTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -176,7 +176,7 @@ function ProfilDuzenleForm() {
         setForm((prev) => ({
           ...prev,
           stateId: resolved.stateId!,
-          cityId: resolved.cityId ?? prev.cityId,
+          cityId: resolved.cityId ?? "",
         }));
 
         const cityLabel = resolved.cityName ?? res.localityName ?? "";
@@ -186,11 +186,14 @@ function ProfilDuzenleForm() {
             .join(", "),
         );
         setPlzStatus("found");
+      } else if (res.found && res.localityName) {
+        setPlzLabel(res.localityName);
+        setPlzStatus("not_found");
       } else {
         setPlzStatus("not_found");
       }
     } catch {
-      setPlzStatus("not_found");
+      setPlzStatus("error");
     }
   }
 
@@ -523,7 +526,7 @@ function ProfilDuzenleForm() {
               className={`w-full rounded-lg border bg-surface px-3 py-2 pr-10 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 ${
                 plzStatus === "found"
                   ? "border-success focus:border-success"
-                  : plzStatus === "not_found"
+                  : plzStatus === "not_found" || plzStatus === "error"
                     ? "border-danger focus:border-danger"
                     : "border-border focus:border-primary"
               }`}
@@ -535,7 +538,7 @@ function ProfilDuzenleForm() {
               {plzStatus === "found" && (
                 <CheckCircle2 className="h-4 w-4 text-success" />
               )}
-              {plzStatus === "not_found" && (
+              {(plzStatus === "not_found" || plzStatus === "error") && (
                 <span className="text-xs text-danger">?</span>
               )}
             </div>
@@ -544,11 +547,19 @@ function ProfilDuzenleForm() {
             <p className="mt-1 flex items-center gap-1 text-xs text-success">
               <MapPin className="h-3 w-3" />
               {plzLabel}
+              {!form.cityId && (
+                <span className="text-muted"> — şehri aşağıdan seçin</span>
+              )}
             </p>
           )}
           {plzStatus === "not_found" && (
             <p className="mt-1 text-xs text-danger">
               Posta kodu bulunamadı. Eyalet ve şehri aşağıdan manuel seçin.
+            </p>
+          )}
+          {plzStatus === "error" && (
+            <p className="mt-1 text-xs text-danger">
+              Posta kodu doğrulanamadı (bağlantı hatası). Eyalet ve şehri aşağıdan manuel seçin.
             </p>
           )}
           {plzStatus === "idle" && (
