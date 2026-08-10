@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelsizModerationService } from './telsiz-moderation.service';
 import { isValidChannel, telsizRoom } from './telsiz.channels';
+import { getCorsOrigins } from '../common/cors-origins';
 
 interface TelsizSocket extends Socket {
   userId?: string;
@@ -34,7 +35,7 @@ const MAX_TALK_MS = 30_000;
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3200',
+    origin: getCorsOrigins(),
     credentials: true,
   },
   namespace: '/telsiz',

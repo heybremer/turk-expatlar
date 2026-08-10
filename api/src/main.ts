@@ -9,6 +9,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { getCorsOrigins } from './common/cors-origins';
 
 async function bootstrap() {
   // rawBody: true — Stripe webhook imza doğrulaması req.rawBody'ye ihtiyaç duyar
@@ -44,7 +45,7 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:3200'],
+    origin: getCorsOrigins(),
     credentials: true,
   });
 

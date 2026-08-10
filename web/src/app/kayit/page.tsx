@@ -24,7 +24,7 @@ function KayitForm() {
   const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [plzStatus, setPlzStatus] = useState<"idle" | "loading" | "found" | "not_found">("idle");
+  const [plzStatus, setPlzStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
   const [plzLabel, setPlzLabel] = useState("");
   const plzTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [form, setForm] = useState({
@@ -100,7 +100,7 @@ function KayitForm() {
           setForm((prev) => ({
             ...prev,
             stateId: resolved.stateId!,
-            cityId: resolved.cityId ?? prev.cityId,
+            cityId: resolved.cityId ?? "",
           }));
           const cityLabel = resolved.cityName ?? res.localityName ?? "";
           setPlzLabel(
@@ -109,6 +109,10 @@ function KayitForm() {
               .join(", "),
           );
           setPlzStatus("found");
+        } else if (res.found && res.localityName) {
+          // PLZ geçerli ama eyalet/şehir DB'de eşleşmedi — manuel seçime düş
+          setPlzLabel(res.localityName);
+          setPlzStatus("not_found");
         } else {
           setPlzStatus("not_found");
         }
@@ -122,7 +126,8 @@ function KayitForm() {
         }
       }
     } catch {
-      setPlzStatus("not_found");
+      // Ağ/CORS hatası — "bulunamadı" yerine hata göster; kullanıcı manuel seçebilir
+      setPlzStatus("error");
     }
   }
 
@@ -239,7 +244,7 @@ function KayitForm() {
               className={`w-full rounded-lg border bg-surface px-3 py-2 pr-10 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 ${
                 plzStatus === "found"
                   ? "border-success focus:border-success"
-                  : plzStatus === "not_found"
+                  : plzStatus === "not_found" || plzStatus === "error"
                     ? "border-danger focus:border-danger"
                     : "border-border focus:border-primary"
               }`}
@@ -251,7 +256,7 @@ function KayitForm() {
               {plzStatus === "found" && (
                 <CheckCircle2 className="h-4 w-4 text-success" />
               )}
-              {plzStatus === "not_found" && (
+              {(plzStatus === "not_found" || plzStatus === "error") && (
                 <span className="text-xs text-danger">?</span>
               )}
             </div>
@@ -260,6 +265,9 @@ function KayitForm() {
             <p className="mt-1 flex items-center gap-1 text-xs text-success">
               <MapPin className="h-3 w-3" />
               {plzLabel}
+              {!form.cityId && form.postalCountry === "DE" && (
+                <span className="text-muted"> — şehri aşağıdan seçin</span>
+              )}
             </p>
           )}
           {plzStatus === "not_found" && form.postalCountry === "DE" && (
@@ -267,8 +275,16 @@ function KayitForm() {
               Posta kodu bulunamadı. Eyalet ve şehri aşağıdan manuel seçin.
             </p>
           )}
+          {plzStatus === "error" && form.postalCountry === "DE" && (
+            <p className="mt-1 text-xs text-danger">
+              Posta kodu doğrulanamadı (bağlantı hatası). Eyalet ve şehri aşağıdan manuel seçin.
+            </p>
+          )}
           {plzStatus === "not_found" && form.postalCountry === "TR" && (
             <p className="mt-1 text-xs text-danger">Geçerli bir Türkiye posta kodu girin.</p>
+          )}
+          {plzStatus === "error" && form.postalCountry === "TR" && (
+            <p className="mt-1 text-xs text-danger">Posta kodu doğrulanamadı. Lütfen tekrar deneyin.</p>
           )}
           {plzStatus === "idle" && (
             <p className="mt-1 text-xs text-muted">

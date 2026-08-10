@@ -7,6 +7,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Logger } from '@nestjs/common';
+import { getCorsOrigins } from '../common/cors-origins';
 
 interface AuthSocket extends Socket {
   userId?: string;
@@ -18,7 +19,7 @@ interface AuthSocket extends Socket {
  */
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3200',
+    origin: getCorsOrigins(),
     credentials: true,
   },
   namespace: '/notifications',

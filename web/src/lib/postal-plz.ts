@@ -9,6 +9,41 @@ export type DePlzResult = {
   city?: { id: string; name: string } | null;
 };
 
+function normalizeDeName(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function matchCity(
+  cities: { id: string; name: string }[],
+  ...names: (string | undefined)[]
+): { id: string; name: string } | undefined {
+  const candidates = names
+    .flatMap((n) => [n, n?.split(/[\s,/(-]/)[0]])
+    .map((n) => n?.trim())
+    .filter((n): n is string => !!n);
+
+  for (const candidate of candidates) {
+    const norm = normalizeDeName(candidate);
+    const exact = cities.find((c) => normalizeDeName(c.name) === norm);
+    if (exact) return exact;
+    const prefix = cities.find((c) => {
+      const cn = normalizeDeName(c.name);
+      return cn.startsWith(norm) || norm.startsWith(cn);
+    });
+    if (prefix) return prefix;
+  }
+  return undefined;
+}
+
 export function resolvePlzFromStates(
   res: DePlzResult,
   states: FederalState[],
@@ -18,7 +53,11 @@ export function resolvePlzFromStates(
   let stateId = res.state?.id;
   let stateName = res.state?.name;
   if (!stateId && res.stateName) {
-    const matched = states.find((s) => s.name === res.stateName);
+    const matched = states.find(
+      (s) =>
+        s.name === res.stateName ||
+        normalizeDeName(s.name) === normalizeDeName(res.stateName!),
+    );
     if (matched) {
       stateId = matched.id;
       stateName = matched.name;
@@ -29,13 +68,12 @@ export function resolvePlzFromStates(
   const matchedState = states.find((s) => s.id === stateId);
   let cityId = res.city?.id;
   let cityName = res.city?.name;
-  if (!cityId && res.localityName && matchedState?.cities?.length) {
-    const loc = res.localityName.toLowerCase();
-    const city = matchedState.cities.find(
-      (c) =>
-        c.name.toLowerCase() === loc ||
-        c.name.toLowerCase().startsWith(loc) ||
-        loc.startsWith(c.name.toLowerCase()),
+
+  if (!cityId && matchedState?.cities?.length) {
+    const city = matchCity(
+      matchedState.cities,
+      res.localityName,
+      res.municipalityName,
     );
     if (city) {
       cityId = city.id;
