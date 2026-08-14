@@ -3,40 +3,53 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
 
 jobs:
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
     environment: production
-    if: github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Pack release
+        run: |
+          tar -czf deploy.tar.gz \
+            --exclude=node_modules \
+            --exclude=.next \
+            --exclude=dist \
+            --exclude=api/.env \
+            --exclude=web/.env.local \
+            api web ecosystem.config.js scripts/production-deploy.sh
+
+      - name: Upload to server
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
+          source: deploy.tar.gz
+          target: ${{ secrets.APP_DIR || '/opt/turkexpatlar' }}
+
+      - name: Build and restart
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 25m
           script: |
             set -e
             cd ${{ secrets.APP_DIR || '/opt/turkexpatlar' }}
-
-            echo "==> Pulling latest changes..."
-            git pull origin main
-
-            echo "==> Installing API dependencies..."
-            cd api && npm ci && npx prisma migrate deploy && npm run build
-            cd ..
-
-            echo "==> Installing Web dependencies..."
-            cd web && npm ci --legacy-peer-deps && npm run build
-            cd ..
-
-            echo "==> Restarting services..."
-            pm2 restart all || pm2 start ecosystem.config.js
-
-            echo "==> Deploy complete!"
+            tar xzf deploy.tar.gz
+            rm -f deploy.tar.gz
+            chmod +x scripts/production-deploy.sh
+            bash scripts/production-deploy.sh

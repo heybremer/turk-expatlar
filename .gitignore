@@ -13,4 +13,5 @@ coverage/
 .turbo/
 mobile/.expo/
 *.tar.gz
+.deploy-keys/
 api/uploads/
