@@ -1,5 +1,4 @@
 import { type ReactNode } from "react";
-import Link from "next/link";
 
 /** Basit markdown: kalın, italik, link, alıntı, satır sonu */
 export function renderForumBody(body: string) {

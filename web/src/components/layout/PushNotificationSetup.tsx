@@ -19,6 +19,16 @@ export function PushNotificationSetup() {
   const [subscribed, setSubscribed] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
+  async function registerSW() {
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) return existing;
+    } catch {
+      // SW kayıt hatası
+    }
+  }
+
   useEffect(() => {
     if (!token || !user || dismissed) return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
@@ -33,16 +43,6 @@ export function PushNotificationSetup() {
       return () => clearTimeout(timer);
     }
   }, [token, user, dismissed]);
-
-  async function registerSW() {
-    try {
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      const existing = await reg.pushManager.getSubscription();
-      if (existing) return existing;
-    } catch {
-      // SW kayıt hatası
-    }
-  }
 
   async function subscribe() {
     try {
