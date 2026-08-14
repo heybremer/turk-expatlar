@@ -84,3 +84,67 @@ Yedekler `/opt/turkexpatlar/backups/turkexpatlar_YYYYMMDD_HHMMSS.sql.gz`
 olarak tutulur. Sunucunun kendisi de kaybolursa yedekler işe yaramaz —
 mümkünse `BACKUP_REMOTE_CMD` ortam değişkeniyle (rclone/s3cmd/restic vb.)
 yedekleri sunucu dışına da kopyalayın (script içindeki yorum satırına bakın).
+
+---
+
+## Günlük akış (Git → canlı)
+
+```
+Kod yaz → git add → git commit → git push origin main
+    → GitHub Actions (CI) → Deploy → Hetzner → site güncellenir
+```
+
+CI kırmızıysa deploy çalışmaz; canlı site eski sürümde kalır.
+
+---
+
+## Terimler sözlüğü
+
+### Git
+
+| Terim | Açıklama |
+|-------|----------|
+| **git add** | Değişen dosyaları bir sonraki kayda hazırlar |
+| **git commit** | O anki kodu yerelde kaydeder (snapshot); henüz GitHub’a gitmez |
+| **git push** | Yerel kayıtları GitHub’a gönderir |
+| **origin** | GitHub’daki uzak repo adresinin takma adı |
+| **main** | Ana dal; canlıya giden kod burada tutulur |
+
+Örnek:
+
+```bash
+git add .
+git commit -m "Sohbet düzeltmesi"
+git push origin main
+```
+
+### Deploy ve GitHub Actions
+
+| Terim | Açıklama |
+|-------|----------|
+| **Deploy** | Kodu sunucuya alıp siteyi güncellemek |
+| **GitHub Actions** | Push sonrası otomatik CI ve deploy çalıştıran sistem |
+| **CI** | Lint, test, build — kod bozuk mu kontrol eder |
+| **Deploy workflow** | CI geçince tarball + SSH ile Hetzner’a kod gönderir |
+| **SSH** | GitHub’ın sunucuya güvenli bağlanması (deploy anahtarı) |
+| **PM2 restart** | Sunucudaki API (3201) ve web (3200) süreçlerini yeniden başlatır |
+
+### Yerler
+
+| Yer | Ne? |
+|-----|-----|
+| **Yerel** | `C:\Users\breme\Turk Expatlar\` — senin bilgisayarın |
+| **GitHub** | `heybremer/turk-expatlar` — kod arşivi, `main` dalı |
+| **Hetzner** | `159.69.23.193` → `/opt/turkexpatlar/` — canlı sunucu |
+| **Supabase** | Canlı veritabanı (sunucuda değil) |
+
+### Acil / yardımcı scriptler
+
+| Script | Ne işe yarar? |
+|--------|----------------|
+| `scripts/check-server-version.js` | Sunucu PM2, build tarihi, özellik kontrolü |
+| `scripts/compare-local-server.js` | Yerel vs sunucu dosya karşılaştırması |
+| `scripts/hetzner-deploy-web.js` | Sadece web — manuel acil deploy |
+| `scripts/hetzner-deploy-api.js` | Sadece API — manuel acil deploy |
+
+Normal yol: **push main** yeterli. Manuel scriptler yedek içindir.
