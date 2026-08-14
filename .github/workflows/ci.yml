@@ -11,6 +11,8 @@ jobs:
   api:
     name: API — Lint & Build
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
     defaults:
       run:
         working-directory: api
