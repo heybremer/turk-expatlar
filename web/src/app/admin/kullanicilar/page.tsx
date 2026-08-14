@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -57,10 +58,20 @@ const ROLE_LABELS: Record<string, { label: string; cls: string }> = {
 };
 
 export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminUsersPageContent />
+    </Suspense>
+  );
+}
+
+function AdminUsersPageContent() {
   const { token } = useAuth();
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get("search") ?? "";
   const [data, setData] = useState<UsersResponse | null>(null);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);

@@ -319,42 +319,48 @@ async function main() {
   const bots = [
     {
       email: 'bot-ayse@turkexpatlar.de',
-      displayName: 'Ayşe_HH',
+      firstName: 'Ayşe',
+      lastName: 'Yıldız',
       stateId: hamburg?.id,
       cityId: hamburcity?.id,
       userStatus: 'yeni_gelen',
     },
     {
       email: 'bot-mehmet@turkexpatlar.de',
-      displayName: 'Mehmet34',
+      firstName: 'Mehmet',
+      lastName: 'Demir',
       stateId: muenchen?.id,
       cityId: muenchenCity?.id,
       userStatus: 'ogrenci',
     },
     {
       email: 'bot-selin@turkexpatlar.de',
-      displayName: 'Selin_F',
+      firstName: 'Selin',
+      lastName: 'Aydın',
       stateId: frankfurt?.id,
       cityId: frankfurtCity?.id,
       userStatus: 'calisani',
     },
     {
       email: 'bot-emre@turkexpatlar.de',
-      displayName: 'emre_k',
+      firstName: 'Emre',
+      lastName: 'Şahin',
       stateId: berlin?.id,
       cityId: berlinCity?.id,
       userStatus: 'yeni_gelen',
     },
     {
       email: 'bot-fatma@turkexpatlar.de',
-      displayName: 'fatma_koeln',
+      firstName: 'Fatma',
+      lastName: 'Çelik',
       stateId: koeln2?.id,
       cityId: koelnCity?.id,
       userStatus: 'ev_hanimi',
     },
     {
       email: 'bot-kaan@turkexpatlar.de',
-      displayName: 'Kaan_B',
+      firstName: 'Kaan',
+      lastName: 'Aktaş',
       stateId: berlin?.id,
       cityId: berlinCity?.id,
       userStatus: 'isadami',
@@ -362,7 +368,8 @@ async function main() {
     // Forum "cevap" botu — konu açmaz, açılan konulara yorum yazar
     {
       email: 'bot-derya@turkexpatlar.de',
-      displayName: 'Derya_10yil',
+      firstName: 'Derya',
+      lastName: 'Arslan',
       stateId: berlin?.id,
       cityId: berlinCity?.id,
       userStatus: 'calisani',
@@ -370,18 +377,31 @@ async function main() {
   ];
 
   for (const bot of bots) {
+    const displayName = `${bot.firstName} ${bot.lastName}`;
     await prisma.user.upsert({
       where: { email: bot.email },
-      update: {},
+      update: {
+        isBot: true,
+        profile: {
+          update: {
+            displayName,
+            firstName: bot.firstName,
+            lastName: bot.lastName,
+          },
+        },
+      },
       create: {
         email: bot.email,
         passwordHash: botPasswordHash,
         role: UserRole.USER,
+        isBot: true,
         emailVerified: true,
         gdprConsentAt: new Date(),
         profile: {
           create: {
-            displayName: bot.displayName,
+            displayName,
+            firstName: bot.firstName,
+            lastName: bot.lastName,
             stateId: bot.stateId ?? undefined,
             cityId: bot.cityId ?? undefined,
             languages: ['tr', 'de'],

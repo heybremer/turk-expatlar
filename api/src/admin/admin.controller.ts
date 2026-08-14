@@ -132,12 +132,14 @@ export class AdminController {
   @ApiQuery({ name: 'status', required: false })
   @ApiQuery({ name: 'role', required: false })
   @ApiQuery({ name: 'postalCountry', required: false, enum: ['DE', 'TR'] })
+  @ApiQuery({ name: 'group', required: false, enum: ['bots'] })
   listUsers(
     @Query('page') page?: string,
     @Query('search') search?: string,
     @Query('status') status?: string,
     @Query('role') role?: string,
     @Query('postalCountry') postalCountry?: string,
+    @Query('group') group?: string,
   ) {
     return this.adminService.listUsers({
       page: page ? parseInt(page, 10) : 1,
@@ -145,7 +147,13 @@ export class AdminController {
       status,
       role,
       postalCountry,
+      group,
     });
+  }
+
+  @Get('users/groups')
+  listUserGroups() {
+    return this.adminService.listUserGroups();
   }
 
   @Post('users')

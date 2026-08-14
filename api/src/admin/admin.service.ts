@@ -164,6 +164,7 @@ export class AdminService {
     status?: string;
     role?: string;
     postalCountry?: string;
+    group?: string;
   }) {
     const page = Math.max(1, params.page ?? 1);
     const limit = 20;
@@ -175,6 +176,7 @@ export class AdminService {
     if (params.postalCountry === PostalCountry.DE || params.postalCountry === PostalCountry.TR) {
       where.profile = { postalCountry: params.postalCountry };
     }
+    if (params.group === 'bots') where.isBot = true;
     if (params.search) {
       where.OR = [
         { email: { contains: params.search, mode: 'insensitive' } },
@@ -193,6 +195,7 @@ export class AdminService {
           email: true,
           role: true,
           status: true,
+          isBot: true,
           createdAt: true,
           bannedUntil: true,
           referralCode: true,
@@ -220,6 +223,23 @@ export class AdminService {
     ]);
 
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  /** Kullanıcılar altındaki gruplar (şu an sadece bot hesapları) */
+  async listUserGroups() {
+    const botCount = await this.prisma.user.count({
+      where: { isBot: true, deletedAt: null },
+    });
+    return {
+      groups: [
+        {
+          key: 'bots',
+          name: 'Bot Hesapları',
+          description: 'Forum konusu/cevabı açan otomatik hesaplar',
+          count: botCount,
+        },
+      ],
+    };
   }
 
   async listBannedUsers(params: { page?: number; search?: string }) {

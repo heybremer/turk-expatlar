@@ -34,6 +34,7 @@ export const adminNav: NavItem[] = [
     href: "/admin/kullanicilar",
     children: [
       { href: "/admin/kullanicilar", label: "Tüm Kullanıcılar" },
+      { href: "/admin/kullanicilar/gruplar", label: "Gruplar" },
       { href: "/admin/kullanicilar/yetkiler", label: "Kullanıcı Yetkileri" },
       { href: "/admin/kullanicilar/yeni", label: "Yeni Kullanıcı Ekle" },
       { href: "/admin/kullanicilar/ban", label: "Ban" },
