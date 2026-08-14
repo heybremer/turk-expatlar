@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PrismaService } from './prisma/prisma.service';
+import { REDIS_CLIENT } from './redis/redis.tokens';
 
 describe('AppController', () => {
   let appController: AppController;
@@ -8,7 +10,11 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [
+        AppService,
+        { provide: PrismaService, useValue: {} },
+        { provide: REDIS_CLIENT, useValue: null },
+      ],
     }).compile();
 
     appController = app.get<AppController>(AppController);
