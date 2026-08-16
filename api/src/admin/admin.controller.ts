@@ -19,7 +19,15 @@ import {
   SupportTicketStatus,
   UserRole,
 } from '@prisma/client';
-import { IsBoolean, IsDateString, IsEnum, IsOptional, IsString, MinLength, IsArray } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MinLength,
+  IsArray,
+} from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -28,6 +36,7 @@ import { AdminService } from './admin.service';
 import { ForumBotService } from '../tasks/forum-bot.service';
 import { ForumReplyBotService } from '../tasks/forum-reply-bot.service';
 import { EditorialTasksService } from '../tasks/editorial-tasks.service';
+import { EventBotService } from '../tasks/event-bot.service';
 import {
   AdminCreateBusinessDto,
   AdminCreateUserDto,
@@ -143,6 +152,7 @@ export class AdminController {
     private forumBot: ForumBotService,
     private forumReplyBot: ForumReplyBotService,
     private editorialTasks: EditorialTasksService,
+    private eventBot: EventBotService,
   ) {}
 
   @Get('dashboard')
@@ -301,10 +311,7 @@ export class AdminController {
   @Get('blocks')
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'search', required: false })
-  listBlocks(
-    @Query('page') page?: string,
-    @Query('search') search?: string,
-  ) {
+  listBlocks(@Query('page') page?: string, @Query('search') search?: string) {
     return this.adminService.listBlocks({
       page: page ? parseInt(page, 10) : 1,
       search,
@@ -319,7 +326,10 @@ export class AdminController {
   // ─── Forum ───────────────────────────────────────────────────────────────
 
   @Get('forum/topics')
-  listForumTopics(@Query('page') page?: string, @Query('search') search?: string) {
+  listForumTopics(
+    @Query('page') page?: string,
+    @Query('search') search?: string,
+  ) {
     return this.adminService.listForumTopics({
       page: page ? parseInt(page, 10) : 1,
       search,
@@ -332,22 +342,34 @@ export class AdminController {
   }
 
   @Patch('forum/topics/:id')
-  updateForumTopic(@Param('id') id: string, @Body() dto: AdminUpdateForumTopicDto) {
+  updateForumTopic(
+    @Param('id') id: string,
+    @Body() dto: AdminUpdateForumTopicDto,
+  ) {
     return this.adminService.updateForumTopic(id, dto);
   }
 
   @Delete('forum/topics/:id')
-  deleteForumTopic(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+  deleteForumTopic(
+    @Param('id') id: string,
+    @CurrentUser() actor: { id: string },
+  ) {
     return this.adminService.deleteForumTopic(id, actor.id);
   }
 
   @Patch('forum/replies/:id')
-  updateForumReply(@Param('id') id: string, @Body() dto: AdminUpdateForumReplyDto) {
+  updateForumReply(
+    @Param('id') id: string,
+    @Body() dto: AdminUpdateForumReplyDto,
+  ) {
     return this.adminService.updateForumReply(id, dto);
   }
 
   @Delete('forum/replies/:id')
-  deleteForumReply(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+  deleteForumReply(
+    @Param('id') id: string,
+    @CurrentUser() actor: { id: string },
+  ) {
     return this.adminService.deleteForumReply(id, actor.id);
   }
 
@@ -408,7 +430,10 @@ export class AdminController {
   }
 
   @Get('businesses/reviews')
-  listBusinessReviews(@Query('page') page?: string, @Query('status') status?: string) {
+  listBusinessReviews(
+    @Query('page') page?: string,
+    @Query('status') status?: string,
+  ) {
     return this.adminService.listBusinessReviews({
       page: page ? parseInt(page, 10) : 1,
       status,
@@ -426,12 +451,18 @@ export class AdminController {
   }
 
   @Patch('businesses/reviews/:id')
-  updateBusinessReview(@Param('id') id: string, @Body() dto: AdminUpdateReviewDto) {
+  updateBusinessReview(
+    @Param('id') id: string,
+    @Body() dto: AdminUpdateReviewDto,
+  ) {
     return this.adminService.updateBusinessReview(id, dto);
   }
 
   @Delete('businesses/reviews/:id')
-  deleteBusinessReview(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+  deleteBusinessReview(
+    @Param('id') id: string,
+    @CurrentUser() actor: { id: string },
+  ) {
     return this.adminService.deleteBusinessReview(id, actor.id);
   }
 
@@ -454,7 +485,10 @@ export class AdminController {
   }
 
   @Patch('businesses/:id/approve')
-  approveBusiness(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+  approveBusiness(
+    @Param('id') id: string,
+    @CurrentUser() actor: { id: string },
+  ) {
     return this.adminService.approveBusiness(id, actor.id);
   }
 
@@ -464,7 +498,10 @@ export class AdminController {
   }
 
   @Delete('businesses/:id')
-  deleteBusiness(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+  deleteBusiness(
+    @Param('id') id: string,
+    @CurrentUser() actor: { id: string },
+  ) {
     return this.adminService.deleteBusiness(id, actor.id);
   }
 
@@ -473,10 +510,7 @@ export class AdminController {
   @Get('reports')
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'status', required: false })
-  listReports(
-    @Query('page') page?: string,
-    @Query('status') status?: string,
-  ) {
+  listReports(@Query('page') page?: string, @Query('status') status?: string) {
     return this.adminService.listReports({
       page: page ? parseInt(page, 10) : 1,
       status,
@@ -553,7 +587,10 @@ export class AdminController {
   }
 
   @Delete('courier/requests/:id')
-  deleteCourierRequest(@Param('id') id: string, @CurrentUser() actor: { id: string }) {
+  deleteCourierRequest(
+    @Param('id') id: string,
+    @CurrentUser() actor: { id: string },
+  ) {
     return this.adminService.deleteCourierRequest(id, actor.id);
   }
 
@@ -661,7 +698,10 @@ export class AdminController {
   }
 
   @Patch('chat/spam-unban/:userId')
-  unbanChatUser(@Param('userId') userId: string, @CurrentUser() actor: { id: string }) {
+  unbanChatUser(
+    @Param('userId') userId: string,
+    @CurrentUser() actor: { id: string },
+  ) {
     return this.adminService.unbanChatUser(userId, actor.id);
   }
 
@@ -692,7 +732,9 @@ export class AdminController {
   @Get('analytics/content')
   @ApiQuery({ name: 'days', required: false })
   getContentAnalytics(@Query('days') days?: string) {
-    return this.adminService.getContentAnalytics(days ? parseInt(days, 10) : 30);
+    return this.adminService.getContentAnalytics(
+      days ? parseInt(days, 10) : 30,
+    );
   }
 
   // ─── Forum Bot ─────────────────────────────────────────────────────────────
@@ -717,6 +759,18 @@ export class AdminController {
   @Post('forum-reply-bot/reply-now')
   triggerForumReplyBotReply() {
     return this.forumReplyBot.replyNow();
+  }
+
+  // ─── Etkinlik Botu ───────────────────────────────────────────────────────
+
+  @Get('event-bot/dashboard')
+  getEventBotDashboard() {
+    return this.eventBot.getDashboardData();
+  }
+
+  @Post('event-bot/create-now')
+  triggerEventBotCreate() {
+    return this.eventBot.createNow();
   }
 
   // ─── Şeffaf editör ekipleri ─────────────────────────────────────────────
