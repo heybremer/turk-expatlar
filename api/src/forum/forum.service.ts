@@ -18,6 +18,8 @@ import { GamificationService } from '../gamification/gamification.service';
 const replyUserSelect = {
   id: true,
   role: true,
+  isBot: true,
+  editorTeam: true,
   profile: {
     select: { displayName: true, avatarUrl: true, postalCountry: true },
   },
@@ -116,6 +118,8 @@ export class ForumService {
           user: {
             select: {
               id: true,
+              isBot: true,
+              editorTeam: true,
               profile: {
                 select: {
                   displayName: true,
@@ -263,6 +267,8 @@ export class ForumService {
         user: {
           select: {
             id: true,
+            isBot: true,
+            editorTeam: true,
             profile: {
               select: {
                 displayName: true,
@@ -344,6 +350,8 @@ export class ForumService {
         user: {
           select: {
             id: true,
+            isBot: true,
+            editorTeam: true,
             profile: {
               select: {
                 displayName: true,

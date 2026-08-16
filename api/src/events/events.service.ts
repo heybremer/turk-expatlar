@@ -72,6 +72,8 @@ export class EventsService {
           organizer: {
             select: {
               id: true,
+              isBot: true,
+              editorTeam: true,
               profile: {
                 select: {
                   displayName: true,
@@ -99,6 +101,8 @@ export class EventsService {
         organizer: {
           select: {
             id: true,
+            isBot: true,
+            editorTeam: true,
             profile: {
               select: {
                 displayName: true,
@@ -114,6 +118,8 @@ export class EventsService {
             user: {
               select: {
                 id: true,
+                isBot: true,
+                editorTeam: true,
                 profile: {
                   select: {
                     displayName: true,

@@ -209,7 +209,7 @@ export default function EtkinlikDetailClient() {
       {event.organizer && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-4">
           <p className="text-xs text-muted">Organizatör</p>
-          <UserDisplayName name={event.organizer.profile?.displayName ?? "Kullanıcı"} userId={event.organizer.id} postalCountry={event.organizer.profile?.postalCountry as PostalCountry | undefined} linkToProfile={false} nameClassName="mt-1" />
+          <UserDisplayName name={event.organizer.profile?.displayName ?? "Kullanıcı"} userId={event.organizer.id} postalCountry={event.organizer.profile?.postalCountry as PostalCountry | undefined} linkToProfile={false} nameClassName="mt-1" isBot={event.organizer.isBot} editorTeam={event.organizer.editorTeam} />
         </div>
       )}
 
@@ -219,7 +219,7 @@ export default function EtkinlikDetailClient() {
           <div className="mt-3 flex flex-wrap gap-2">
             {event.attendees.slice(0, 12).map((a) => (
               <span key={a.user.id} className="inline-flex items-center gap-1 rounded-full bg-background px-3 py-1 text-xs">
-                <UserDisplayName name={a.user.profile?.displayName ?? "Kullanıcı"} userId={a.user.id} postalCountry={a.user.profile?.postalCountry as PostalCountry | undefined} linkToProfile={false} nameClassName="font-normal" />
+                <UserDisplayName name={a.user.profile?.displayName ?? "Kullanıcı"} userId={a.user.id} postalCountry={a.user.profile?.postalCountry as PostalCountry | undefined} linkToProfile={false} nameClassName="font-normal" isBot={a.user.isBot} editorTeam={a.user.editorTeam} />
               </span>
             ))}
             {event.attendees.length > 12 && <span className="text-xs text-muted">+{event.attendees.length - 12} kişi</span>}

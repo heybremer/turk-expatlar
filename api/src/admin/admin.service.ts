@@ -6,6 +6,7 @@ import {
   ChatType,
   CourierAcceptanceStatus,
   CourierStatus,
+  EditorTeam,
   EventStatus,
   JobStatus,
   MembershipPlan,
@@ -176,7 +177,18 @@ export class AdminService {
     if (params.postalCountry === PostalCountry.DE || params.postalCountry === PostalCountry.TR) {
       where.profile = { postalCountry: params.postalCountry };
     }
-    if (params.group === 'bots') where.isBot = true;
+    if (params.group === 'bots') {
+      where.isBot = true;
+      where.editorTeam = null;
+    } else {
+      const team = {
+        events: EditorTeam.EVENTS,
+        guide: EditorTeam.GUIDE,
+        jobs: EditorTeam.JOBS,
+        travel: EditorTeam.TRAVEL,
+      }[params.group ?? ''];
+      if (team) where.editorTeam = team;
+    }
     if (params.search) {
       where.OR = [
         { email: { contains: params.search, mode: 'insensitive' } },
@@ -196,6 +208,7 @@ export class AdminService {
           role: true,
           status: true,
           isBot: true,
+          editorTeam: true,
           createdAt: true,
           bannedUntil: true,
           referralCode: true,
@@ -225,11 +238,25 @@ export class AdminService {
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  /** Kullanıcılar altındaki gruplar (şu an sadece bot hesapları) */
+  /** Kullanıcılar altındaki otomasyon ve editör ekipleri. */
   async listUserGroups() {
-    const botCount = await this.prisma.user.count({
-      where: { isBot: true, deletedAt: null },
-    });
+    const [botCount, events, guide, jobs, travel] = await Promise.all([
+      this.prisma.user.count({
+        where: { isBot: true, editorTeam: null, deletedAt: null },
+      }),
+      this.prisma.user.count({
+        where: { editorTeam: EditorTeam.EVENTS, deletedAt: null },
+      }),
+      this.prisma.user.count({
+        where: { editorTeam: EditorTeam.GUIDE, deletedAt: null },
+      }),
+      this.prisma.user.count({
+        where: { editorTeam: EditorTeam.JOBS, deletedAt: null },
+      }),
+      this.prisma.user.count({
+        where: { editorTeam: EditorTeam.TRAVEL, deletedAt: null },
+      }),
+    ]);
     return {
       groups: [
         {
@@ -237,6 +264,30 @@ export class AdminService {
           name: 'Bot Hesapları',
           description: 'Forum konusu/cevabı açan otomatik hesaplar',
           count: botCount,
+        },
+        {
+          key: 'events',
+          name: 'Etkinlik Ekibi',
+          description: 'Etkinlikleri ve katılımcı listelerini kontrol eder',
+          count: events,
+        },
+        {
+          key: 'guide',
+          name: 'Rehber Ekibi',
+          description: 'Kaynaklı ve doğrulanmış rehber taslakları hazırlar',
+          count: guide,
+        },
+        {
+          key: 'jobs',
+          name: 'İş İlanları Ekibi',
+          description: 'İş ilanlarını gerçeklik ve iletişim açısından inceler',
+          count: jobs,
+        },
+        {
+          key: 'travel',
+          name: 'Seyahat Ekibi',
+          description: 'Yolculuk ilanlarını ve eşya taleplerini denetler',
+          count: travel,
         },
       ],
     };
@@ -405,6 +456,32 @@ export class AdminService {
       entityType: 'User',
       entityId: id,
       metadata: { newRole: role },
+    });
+    return result;
+  }
+
+  async changeUserEditorTeam(
+    id: string,
+    editorTeam: EditorTeam | null,
+    actorId?: string,
+  ) {
+    const result = await this.prisma.user.update({
+      where: { id },
+      data: { editorTeam },
+      select: {
+        id: true,
+        email: true,
+        isBot: true,
+        editorTeam: true,
+        profile: { select: { displayName: true } },
+      },
+    });
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'user.editor_team_change',
+      entityType: 'User',
+      entityId: id,
+      metadata: { editorTeam },
     });
     return result;
   }

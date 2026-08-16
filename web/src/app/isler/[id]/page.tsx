@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ReportButton } from "@/components/ui/ReportDialog";
+import { UserDisplayName } from "@/components/user/UserDisplayName";
 
 const jobTypeLabels = Object.fromEntries(JOB_TYPES.map((t) => [t.value, t.label]));
 const workModeLabels = Object.fromEntries(WORK_MODES.map((w) => [w.value, w.label]));
@@ -78,7 +79,19 @@ export default function JobDetailPage() {
           <p className="flex items-center gap-1.5">
             <User className="h-4 w-4" />
             İş arayan
-            {job.owner?.profile?.displayName ? ` — ${job.owner.profile.displayName}` : ""}
+            {job.owner?.profile?.displayName && (
+              <>
+                {" — "}
+                <UserDisplayName
+                  name={job.owner.profile.displayName}
+                  userId={job.owner.id}
+                  linkToProfile={false}
+                  isBot={job.owner.isBot}
+                  editorTeam={job.owner.editorTeam}
+                  nameClassName="font-normal"
+                />
+              </>
+            )}
           </p>
         ) : (
           job.company && (
@@ -87,6 +100,19 @@ export default function JobDetailPage() {
               {job.company}
             </p>
           )
+        )}
+        {!isSeeker && job.owner?.editorTeam && (
+          <p className="flex items-center gap-1.5">
+            <User className="h-4 w-4" />
+            <UserDisplayName
+              name={job.owner.profile?.displayName ?? "Editör"}
+              userId={job.owner.id}
+              linkToProfile={false}
+              isBot={job.owner.isBot}
+              editorTeam={job.owner.editorTeam}
+              nameClassName="font-normal"
+            />
+          </p>
         )}
         {job.city && (
           <p className="flex items-center gap-1.5">

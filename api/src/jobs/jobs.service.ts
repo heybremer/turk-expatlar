@@ -92,6 +92,8 @@ export class JobsService {
         owner: {
           select: {
             id: true,
+            isBot: true,
+            editorTeam: true,
             profile: { select: { displayName: true, trustScore: true } },
           },
         },

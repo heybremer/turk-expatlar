@@ -21,6 +21,30 @@ enum UserStatus {
   PENDING_VERIFICATION
 }
 
+enum EditorTeam {
+  EVENTS
+  GUIDE
+  JOBS
+  TRAVEL
+}
+
+enum EditorialTaskType {
+  EVENT_REVIEW
+  EVENT_ATTENDEE_REVIEW
+  GUIDE_DRAFT
+  GUIDE_REVIEW
+  JOB_REVIEW
+  TRAVEL_REVIEW
+  COURIER_REVIEW
+}
+
+enum EditorialTaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  DISMISSED
+}
+
 enum PostalCountry {
   DE
   TR
@@ -112,88 +136,114 @@ enum ChatType {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
-  phone        String?
-  passwordHash String?    @map("password_hash")
-  googleId     String?    @unique @map("google_id")
-  role         UserRole   @default(USER)
-  status       UserStatus @default(ACTIVE)
-  bannedUntil  DateTime?  @map("banned_until")
-  emailVerified Boolean   @default(false) @map("email_verified")
-  phoneVerified Boolean   @default(false) @map("phone_verified")
-  twoFactorEnabled Boolean @default(false) @map("two_factor_enabled")
-  twoFactorSecret  String? @map("two_factor_secret")
-  gdprConsentAt DateTime? @map("gdpr_consent_at")
-  expoPushToken String?   @map("expo_push_token")
-  deletedAt    DateTime?  @map("deleted_at")
-  referralCode String?    @unique @map("referral_code")
-  referredById String?    @map("referred_by_id")
-  points       Int        @default(0)
-  level        Int        @default(1)
-  isBot        Boolean    @default(false) @map("is_bot")
-  lastLoginAt  DateTime?  @map("last_login_at")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  id               String      @id @default(cuid())
+  email            String      @unique
+  phone            String?
+  passwordHash     String?     @map("password_hash")
+  googleId         String?     @unique @map("google_id")
+  role             UserRole    @default(USER)
+  status           UserStatus  @default(ACTIVE)
+  bannedUntil      DateTime?   @map("banned_until")
+  emailVerified    Boolean     @default(false) @map("email_verified")
+  phoneVerified    Boolean     @default(false) @map("phone_verified")
+  twoFactorEnabled Boolean     @default(false) @map("two_factor_enabled")
+  twoFactorSecret  String?     @map("two_factor_secret")
+  gdprConsentAt    DateTime?   @map("gdpr_consent_at")
+  expoPushToken    String?     @map("expo_push_token")
+  deletedAt        DateTime?   @map("deleted_at")
+  referralCode     String?     @unique @map("referral_code")
+  referredById     String?     @map("referred_by_id")
+  points           Int         @default(0)
+  level            Int         @default(1)
+  isBot            Boolean     @default(false) @map("is_bot")
+  editorTeam       EditorTeam? @map("editor_team")
+  lastLoginAt      DateTime?   @map("last_login_at")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
 
-  referredBy       User?  @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
-  referrals        User[] @relation("UserReferrals")
+  referredBy User?  @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals  User[] @relation("UserReferrals")
 
-  profile          Profile?
-  forumTopics      ForumTopic[]
-  forumReplies     ForumReply[]
-  forumReplyVotes  ForumReplyVote[]
-  events           Event[]           @relation("EventOrganizer")
-  eventAttendees   EventAttendee[]
-  businesses       Business[]
-  businessReviews  BusinessReview[]
-  reports          Report[]          @relation("Reporter")
-  blocksInitiated  Block[]           @relation("Blocker")
-  blocksReceived   Block[]           @relation("Blocked")
-  auditLogs        AuditLog[]
-  notifications    Notification[]
-  chatMembers          ChatMember[]
-  chatReadStates       ChatReadState[]
-  messages             Message[]
-  forumInterests       ForumTopicInterest[]
-  jobPostings          JobPosting[]
-  courierRequests      CourierRequest[]
-  courierAcceptances   CourierAcceptance[]
-  travelAnnouncements  TravelAnnouncement[]
-  travelRequests       TravelRequest[]
-  subscription         Subscription?
-  promoRedemptions     PromoCodeRedemption[]
-  supportTickets       SupportTicket[]
-  chatModerationLogs   ChatModerationLog[]
-  passwordResetTokens    PasswordResetToken[]
+  profile                 Profile?
+  forumTopics             ForumTopic[]
+  forumReplies            ForumReply[]
+  forumReplyVotes         ForumReplyVote[]
+  events                  Event[]                  @relation("EventOrganizer")
+  eventAttendees          EventAttendee[]
+  businesses              Business[]
+  businessReviews         BusinessReview[]
+  reports                 Report[]                 @relation("Reporter")
+  blocksInitiated         Block[]                  @relation("Blocker")
+  blocksReceived          Block[]                  @relation("Blocked")
+  auditLogs               AuditLog[]
+  notifications           Notification[]
+  chatMembers             ChatMember[]
+  chatReadStates          ChatReadState[]
+  messages                Message[]
+  forumInterests          ForumTopicInterest[]
+  jobPostings             JobPosting[]
+  courierRequests         CourierRequest[]
+  courierAcceptances      CourierAcceptance[]
+  travelAnnouncements     TravelAnnouncement[]
+  travelRequests          TravelRequest[]
+  subscription            Subscription?
+  promoRedemptions        PromoCodeRedemption[]
+  supportTickets          SupportTicket[]
+  chatModerationLogs      ChatModerationLog[]
+  passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
-  pushSubscriptions      PushSubscription[]
-  pollVotes              ForumPollVote[]
-  messageReactions       MessageReaction[]
-  pointLogs              PointLog[]
-  reviewsWritten         UserReview[]      @relation("UserReviewAuthor")
-  reviewsReceived        UserReview[]      @relation("UserReviewTarget")
-  friendRequestsSent     FriendRequest[]   @relation("FriendRequestSender")
-  friendRequestsReceived FriendRequest[]   @relation("FriendRequestReceiver")
-  telsizReportsGiven     TelsizReport[]    @relation("TelsizReporter")
-  telsizReportsReceived  TelsizReport[]    @relation("TelsizReported")
-  telsizMute             TelsizMute?
+  pushSubscriptions       PushSubscription[]
+  pollVotes               ForumPollVote[]
+  messageReactions        MessageReaction[]
+  pointLogs               PointLog[]
+  reviewsWritten          UserReview[]             @relation("UserReviewAuthor")
+  reviewsReceived         UserReview[]             @relation("UserReviewTarget")
+  friendRequestsSent      FriendRequest[]          @relation("FriendRequestSender")
+  friendRequestsReceived  FriendRequest[]          @relation("FriendRequestReceiver")
+  telsizReportsGiven      TelsizReport[]           @relation("TelsizReporter")
+  telsizReportsReceived   TelsizReport[]           @relation("TelsizReported")
+  telsizMute              TelsizMute?
+  editorialTasks          EditorialTask[]          @relation("EditorialTaskAssignee")
 
   @@index([email])
   @@index([status])
+  @@index([editorTeam])
   @@index([referredById])
   @@map("users")
 }
 
-model TelsizReport {
-  id          String   @id @default(cuid())
-  reporterId  String   @map("reporter_id")
-  reportedId  String   @map("reported_id")
-  channelId   String   @map("channel_id")
-  createdAt   DateTime @default(now()) @map("created_at")
+model EditorialTask {
+  id           String              @id @default(cuid())
+  team         EditorTeam
+  type         EditorialTaskType
+  status       EditorialTaskStatus @default(OPEN)
+  title        String
+  description  String?
+  entityType   String?             @map("entity_type")
+  entityId     String?             @map("entity_id")
+  assignedToId String?             @map("assigned_to_id")
+  dueAt        DateTime?           @map("due_at")
+  completedAt  DateTime?           @map("completed_at")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
 
-  reporter    User     @relation("TelsizReporter", fields: [reporterId], references: [id], onDelete: Cascade)
-  reported    User     @relation("TelsizReported", fields: [reportedId], references: [id], onDelete: Cascade)
+  assignedTo User? @relation("EditorialTaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@unique([type, entityId])
+  @@index([team, status])
+  @@index([assignedToId])
+  @@map("editorial_tasks")
+}
+
+model TelsizReport {
+  id         String   @id @default(cuid())
+  reporterId String   @map("reporter_id")
+  reportedId String   @map("reported_id")
+  channelId  String   @map("channel_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  reporter User @relation("TelsizReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported User @relation("TelsizReported", fields: [reportedId], references: [id], onDelete: Cascade)
 
   // Her reporter aynı kişiyi yalnızca bir kez şikayet edebilir
   @@unique([reporterId, reportedId])
@@ -202,15 +252,15 @@ model TelsizReport {
 }
 
 model TelsizMute {
-  id           String   @id @default(cuid())
-  userId       String   @unique @map("user_id")
-  muteUntil    DateTime @map("mute_until")
-  warnCount    Int      @default(0) @map("warn_count")
-  reportCount  Int      @default(0) @map("report_count")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid())
+  userId      String   @unique @map("user_id")
+  muteUntil   DateTime @map("mute_until")
+  warnCount   Int      @default(0) @map("warn_count")
+  reportCount Int      @default(0) @map("report_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("telsiz_mutes")
 }
@@ -246,12 +296,12 @@ model EmailVerificationToken {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  token     String    @unique
+  expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -261,27 +311,27 @@ model PasswordResetToken {
 }
 
 model Profile {
-  id          String   @id @default(cuid())
-  userId      String   @unique @map("user_id")
-  displayName String   @map("display_name")
-  firstName   String?  @map("first_name")
-  lastName    String?  @map("last_name")
-  avatarUrl   String?  @map("avatar_url")
-  bio         String?
-  stateId     String?  @map("state_id")
-  cityId      String?  @map("city_id")
-  languages   String[] @default([])
-  interests   String[] @default([])
-  userStatus  String?  @map("user_status")
-  occupation  String?
-  postalCode  String?  @map("postal_code")
-  postalCountry PostalCountry @default(DE) @map("postal_country")
-  allowedPages String[] @default([]) @map("allowed_pages")
-  trustScore  Int      @default(0) @map("trust_score")
-  dmEnabled   Boolean  @default(true) @map("dm_enabled")
-  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                    String        @id @default(cuid())
+  userId                String        @unique @map("user_id")
+  displayName           String        @map("display_name")
+  firstName             String?       @map("first_name")
+  lastName              String?       @map("last_name")
+  avatarUrl             String?       @map("avatar_url")
+  bio                   String?
+  stateId               String?       @map("state_id")
+  cityId                String?       @map("city_id")
+  languages             String[]      @default([])
+  interests             String[]      @default([])
+  userStatus            String?       @map("user_status")
+  occupation            String?
+  postalCode            String?       @map("postal_code")
+  postalCountry         PostalCountry @default(DE) @map("postal_country")
+  allowedPages          String[]      @default([]) @map("allowed_pages")
+  trustScore            Int           @default(0) @map("trust_score")
+  dmEnabled             Boolean       @default(true) @map("dm_enabled")
+  onboardingCompletedAt DateTime?     @map("onboarding_completed_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
 
   user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   state FederalState? @relation(fields: [stateId], references: [id])
@@ -293,13 +343,13 @@ model Profile {
 /// Kullanıcının kazandığı her puanın denetim kaydı — aynı olay için tekrar puan
 /// verilmesini önlemek (idempotency) ve puan geçmişini göstermek için kullanılır.
 model PointLog {
-  id         String      @id @default(cuid())
-  userId     String      @map("user_id")
-  action     PointAction
-  points     Int
-  refType    String?     @map("ref_type")
-  refId      String?     @map("ref_id")
-  createdAt  DateTime    @default(now()) @map("created_at")
+  id        String      @id @default(cuid())
+  userId    String      @map("user_id")
+  action    PointAction
+  points    Int
+  refType   String?     @map("ref_type")
+  refId     String?     @map("ref_id")
+  createdAt DateTime    @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -359,13 +409,13 @@ model FederalState {
   slug      String   @unique
   createdAt DateTime @default(now()) @map("created_at")
 
-  cities   City[]
-  profiles Profile[]
-  topics   ForumTopic[]
-  events   Event[]
+  cities     City[]
+  profiles   Profile[]
+  topics     ForumTopic[]
+  events     Event[]
   businesses Business[]
-  chats    Chat[]
-  jobs     JobPosting[]
+  chats      Chat[]
+  jobs       JobPosting[]
 
   @@map("federal_states")
 }
@@ -419,14 +469,14 @@ model ForumTopic {
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
 
-  user     User          @relation(fields: [userId], references: [id])
-  category TopicCategory @relation(fields: [categoryId], references: [id])
-  state    FederalState? @relation(fields: [stateId], references: [id])
-  city     City?         @relation(fields: [cityId], references: [id])
-  replies  ForumReply[]
-  solvedReply ForumReply? @relation("SolvedReply", fields: [solvedReplyId], references: [id])
-  interests ForumTopicInterest[]
-  poll      ForumPoll?
+  user        User                 @relation(fields: [userId], references: [id])
+  category    TopicCategory        @relation(fields: [categoryId], references: [id])
+  state       FederalState?        @relation(fields: [stateId], references: [id])
+  city        City?                @relation(fields: [cityId], references: [id])
+  replies     ForumReply[]
+  solvedReply ForumReply?          @relation("SolvedReply", fields: [solvedReplyId], references: [id])
+  interests   ForumTopicInterest[]
+  poll        ForumPoll?
 
   @@index([categoryId])
   @@index([stateId, cityId])
@@ -436,13 +486,13 @@ model ForumTopic {
 }
 
 model ForumPoll {
-  id        String          @id @default(cuid())
-  topicId   String          @unique @map("topic_id")
+  id        String    @id @default(cuid())
+  topicId   String    @unique @map("topic_id")
   question  String
-  endsAt    DateTime?       @map("ends_at")
-  createdAt DateTime        @default(now()) @map("created_at")
+  endsAt    DateTime? @map("ends_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
-  topic   ForumTopic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  topic   ForumTopic        @relation(fields: [topicId], references: [id], onDelete: Cascade)
   options ForumPollOption[]
 
   @@map("forum_polls")
@@ -454,7 +504,7 @@ model ForumPollOption {
   text   String
   order  Int    @default(0)
 
-  poll  ForumPoll      @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  poll  ForumPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
   votes ForumPollVote[]
 
   @@index([pollId])
@@ -462,9 +512,9 @@ model ForumPollOption {
 }
 
 model ForumPollVote {
-  id       String @id @default(cuid())
-  optionId String @map("option_id")
-  userId   String @map("user_id")
+  id        String   @id @default(cuid())
+  optionId  String   @map("option_id")
+  userId    String   @map("user_id")
   createdAt DateTime @default(now()) @map("created_at")
 
   option ForumPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
@@ -545,9 +595,9 @@ model Event {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  organizer User         @relation("EventOrganizer", fields: [organizerId], references: [id])
-  state     FederalState @relation(fields: [stateId], references: [id])
-  city      City         @relation(fields: [cityId], references: [id])
+  organizer User            @relation("EventOrganizer", fields: [organizerId], references: [id])
+  state     FederalState    @relation(fields: [stateId], references: [id])
+  city      City            @relation(fields: [cityId], references: [id])
   attendees EventAttendee[]
   chats     Chat[]
 
@@ -584,32 +634,32 @@ model BusinessCategory {
 }
 
 model Business {
-  id              String         @id @default(cuid())
-  ownerId         String?        @map("owner_id")
-  categoryId      String         @map("category_id")
-  stateId         String         @map("state_id")
-  cityId          String         @map("city_id")
-  name            String
-  description     String
-  address         String?
-  latitude        Float?
-  longitude       Float?
+  id                 String             @id @default(cuid())
+  ownerId            String?            @map("owner_id")
+  categoryId         String             @map("category_id")
+  stateId            String             @map("state_id")
+  cityId             String             @map("city_id")
+  name               String
+  description        String
+  address            String?
+  latitude           Float?
+  longitude          Float?
   verificationStatus VerificationStatus @default(UNVERIFIED) @map("verification_status")
   verificationDocs   String[]           @default([]) @map("verification_docs")
   verificationNote   String?            @map("verification_note")
-  phone           String?
-  whatsapp        String?
-  website         String?
-  languages       String[]       @default([])
-  speaksTurkish   Boolean        @default(true) @map("speaks_turkish")
-  isVerified      Boolean        @default(false) @map("is_verified")
-  status          BusinessStatus @default(PENDING)
-  averageRating   Float          @default(0) @map("average_rating")
-  reviewCount     Int            @default(0) @map("review_count")
-  searchCount     Int            @default(0) @map("search_count")
-  deletedAt       DateTime?      @map("deleted_at")
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
+  phone              String?
+  whatsapp           String?
+  website            String?
+  languages          String[]           @default([])
+  speaksTurkish      Boolean            @default(true) @map("speaks_turkish")
+  isVerified         Boolean            @default(false) @map("is_verified")
+  status             BusinessStatus     @default(PENDING)
+  averageRating      Float              @default(0) @map("average_rating")
+  reviewCount        Int                @default(0) @map("review_count")
+  searchCount        Int                @default(0) @map("search_count")
+  deletedAt          DateTime?          @map("deleted_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
   owner    User?            @relation(fields: [ownerId], references: [id])
   category BusinessCategory @relation(fields: [categoryId], references: [id])
@@ -624,15 +674,15 @@ model Business {
 }
 
 model BusinessReview {
-  id         String    @id @default(cuid())
-  businessId String    @map("business_id")
-  userId     String    @map("user_id")
+  id         String       @id @default(cuid())
+  businessId String       @map("business_id")
+  userId     String       @map("user_id")
   rating     Int
   comment    String?
   status     ReviewStatus @default(APPROVED)
   editCount  Int          @default(0) @map("edit_count")
   deletedAt  DateTime?    @map("deleted_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  createdAt  DateTime     @default(now()) @map("created_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id])
@@ -652,13 +702,13 @@ model Chat {
   isPublic  Boolean  @default(true) @map("is_public")
   createdAt DateTime @default(now()) @map("created_at")
 
-  state            FederalState?         @relation(fields: [stateId], references: [id])
-  city             City?                 @relation(fields: [cityId], references: [id])
-  event            Event?                @relation(fields: [eventId], references: [id])
-  members          ChatMember[]
-  messages         Message[]
-  moderationLogs   ChatModerationLog[]
-  readStates       ChatReadState[]
+  state          FederalState?       @relation(fields: [stateId], references: [id])
+  city           City?               @relation(fields: [cityId], references: [id])
+  event          Event?              @relation(fields: [eventId], references: [id])
+  members        ChatMember[]
+  messages       Message[]
+  moderationLogs ChatModerationLog[]
+  readStates     ChatReadState[]
 
   @@map("chats")
 }
@@ -680,13 +730,13 @@ model ChatReadState {
 }
 
 model ChatMember {
-  id          String    @id @default(cuid())
-  chatId      String    @map("chat_id")
-  userId      String    @map("user_id")
-  joinedAt    DateTime  @default(now()) @map("joined_at")
-  lastReadAt  DateTime? @map("last_read_at")
-  hiddenAt    DateTime? @map("hidden_at")
-  mutedUntil  DateTime? @map("muted_until")
+  id         String    @id @default(cuid())
+  chatId     String    @map("chat_id")
+  userId     String    @map("user_id")
+  joinedAt   DateTime  @default(now()) @map("joined_at")
+  lastReadAt DateTime? @map("last_read_at")
+  hiddenAt   DateTime? @map("hidden_at")
+  mutedUntil DateTime? @map("muted_until")
 
   chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -707,11 +757,11 @@ model Message {
   deletedAt   DateTime? @map("deleted_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 
-  chat      Chat             @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id])
+  chat      Chat              @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id])
   reactions MessageReaction[]
-  replyTo   Message?         @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies   Message[]        @relation("MessageReplies")
+  replyTo   Message?          @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[]         @relation("MessageReplies")
 
   @@index([chatId, createdAt])
   @@index([replyToId])
@@ -734,16 +784,16 @@ model MessageReaction {
 }
 
 model Report {
-  id           String           @id @default(cuid())
-  reporterId   String           @map("reporter_id")
-  targetType   ReportTargetType @map("target_type")
-  targetId     String           @map("target_id")
-  reason       String
-  details      String?
-  status       ReportStatus     @default(PENDING)
-  moderatorId  String?          @map("moderator_id")
-  createdAt    DateTime         @default(now()) @map("created_at")
-  resolvedAt   DateTime?        @map("resolved_at")
+  id          String           @id @default(cuid())
+  reporterId  String           @map("reporter_id")
+  targetType  ReportTargetType @map("target_type")
+  targetId    String           @map("target_id")
+  reason      String
+  details     String?
+  status      ReportStatus     @default(PENDING)
+  moderatorId String?          @map("moderator_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  resolvedAt  DateTime?        @map("resolved_at")
 
   reporter User @relation("Reporter", fields: [reporterId], references: [id])
 
@@ -830,31 +880,31 @@ enum ContactMethod {
 }
 
 model JobPosting {
-  id              String          @id @default(cuid())
-  ownerId         String          @map("owner_id")
-  listingType     JobListingType  @default(EMPLOYER) @map("listing_type")
-  stateId         String?         @map("state_id")
-  cityId          String?         @map("city_id")
+  id              String         @id @default(cuid())
+  ownerId         String         @map("owner_id")
+  listingType     JobListingType @default(EMPLOYER) @map("listing_type")
+  stateId         String?        @map("state_id")
+  cityId          String?        @map("city_id")
   company         String?
   title           String
   description     String
-  briefInfo       String?         @map("brief_info")
-  cvUrl           String?         @map("cv_url")
-  cvFileName      String?         @map("cv_file_name")
+  briefInfo       String?        @map("brief_info")
+  cvUrl           String?        @map("cv_url")
+  cvFileName      String?        @map("cv_file_name")
   category        String
-  jobType         JobType         @map("job_type")
-  workMode        WorkMode        @default(ONSITE) @map("work_mode")
-  salaryRange     String?         @map("salary_range")
-  turkishFriendly Boolean         @default(false) @map("turkish_friendly")
-  germanLevel     String?         @map("german_level")
-  contactMethod   ContactMethod   @default(PLATFORM) @map("contact_method")
-  contactValue    String?         @map("contact_value")
-  status          JobStatus       @default(PENDING)
-  viewCount       Int             @default(0) @map("view_count")
-  expiresAt       DateTime?       @map("expires_at")
-  deletedAt       DateTime?       @map("deleted_at")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  jobType         JobType        @map("job_type")
+  workMode        WorkMode       @default(ONSITE) @map("work_mode")
+  salaryRange     String?        @map("salary_range")
+  turkishFriendly Boolean        @default(false) @map("turkish_friendly")
+  germanLevel     String?        @map("german_level")
+  contactMethod   ContactMethod  @default(PLATFORM) @map("contact_method")
+  contactValue    String?        @map("contact_value")
+  status          JobStatus      @default(PENDING)
+  viewCount       Int            @default(0) @map("view_count")
+  expiresAt       DateTime?      @map("expires_at")
+  deletedAt       DateTime?      @map("deleted_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
 
   owner User          @relation(fields: [ownerId], references: [id])
   state FederalState? @relation(fields: [stateId], references: [id])
@@ -894,24 +944,24 @@ enum CourierAcceptanceStatus {
 }
 
 model CourierRequest {
-  id                String             @id @default(cuid())
-  ownerId           String             @map("owner_id")
-  direction         CourierDirection
-  fromArea          String             @map("from_area")
-  toArea            String             @map("to_area")
-  itemName          String             @map("item_name")
-  itemCategory      String             @map("item_category")
-  weightKg          Float?             @map("weight_kg")
-  estimatedValueEur Float?             @map("estimated_value_eur")
-  paymentType       CourierPaymentType @default(NEGOTIABLE) @map("payment_type")
-  paymentAmount     Float?             @map("payment_amount")
-  notes             String?
-  preferredDate     DateTime?          @map("preferred_date")
-  status            CourierStatus      @default(OPEN)
-  confirmedAcceptanceId String?        @unique @map("confirmed_acceptance_id")
-  deletedAt         DateTime?          @map("deleted_at")
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
+  id                    String             @id @default(cuid())
+  ownerId               String             @map("owner_id")
+  direction             CourierDirection
+  fromArea              String             @map("from_area")
+  toArea                String             @map("to_area")
+  itemName              String             @map("item_name")
+  itemCategory          String             @map("item_category")
+  weightKg              Float?             @map("weight_kg")
+  estimatedValueEur     Float?             @map("estimated_value_eur")
+  paymentType           CourierPaymentType @default(NEGOTIABLE) @map("payment_type")
+  paymentAmount         Float?             @map("payment_amount")
+  notes                 String?
+  preferredDate         DateTime?          @map("preferred_date")
+  status                CourierStatus      @default(OPEN)
+  confirmedAcceptanceId String?            @unique @map("confirmed_acceptance_id")
+  deletedAt             DateTime?          @map("deleted_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
 
   owner       User                @relation(fields: [ownerId], references: [id])
   acceptances CourierAcceptance[] @relation("RequestAcceptances")
@@ -931,9 +981,9 @@ model CourierAcceptance {
   createdAt  DateTime                @default(now()) @map("created_at")
   updatedAt  DateTime                @updatedAt @map("updated_at")
 
-  request           CourierRequest @relation("RequestAcceptances", fields: [requestId], references: [id], onDelete: Cascade)
-  traveler          User           @relation(fields: [travelerId], references: [id])
-  confirmedRequest  CourierRequest? @relation("ConfirmedAcceptance")
+  request          CourierRequest  @relation("RequestAcceptances", fields: [requestId], references: [id], onDelete: Cascade)
+  traveler         User            @relation(fields: [travelerId], references: [id])
+  confirmedRequest CourierRequest? @relation("ConfirmedAcceptance")
 
   @@unique([requestId, travelerId])
   @@index([travelerId])
@@ -956,17 +1006,17 @@ enum TravelRequestStatus {
 }
 
 model TravelAnnouncement {
-  id            String       @id @default(cuid())
-  userId        String       @map("user_id")
+  id            String           @id @default(cuid())
+  userId        String           @map("user_id")
   direction     CourierDirection
-  fromCity      String       @map("from_city")
-  toCity        String       @map("to_city")
-  departureDate DateTime     @map("departure_date")
-  availableKg   Float?       @map("available_kg")
+  fromCity      String           @map("from_city")
+  toCity        String           @map("to_city")
+  departureDate DateTime         @map("departure_date")
+  availableKg   Float?           @map("available_kg")
   notes         String?
-  status        TravelStatus @default(OPEN)
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  status        TravelStatus     @default(OPEN)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
 
   user     User            @relation(fields: [userId], references: [id])
   requests TravelRequest[]
@@ -1152,60 +1202,59 @@ model ChatModerationLog {
 }
 
 model SiteSettings {
-  id                              String   @id @default("default")
-  siteName                        String   @default("Türk Expatlar") @map("site_name")
-  siteTagline                     String?  @map("site_tagline")
-  contactEmail                    String?  @map("contact_email")
-  supportEmail                    String?  @map("support_email")
-  metaTitle                       String?  @map("meta_title")
-  metaDescription                 String?  @map("meta_description") @db.Text
-  metaKeywords                    String?  @map("meta_keywords")
-  ogImageUrl                      String?  @map("og_image_url")
-  canonicalUrl                    String?  @map("canonical_url")
-  robotsAllowIndex                Boolean  @default(true) @map("robots_allow_index")
-  customHeadHtml                  String?  @map("custom_head_html") @db.Text
-  googleAnalyticsId               String?  @map("google_analytics_id")
-  googleTagManagerId              String?  @map("google_tag_manager_id")
-  googleAdsId                     String?  @map("google_ads_id")
-  googleAdsConversionLabel        String?  @map("google_ads_conversion_label")
-  googleSearchConsoleVerification String?  @map("google_search_console_verification")
-  facebookPixelId                 String?  @map("facebook_pixel_id")
-  maintenanceMode                 Boolean  @default(false) @map("maintenance_mode")
-  maintenanceMessage              String?  @map("maintenance_message") @db.Text
-  maintenanceAllowAdmins          Boolean  @default(true) @map("maintenance_allow_admins")
-  cacheEnabled                    Boolean  @default(true) @map("cache_enabled")
-  cacheTtlMinutes                 Int      @default(60) @map("cache_ttl_minutes")
-  registrationEnabled             Boolean  @default(true) @map("registration_enabled")
-  forumEnabled                    Boolean  @default(true) @map("forum_enabled")
-  chatEnabled                     Boolean  @default(true) @map("chat_enabled")
-  eventsEnabled                   Boolean  @default(true) @map("events_enabled")
-  appStateNewsEnabled             Boolean  @default(true) @map("app_state_news_enabled")
-  appCityNewsEnabled              Boolean  @default(true) @map("app_city_news_enabled")
-  appEventCalendarEnabled         Boolean  @default(true) @map("app_event_calendar_enabled")
-  appPublicHolidaysEnabled        Boolean  @default(true) @map("app_public_holidays_enabled")
-  appConsulatesEnabled            Boolean  @default(true) @map("app_consulates_enabled")
-  appOfficialInstitutionsEnabled  Boolean  @default(true) @map("app_official_institutions_enabled")
-  appTravelGuideEnabled           Boolean  @default(true) @map("app_travel_guide_enabled")
-  trDefaultAllowedPages           String[] @default(["/seyahat", "/profil", "/destek", "/hosgeldin"]) @map("tr_default_allowed_pages")
-  logoUrl                         String?  @map("logo_url")
-  instagramUrl                    String?  @map("instagram_url")
-  facebookUrl                     String?  @map("facebook_url")
-  telegramUrl                     String?  @map("telegram_url")
-  whatsappNumber                  String?  @map("whatsapp_number")
-  footerTagline                   String?  @map("footer_tagline") @db.Text
-  footerCopyrightText             String?  @map("footer_copyright_text")
-  launchBadgeText                 String?  @map("launch_badge_text")
-  launchHeadline                  String?  @map("launch_headline")
-  launchDescription               String?  @map("launch_description") @db.Text
-  launchPromoCode                 String?  @default("LAUNCH100") @map("launch_promo_code")
-  userMembershipPriceEur          Int      @default(10) @map("user_membership_price_eur")
-  businessMembershipPriceEur      Int      @default(50) @map("business_membership_price_eur")
+  id                              String    @id @default("default")
+  siteName                        String    @default("Türk Expatlar") @map("site_name")
+  siteTagline                     String?   @map("site_tagline")
+  contactEmail                    String?   @map("contact_email")
+  supportEmail                    String?   @map("support_email")
+  metaTitle                       String?   @map("meta_title")
+  metaDescription                 String?   @map("meta_description") @db.Text
+  metaKeywords                    String?   @map("meta_keywords")
+  ogImageUrl                      String?   @map("og_image_url")
+  canonicalUrl                    String?   @map("canonical_url")
+  robotsAllowIndex                Boolean   @default(true) @map("robots_allow_index")
+  customHeadHtml                  String?   @map("custom_head_html") @db.Text
+  googleAnalyticsId               String?   @map("google_analytics_id")
+  googleTagManagerId              String?   @map("google_tag_manager_id")
+  googleAdsId                     String?   @map("google_ads_id")
+  googleAdsConversionLabel        String?   @map("google_ads_conversion_label")
+  googleSearchConsoleVerification String?   @map("google_search_console_verification")
+  facebookPixelId                 String?   @map("facebook_pixel_id")
+  maintenanceMode                 Boolean   @default(false) @map("maintenance_mode")
+  maintenanceMessage              String?   @map("maintenance_message") @db.Text
+  maintenanceAllowAdmins          Boolean   @default(true) @map("maintenance_allow_admins")
+  cacheEnabled                    Boolean   @default(true) @map("cache_enabled")
+  cacheTtlMinutes                 Int       @default(60) @map("cache_ttl_minutes")
+  registrationEnabled             Boolean   @default(true) @map("registration_enabled")
+  forumEnabled                    Boolean   @default(true) @map("forum_enabled")
+  chatEnabled                     Boolean   @default(true) @map("chat_enabled")
+  eventsEnabled                   Boolean   @default(true) @map("events_enabled")
+  appStateNewsEnabled             Boolean   @default(true) @map("app_state_news_enabled")
+  appCityNewsEnabled              Boolean   @default(true) @map("app_city_news_enabled")
+  appEventCalendarEnabled         Boolean   @default(true) @map("app_event_calendar_enabled")
+  appPublicHolidaysEnabled        Boolean   @default(true) @map("app_public_holidays_enabled")
+  appConsulatesEnabled            Boolean   @default(true) @map("app_consulates_enabled")
+  appOfficialInstitutionsEnabled  Boolean   @default(true) @map("app_official_institutions_enabled")
+  appTravelGuideEnabled           Boolean   @default(true) @map("app_travel_guide_enabled")
+  trDefaultAllowedPages           String[]  @default(["/seyahat", "/profil", "/destek", "/hosgeldin"]) @map("tr_default_allowed_pages")
+  logoUrl                         String?   @map("logo_url")
+  instagramUrl                    String?   @map("instagram_url")
+  facebookUrl                     String?   @map("facebook_url")
+  telegramUrl                     String?   @map("telegram_url")
+  whatsappNumber                  String?   @map("whatsapp_number")
+  footerTagline                   String?   @map("footer_tagline") @db.Text
+  footerCopyrightText             String?   @map("footer_copyright_text")
+  launchBadgeText                 String?   @map("launch_badge_text")
+  launchHeadline                  String?   @map("launch_headline")
+  launchDescription               String?   @map("launch_description") @db.Text
+  launchPromoCode                 String?   @default("LAUNCH100") @map("launch_promo_code")
+  userMembershipPriceEur          Int       @default(10) @map("user_membership_price_eur")
+  businessMembershipPriceEur      Int       @default(50) @map("business_membership_price_eur")
   maintenanceStartAt              DateTime? @map("maintenance_start_at")
   maintenanceEndAt                DateTime? @map("maintenance_end_at")
   cacheClearedAt                  DateTime? @map("cache_cleared_at")
-  updatedAt                       DateTime @updatedAt @map("updated_at")
-  updatedById                     String?  @map("updated_by_id")
+  updatedAt                       DateTime  @updatedAt @map("updated_at")
+  updatedById                     String?   @map("updated_by_id")
 
   @@map("site_settings")
 }
-

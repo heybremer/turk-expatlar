@@ -10,7 +10,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { ReportStatus, UserRole, SupportTicketStatus, ChatType, ChatBannedWordSeverity } from '@prisma/client';
+import {
+  ChatBannedWordSeverity,
+  ChatType,
+  EditorialTaskStatus,
+  EditorTeam,
+  ReportStatus,
+  SupportTicketStatus,
+  UserRole,
+} from '@prisma/client';
 import { IsBoolean, IsDateString, IsEnum, IsOptional, IsString, MinLength, IsArray } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -19,6 +27,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { AdminService } from './admin.service';
 import { ForumBotService } from '../tasks/forum-bot.service';
 import { ForumReplyBotService } from '../tasks/forum-reply-bot.service';
+import { EditorialTasksService } from '../tasks/editorial-tasks.service';
 import {
   AdminCreateBusinessDto,
   AdminCreateUserDto,
@@ -39,6 +48,22 @@ class BanUserDto {
 class ChangeRoleDto {
   @IsEnum(UserRole)
   role: UserRole;
+}
+
+class ChangeEditorTeamDto {
+  @IsOptional()
+  @IsEnum(EditorTeam)
+  editorTeam?: EditorTeam | null;
+}
+
+class UpdateEditorialTaskDto {
+  @IsOptional()
+  @IsEnum(EditorialTaskStatus)
+  status?: EditorialTaskStatus;
+
+  @IsOptional()
+  @IsString()
+  assignedToId?: string | null;
 }
 
 class UpdateTrDefaultPagesDto {
@@ -117,6 +142,7 @@ export class AdminController {
     private adminService: AdminService,
     private forumBot: ForumBotService,
     private forumReplyBot: ForumReplyBotService,
+    private editorialTasks: EditorialTasksService,
   ) {}
 
   @Get('dashboard')
@@ -132,7 +158,11 @@ export class AdminController {
   @ApiQuery({ name: 'status', required: false })
   @ApiQuery({ name: 'role', required: false })
   @ApiQuery({ name: 'postalCountry', required: false, enum: ['DE', 'TR'] })
-  @ApiQuery({ name: 'group', required: false, enum: ['bots'] })
+  @ApiQuery({
+    name: 'group',
+    required: false,
+    enum: ['bots', 'events', 'guide', 'jobs', 'travel'],
+  })
   listUsers(
     @Query('page') page?: string,
     @Query('search') search?: string,
@@ -202,6 +232,20 @@ export class AdminController {
     @CurrentUser() actor: { id: string },
   ) {
     return this.adminService.changeUserRole(id, dto.role, actor.id);
+  }
+
+  @Patch('users/:id/editor-team')
+  @Roles(UserRole.ADMIN)
+  changeUserEditorTeam(
+    @Param('id') id: string,
+    @Body() dto: ChangeEditorTeamDto,
+    @CurrentUser() actor: { id: string },
+  ) {
+    return this.adminService.changeUserEditorTeam(
+      id,
+      dto.editorTeam ?? null,
+      actor.id,
+    );
   }
 
   @Delete('users/:id')
@@ -673,5 +717,36 @@ export class AdminController {
   @Post('forum-reply-bot/reply-now')
   triggerForumReplyBotReply() {
     return this.forumReplyBot.replyNow();
+  }
+
+  // ─── Şeffaf editör ekipleri ─────────────────────────────────────────────
+
+  @Get('editorial/tasks')
+  @ApiQuery({ name: 'team', required: false, enum: EditorTeam })
+  @ApiQuery({ name: 'status', required: false, enum: EditorialTaskStatus })
+  @ApiQuery({ name: 'page', required: false })
+  listEditorialTasks(
+    @Query('team') team?: EditorTeam,
+    @Query('status') status?: EditorialTaskStatus,
+    @Query('page') page?: string,
+  ) {
+    return this.editorialTasks.listTasks({
+      team,
+      status,
+      page: page ? parseInt(page, 10) : 1,
+    });
+  }
+
+  @Patch('editorial/tasks/:id')
+  updateEditorialTask(
+    @Param('id') id: string,
+    @Body() dto: UpdateEditorialTaskDto,
+  ) {
+    return this.editorialTasks.updateTask(id, dto);
+  }
+
+  @Post('editorial/scan')
+  scanEditorialQueues() {
+    return this.editorialTasks.scanAll();
   }
 }

@@ -30,6 +30,8 @@ import type { LevelProgress } from "@/lib/auth";
 type PublicUser = {
   id: string;
   role?: string;
+  isBot?: boolean;
+  editorTeam?: string | null;
   createdAt: string;
   lastLoginAt?: string | null;
   levelProgress?: LevelProgress;
@@ -128,6 +130,8 @@ export default function KullaniciProfilPage() {
               postalCountry={p.postalCountry}
               linkToProfile={false}
               nameClassName="text-xl font-bold"
+              isBot={user.isBot}
+              editorTeam={user.editorTeam}
             />
             {p.occupation && (
               <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-muted">

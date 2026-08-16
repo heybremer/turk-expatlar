@@ -350,6 +350,8 @@ export class UsersService {
         createdAt: true,
         lastLoginAt: true,
         role: true,
+        isBot: true,
+        editorTeam: true,
         points: true,
         profile: {
           select: {

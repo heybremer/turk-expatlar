@@ -104,7 +104,7 @@ export type ForumTopic = {
   category: { id?: string; name: string; slug: string };
   city?: { name: string } | null;
   state?: { name: string } | null;
-  user?: { id: string; role?: string; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null } | null;
+  user?: { id: string; role?: string; isBot?: boolean; editorTeam?: string | null; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null } | null;
   _count?: { replies: number; interests?: number };
 };
 
@@ -118,7 +118,7 @@ export type ForumReply = {
   userVoted?: boolean;
   _optimistic?: boolean;
   children?: ForumReply[];
-  user?: { id: string; role?: string; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null } | null;
+  user?: { id: string; role?: string; isBot?: boolean; editorTeam?: string | null; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null } | null;
 };
 
 export type ForumPoll = {
@@ -161,9 +161,11 @@ export type Event = {
   state: { name: string; id?: string };
   organizer?: {
     id: string;
+    isBot?: boolean;
+    editorTeam?: string | null;
     profile?: { displayName: string; avatarUrl?: string | null; trustScore?: number; postalCountry?: "DE" | "TR" | null } | null;
   } | null;
-  attendees?: { user: { id: string; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null } }[];
+  attendees?: { user: { id: string; isBot?: boolean; editorTeam?: string | null; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null } }[];
   _count?: { attendees: number };
 };
 
@@ -229,6 +231,8 @@ export type JobPosting = {
   state?: { name: string } | null;
   owner?: {
     id: string;
+    isBot?: boolean;
+    editorTeam?: string | null;
     profile?: { displayName: string; trustScore?: number } | null;
   } | null;
 };
@@ -251,6 +255,8 @@ export type CourierRequest = {
   createdAt: string;
   owner?: {
     id: string;
+    isBot?: boolean;
+    editorTeam?: string | null;
     profile?: { displayName: string; trustScore?: number; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null;
   } | null;
   _count?: { acceptances: number };
@@ -269,12 +275,16 @@ export type CourierAcceptance = {
   createdAt: string;
   traveler?: {
     id: string;
+    isBot?: boolean;
+    editorTeam?: string | null;
     profile?: { displayName: string; trustScore?: number; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null;
   } | null;
 };
 
 type TravelerProfile = {
   id: string;
+  isBot?: boolean;
+  editorTeam?: string | null;
   profile?: { displayName: string; avatarUrl?: string | null; trustScore?: number; postalCountry?: "DE" | "TR" | null } | null;
 };
 

@@ -84,6 +84,8 @@ export function ForumReplyCard({
                 userId={userId}
                 postalCountry={reply.user?.profile?.postalCountry as PostalCountry | undefined}
                 linkToProfile={!!userId}
+                isBot={reply.user?.isBot}
+                editorTeam={reply.user?.editorTeam}
               />
               <span className="text-muted">· {formatDate(reply.createdAt)}</span>
               {reply._optimistic && (

@@ -70,8 +70,25 @@ export function CourierCard({ request }: { request: CourierRequest }) {
             postalCountry={traveler.profile?.postalCountry as PostalCountry | undefined}
             linkToProfile={false}
             nameClassName="text-primary"
+            isBot={traveler.isBot}
+            editorTeam={traveler.editorTeam}
           />
           {ownerName && <span>· {ownerName} için taşıyor</span>}
+        </p>
+      )}
+
+      {!isMatched && ownerName && request.owner && (
+        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-muted">
+          <User2 className="h-3.5 w-3.5 shrink-0" />
+          <UserDisplayName
+            name={ownerName}
+            userId={request.owner.id}
+            postalCountry={request.owner.profile?.postalCountry as PostalCountry | undefined}
+            linkToProfile={false}
+            isBot={request.owner.isBot}
+            editorTeam={request.owner.editorTeam}
+            nameClassName="font-normal"
+          />
         </p>
       )}
 

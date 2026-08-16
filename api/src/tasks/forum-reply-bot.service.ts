@@ -415,13 +415,15 @@ function pickReply(
    (REPLY_BANK) sessizce düşülür; bot hiçbir zaman cevapsız kalmaz.
 ───────────────────────────────────────────────────────────────────────────── */
 
-const AI_SYSTEM_PROMPT = `Sen Almanya'da 10 yıldan uzun süredir yaşayan, deneyimli bir Türk gurbetçisisin. Bir Türk gurbetçi forumunda gerçek bir üye gibi yorum yapıyorsun.
+const AI_SYSTEM_PROMPT = `Sen Türk Expatlar forumunda açıkça "Otomasyon destekli hesap" etiketi taşıyan bir topluluk yardımcısısın.
 
 Kurallar:
 - Türkçe yaz, kısa ve doğal ol (1-3 cümle, en fazla ~350 karakter).
-- Samimi ve gündelik bir forum dili kullan; resmi, robotik, madde işaretli ya da başlıklı yazma.
+- Samimi ve anlaşılır bir forum dili kullan; resmi, robotik, madde işaretli ya da başlıklı yazma.
 - Konuyla doğrudan ilgili, gerçekten faydalı bir cevap ver; boş, genel geçer cümlelerle doldurma.
-- Kesin hukuki, tıbbi veya vergi tavsiyesi verir gibi görünme; kendi tecrübeni paylaşır gibi konuş, gerekirse "bir uzmana/derneğe sorman iyi olur" gibi hafif bir not ekle.
+- İnsanmış gibi kişisel deneyim, tanıdık, yaşanmış olay veya kimlik uydurma.
+- Önceki cevapları tekrarlama; gerekiyorsa farklı bir kaynak veya bakış açısı ekle.
+- Kesin hukuki, tıbbi veya vergi tavsiyesi verme; resmî kaynağa veya uzmana yönlendir.
 - Emoji kullanma, aşırı noktalama işareti kullanma.
 - Sadece cevap metnini yaz; tırnak işareti, "Cevap:" gibi ekler veya selamlama/imza koyma.`;
 
@@ -430,13 +432,17 @@ async function generateAiReply(
   title: string,
   body: string,
   categoryName: string | undefined,
+  previousReplies: string[],
   logger: Logger,
 ): Promise<string | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
   const model = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
-  const userPrompt = `Forum kategorisi: ${categoryName ?? 'Genel'}\nKonu başlığı: ${title}\nKonu içeriği: ${body}\n\nBu konuya kısa bir forum cevabı yaz.`;
+  const context = previousReplies.length
+    ? `\nÖnceki cevaplar:\n${previousReplies.map((reply) => `- ${reply}`).join('\n')}`
+    : '';
+  const userPrompt = `Forum kategorisi: ${categoryName ?? 'Genel'}\nKonu başlığı: ${title}\nKonu içeriği: ${body}${context}\n\nBu konuya kısa ve önceki cevaplardan farklı bir forum cevabı yaz.`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
@@ -489,35 +495,69 @@ async function generateAiReply(
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Cevap botu — konu açmaz, açık kalan konulara doğal, kısa cevap yazar.
-   seed.ts'teki 'bot-derya@turkexpatlar.de' hesabı ile senkron olmalı.
+   Cevap botları — açık konulara dönüşümlü ve şeffaf biçimde kısa cevap yazar.
+   Aynı konuda en fazla iki otomatik hesap cevabına izin verilir.
 ───────────────────────────────────────────────────────────────────────────── */
-const REPLY_BOT_EMAIL = 'bot-derya@turkexpatlar.de';
+const REPLY_BOT_EMAILS = [
+  'bot-derya@turkexpatlar.de',
+  'bot-reply-merve@turkexpatlar.de',
+  'bot-reply-ahmet@turkexpatlar.de',
+  'bot-reply-leyla@turkexpatlar.de',
+  'bot-reply-can@turkexpatlar.de',
+  'bot-reply-sude@turkexpatlar.de',
+  'bot-reply-ozan@turkexpatlar.de',
+  'bot-reply-ece@turkexpatlar.de',
+  'bot-reply-deniz@turkexpatlar.de',
+  'bot-reply-gokhan@turkexpatlar.de',
+  'bot-reply-irem@turkexpatlar.de',
+];
+const MAX_BOT_REPLIES_PER_TOPIC = 2;
+const PERSONAL_CLAIM_PATTERN =
+  /\b(ben|bende|benim|biz|tanıdığım|arkadaşım|yaşadım|yaptım|aldım|gittim|bekledim|kullandım)\b/i;
+const TRANSPARENT_FALLBACK = [
+  'Bu konuda şehirden şehre uygulama değişebiliyor. İşlem yapmadan önce ilgili kurumun güncel sayfasını kontrol etmek en güvenlisi.',
+  'Güncel koşullar değişebildiği için resmî kaynaktan teyit edip mümkünse yazılı bilgi istemek iyi olur.',
+  'Başlıkta belirtilen şehir ve tarih bilgisi eklenirse daha nokta atışı yönlendirme yapılabilir.',
+  'Belgeleri teslim etmeden önce kurumun güncel kontrol listesini karşılaştırmak eksik evrak riskini azaltır.',
+];
+
+type ReplyBot = { id: string; displayName: string };
 
 @Injectable()
 export class ForumReplyBotService {
   private readonly logger = new Logger(ForumReplyBotService.name);
-  private botUserId: string | null = null;
+  private botUsers: ReplyBot[] | null = null;
+  private nextBotIndex = 0;
 
   constructor(
     private prisma: PrismaService,
     private forumService: ForumService,
   ) {}
 
-  private async getBotUserId(): Promise<string | null> {
-    if (this.botUserId) return this.botUserId;
-    const user = await this.prisma.user.findUnique({
-      where: { email: REPLY_BOT_EMAIL },
-      select: { id: true },
+  private async getBotUsers(): Promise<ReplyBot[]> {
+    if (this.botUsers) return this.botUsers;
+    const users = await this.prisma.user.findMany({
+      where: { email: { in: REPLY_BOT_EMAILS }, isBot: true },
+      select: {
+        id: true,
+        email: true,
+        profile: { select: { displayName: true } },
+      },
     });
-    this.botUserId = user?.id ?? null;
-    return this.botUserId;
+    const byEmail = new Map(users.map((user) => [user.email, user]));
+    this.botUsers = REPLY_BOT_EMAILS.flatMap((email) => {
+      const user = byEmail.get(email);
+      return user
+        ? [{ id: user.id, displayName: user.profile?.displayName ?? email }]
+        : [];
+    });
+    return this.botUsers;
   }
 
-  /** Henüz bu bot tarafından cevaplanmamış, en eski açık konuyu bul */
-  private async findTopicToAnswer(botUserId: string) {
+  /** Botun daha önce yazmadığı ve bot cevabı sınırına ulaşmamış konuyu bul */
+  private async findTopicToAnswer(botUserId: string, botUserIds: string[]) {
     const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-    return this.prisma.forumTopic.findFirst({
+    const topics = await this.prisma.forumTopic.findMany({
       where: {
         deletedAt: null,
         userId: { not: botUserId },
@@ -526,13 +566,47 @@ export class ForumReplyBotService {
         replies: { none: { userId: botUserId, deletedAt: null } },
       },
       orderBy: { createdAt: 'asc' },
+      take: 30,
       select: {
         id: true,
         title: true,
         body: true,
         category: { select: { slug: true, name: true } },
+        replies: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          take: 4,
+          select: { body: true },
+        },
+        _count: {
+          select: {
+            replies: {
+              where: { userId: { in: botUserIds }, deletedAt: null },
+            },
+          },
+        },
       },
     });
+    return (
+      topics.find(
+        (topic) => topic._count.replies < MAX_BOT_REPLIES_PER_TOPIC,
+      ) ?? null
+    );
+  }
+
+  private async findAssignment() {
+    const bots = await this.getBotUsers();
+    const botUserIds = bots.map((bot) => bot.id);
+    for (let offset = 0; offset < bots.length; offset += 1) {
+      const index = (this.nextBotIndex + offset) % bots.length;
+      const bot = bots[index];
+      const topic = await this.findTopicToAnswer(bot.id, botUserIds);
+      if (topic) {
+        this.nextBotIndex = (index + 1) % bots.length;
+        return { bot, topic };
+      }
+    }
+    return null;
   }
 
   /** AI varsa AI cevabı, yoksa/başarısızsa sabit cevap bankasından seç */
@@ -540,15 +614,30 @@ export class ForumReplyBotService {
     title: string;
     body: string;
     category: { slug: string; name: string } | null;
+    replies: { body: string }[];
   }): Promise<{ reply: string; aiUsed: boolean }> {
     const aiReply = await generateAiReply(
       topic.title,
       topic.body,
       topic.category?.name,
+      topic.replies.map(({ body }) => body).reverse(),
       this.logger,
     );
-    const reply =
-      aiReply ?? pickReply(topic.category?.slug, topic.title, topic.body);
+    let reply = aiReply;
+    if (!reply) {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const candidate = pickReply(
+          topic.category?.slug,
+          topic.title,
+          topic.body,
+        );
+        if (!PERSONAL_CLAIM_PATTERN.test(candidate)) {
+          reply = candidate;
+          break;
+        }
+      }
+    }
+    reply ??= randomFrom(TRANSPARENT_FALLBACK);
     return { reply, aiUsed: aiReply !== null };
   }
 
@@ -557,39 +646,49 @@ export class ForumReplyBotService {
     topicTitle: string;
     reply: string;
     aiUsed: boolean;
+    botName: string;
   }> {
-    const botUserId = await this.getBotUserId();
-    if (!botUserId) throw new Error('Cevap botu kullanıcısı bulunamadı');
-
-    const topic = await this.findTopicToAnswer(botUserId);
-    if (!topic) throw new Error('Cevaplanacak uygun konu bulunamadı');
+    const assignment = await this.findAssignment();
+    if (!assignment) throw new Error('Cevaplanacak uygun konu bulunamadı');
+    const { bot, topic } = assignment;
 
     const { reply, aiUsed } = await this.resolveReply(topic);
-    await this.forumService.createReply(topic.id, botUserId, { body: reply });
-    return { topicTitle: topic.title, reply, aiUsed };
+    await this.forumService.createReply(topic.id, bot.id, { body: reply });
+    return { topicTitle: topic.title, reply, aiUsed, botName: bot.displayName };
   }
 
   /** Kaç adet açık/cevaplanmamış konu bekliyor (admin dashboard için) */
   async getDashboardData() {
-    const botUserId = await this.getBotUserId();
-    if (!botUserId) {
+    const bots = await this.getBotUsers();
+    if (bots.length === 0) {
       return { botFound: false };
     }
+    const botUserIds = bots.map((bot) => bot.id);
     const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-    const pendingCount = await this.prisma.forumTopic.count({
+    const pendingTopics = await this.prisma.forumTopic.findMany({
       where: {
         deletedAt: null,
-        userId: { not: botUserId },
         status: { not: ForumTopicStatus.SOLVED },
         createdAt: { gte: since },
-        replies: { none: { userId: botUserId, deletedAt: null } },
+      },
+      select: {
+        _count: {
+          select: {
+            replies: {
+              where: { userId: { in: botUserIds }, deletedAt: null },
+            },
+          },
+        },
       },
     });
+    const pendingCount = pendingTopics.filter(
+      (topic) => topic._count.replies < MAX_BOT_REPLIES_PER_TOPIC,
+    ).length;
     const totalReplies = await this.prisma.forumReply.count({
-      where: { userId: botUserId, deletedAt: null },
+      where: { userId: { in: botUserIds }, deletedAt: null },
     });
     const recentReplies = await this.prisma.forumReply.findMany({
-      where: { userId: botUserId, deletedAt: null },
+      where: { userId: { in: botUserIds }, deletedAt: null },
       orderBy: { createdAt: 'desc' },
       take: 20,
       select: {
@@ -597,40 +696,39 @@ export class ForumReplyBotService {
         body: true,
         createdAt: true,
         topic: { select: { id: true, title: true } },
+        user: { select: { profile: { select: { displayName: true } } } },
       },
     });
-    return { botFound: true, pendingCount, totalReplies, recentReplies };
+    return {
+      botFound: true,
+      botCount: bots.length,
+      pendingCount,
+      totalReplies,
+      recentReplies,
+    };
   }
 
   /** Ortak metot — bir konuyu bulup cevap yaz, hataları yut (cron için) */
   private async replyToOneTopic(): Promise<void> {
     try {
-      const botUserId = await this.getBotUserId();
-      if (!botUserId) {
-        this.logger.warn(
-          'Cevap botu kullanıcısı bulunamadı, seed çalıştırıldı mı?',
-        );
+      const assignment = await this.findAssignment();
+      if (!assignment) {
+        this.logger.warn('Cevap botu veya cevaplanacak uygun konu bulunamadı.');
         return;
       }
-
-      const topic = await this.findTopicToAnswer(botUserId);
-      if (!topic) {
-        this.logger.log('Cevaplanacak uygun konu yok, bekleniyor.');
-        return;
-      }
+      const { bot, topic } = assignment;
 
       const { reply, aiUsed } = await this.resolveReply(topic);
-      await this.forumService.createReply(topic.id, botUserId, { body: reply });
+      await this.forumService.createReply(topic.id, bot.id, { body: reply });
       this.logger.log(
-        `Forum cevabı yazıldı${aiUsed ? ' (AI)' : ' (sabit havuz)'}: "${topic.title.substring(0, 60)}"`,
+        `${bot.displayName} forum cevabı yazdı${aiUsed ? ' (AI)' : ' (sabit havuz)'}: "${topic.title.substring(0, 60)}"`,
       );
     } catch (err) {
       this.logger.error('Forum cevap botu hatası:', err);
     }
   }
 
-  // Konu açma botunun paylaşım saatlerinden ~25-40 dk sonra + gün içine
-  // yayılmış birkaç ek saat — toplamda günde 9 cevap, tek bot için doğal bir sıklık.
+  // Yanıtlar gün içine yayılır; her tetiklemede sıradaki uygun hesap kullanılır.
   @Cron('58 6 * * *') async replyAfterMorning() {
     await this.replyToOneTopic();
   }

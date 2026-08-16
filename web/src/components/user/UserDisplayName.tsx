@@ -10,6 +10,15 @@ type Props = {
   className?: string;
   nameClassName?: string;
   linkToProfile?: boolean;
+  isBot?: boolean;
+  editorTeam?: string | null;
+};
+
+const TEAM_LABELS: Record<string, string> = {
+  EVENTS: "Etkinlik Editörü",
+  GUIDE: "Rehber Editörü",
+  JOBS: "İş İlanı Editörü",
+  TRAVEL: "Seyahat Editörü",
 };
 
 export function UserDisplayName({
@@ -19,6 +28,8 @@ export function UserDisplayName({
   className,
   nameClassName,
   linkToProfile = true,
+  isBot = false,
+  editorTeam,
 }: Props) {
   const nameEl = (
     <span className={cn("font-medium text-text", nameClassName)}>{name}</span>
@@ -34,6 +45,14 @@ export function UserDisplayName({
         nameEl
       )}
       <CountryFlagBadge country={postalCountry} />
+      {(isBot || editorTeam) && (
+        <span
+          className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
+          title="Bu hesap otomasyon destekli ve ekip tarafından denetlenir"
+        >
+          {editorTeam ? TEAM_LABELS[editorTeam] ?? "Editör" : "Otomatik hesap"}
+        </span>
+      )}
     </span>
   );
 }

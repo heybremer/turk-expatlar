@@ -67,6 +67,8 @@ export class CourierService {
           owner: {
             select: {
               id: true,
+              isBot: true,
+              editorTeam: true,
               profile: { select: { displayName: true, trustScore: true, postalCountry: true } },
             },
           },
@@ -79,6 +81,8 @@ export class CourierService {
                 traveler: {
                   select: {
                     id: true,
+                    isBot: true,
+                    editorTeam: true,
                     profile: {
                       select: {
                         displayName: true,
@@ -107,6 +111,8 @@ export class CourierService {
         owner: {
           select: {
             id: true,
+            isBot: true,
+            editorTeam: true,
             profile: {
               select: { displayName: true, trustScore: true, avatarUrl: true },
             },
@@ -118,6 +124,8 @@ export class CourierService {
             traveler: {
               select: {
                 id: true,
+                isBot: true,
+                editorTeam: true,
                 profile: {
                   select: {
                     displayName: true,

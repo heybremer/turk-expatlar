@@ -6,6 +6,7 @@ import {
   PriceType,
   BusinessStatus,
   MembershipPlan,
+  EditorTeam,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -13,77 +14,368 @@ const prisma = new PrismaClient();
 
 const STATES = [
   {
-    name: 'Baden-Württemberg', nameDe: 'Baden-Württemberg', slug: 'baden-wuerttemberg',
-    cities: ['Stuttgart', 'Mannheim', 'Karlsruhe', 'Freiburg im Breisgau', 'Heidelberg', 'Heilbronn', 'Ulm', 'Pforzheim', 'Reutlingen', 'Tübingen', 'Sindelfingen', 'Villingen-Schwenningen', 'Konstanz', 'Ludwigsburg', 'Esslingen am Neckar', 'Offenburg', 'Göppingen', 'Aalen', 'Ravensburg', 'Friedrichshafen'],
+    name: 'Baden-Württemberg',
+    nameDe: 'Baden-Württemberg',
+    slug: 'baden-wuerttemberg',
+    cities: [
+      'Stuttgart',
+      'Mannheim',
+      'Karlsruhe',
+      'Freiburg im Breisgau',
+      'Heidelberg',
+      'Heilbronn',
+      'Ulm',
+      'Pforzheim',
+      'Reutlingen',
+      'Tübingen',
+      'Sindelfingen',
+      'Villingen-Schwenningen',
+      'Konstanz',
+      'Ludwigsburg',
+      'Esslingen am Neckar',
+      'Offenburg',
+      'Göppingen',
+      'Aalen',
+      'Ravensburg',
+      'Friedrichshafen',
+    ],
   },
   {
-    name: 'Bayern', nameDe: 'Bayern', slug: 'bayern',
-    cities: ['München', 'Nürnberg', 'Augsburg', 'Regensburg', 'Ingolstadt', 'Würzburg', 'Fürth', 'Erlangen', 'Bayreuth', 'Bamberg', 'Landshut', 'Rosenheim', 'Kempten', 'Neu-Ulm', 'Aschaffenburg', 'Schweinfurt', 'Kaufbeuren', 'Memmingen', 'Passau', 'Ansbach'],
+    name: 'Bayern',
+    nameDe: 'Bayern',
+    slug: 'bayern',
+    cities: [
+      'München',
+      'Nürnberg',
+      'Augsburg',
+      'Regensburg',
+      'Ingolstadt',
+      'Würzburg',
+      'Fürth',
+      'Erlangen',
+      'Bayreuth',
+      'Bamberg',
+      'Landshut',
+      'Rosenheim',
+      'Kempten',
+      'Neu-Ulm',
+      'Aschaffenburg',
+      'Schweinfurt',
+      'Kaufbeuren',
+      'Memmingen',
+      'Passau',
+      'Ansbach',
+    ],
   },
   {
-    name: 'Berlin', nameDe: 'Berlin', slug: 'berlin',
-    cities: ['Berlin', 'Mitte', 'Friedrichshain-Kreuzberg', 'Pankow', 'Charlottenburg-Wilmersdorf', 'Spandau', 'Steglitz-Zehlendorf', 'Tempelhof-Schöneberg', 'Neukölln', 'Treptow-Köpenick', 'Marzahn-Hellersdorf', 'Lichtenberg', 'Reinickendorf'],
+    name: 'Berlin',
+    nameDe: 'Berlin',
+    slug: 'berlin',
+    cities: [
+      'Berlin',
+      'Mitte',
+      'Friedrichshain-Kreuzberg',
+      'Pankow',
+      'Charlottenburg-Wilmersdorf',
+      'Spandau',
+      'Steglitz-Zehlendorf',
+      'Tempelhof-Schöneberg',
+      'Neukölln',
+      'Treptow-Köpenick',
+      'Marzahn-Hellersdorf',
+      'Lichtenberg',
+      'Reinickendorf',
+    ],
   },
   {
-    name: 'Brandenburg', nameDe: 'Brandenburg', slug: 'brandenburg',
-    cities: ['Potsdam', 'Cottbus', 'Brandenburg an der Havel', 'Frankfurt (Oder)', 'Oranienburg', 'Eberswalde', 'Falkensee', 'Königs Wusterhausen', 'Wildau', 'Ludwigsfelde', 'Strausberg', 'Bernau bei Berlin', 'Neuruppin'],
+    name: 'Brandenburg',
+    nameDe: 'Brandenburg',
+    slug: 'brandenburg',
+    cities: [
+      'Potsdam',
+      'Cottbus',
+      'Brandenburg an der Havel',
+      'Frankfurt (Oder)',
+      'Oranienburg',
+      'Eberswalde',
+      'Falkensee',
+      'Königs Wusterhausen',
+      'Wildau',
+      'Ludwigsfelde',
+      'Strausberg',
+      'Bernau bei Berlin',
+      'Neuruppin',
+    ],
   },
   {
-    name: 'Bremen', nameDe: 'Bremen', slug: 'bremen',
+    name: 'Bremen',
+    nameDe: 'Bremen',
+    slug: 'bremen',
     cities: ['Bremen', 'Bremerhaven'],
   },
   {
-    name: 'Hamburg', nameDe: 'Hamburg', slug: 'hamburg',
-    cities: ['Hamburg', 'Altona', 'Bergedorf', 'Eimsbüttel', 'Harburg', 'Hamburg-Mitte', 'Hamburg-Nord', 'Wandsbek'],
+    name: 'Hamburg',
+    nameDe: 'Hamburg',
+    slug: 'hamburg',
+    cities: [
+      'Hamburg',
+      'Altona',
+      'Bergedorf',
+      'Eimsbüttel',
+      'Harburg',
+      'Hamburg-Mitte',
+      'Hamburg-Nord',
+      'Wandsbek',
+    ],
   },
   {
-    name: 'Hessen', nameDe: 'Hessen', slug: 'hessen',
-    cities: ['Frankfurt am Main', 'Frankfurt', 'Wiesbaden', 'Kassel', 'Darmstadt', 'Offenbach am Main', 'Hanau', 'Marburg', 'Gießen', 'Fulda', 'Wetzlar', 'Rüsselsheim', 'Dreieich', 'Langen', 'Bensheim', 'Viernheim', 'Friedberg', 'Bad Homburg', 'Oberursel', 'Limburg'],
+    name: 'Hessen',
+    nameDe: 'Hessen',
+    slug: 'hessen',
+    cities: [
+      'Frankfurt am Main',
+      'Frankfurt',
+      'Wiesbaden',
+      'Kassel',
+      'Darmstadt',
+      'Offenbach am Main',
+      'Hanau',
+      'Marburg',
+      'Gießen',
+      'Fulda',
+      'Wetzlar',
+      'Rüsselsheim',
+      'Dreieich',
+      'Langen',
+      'Bensheim',
+      'Viernheim',
+      'Friedberg',
+      'Bad Homburg',
+      'Oberursel',
+      'Limburg',
+    ],
   },
   {
-    name: 'Mecklenburg-Vorpommern', nameDe: 'Mecklenburg-Vorpommern', slug: 'mecklenburg-vorpommern',
-    cities: ['Rostock', 'Schwerin', 'Neubrandenburg', 'Stralsund', 'Greifswald', 'Wismar', 'Güstrow', 'Waren', 'Neustrelitz'],
+    name: 'Mecklenburg-Vorpommern',
+    nameDe: 'Mecklenburg-Vorpommern',
+    slug: 'mecklenburg-vorpommern',
+    cities: [
+      'Rostock',
+      'Schwerin',
+      'Neubrandenburg',
+      'Stralsund',
+      'Greifswald',
+      'Wismar',
+      'Güstrow',
+      'Waren',
+      'Neustrelitz',
+    ],
   },
   {
-    name: 'Niedersachsen', nameDe: 'Niedersachsen', slug: 'niedersachsen',
-    cities: ['Hannover', 'Braunschweig', 'Osnabrück', 'Oldenburg', 'Wolfsburg', 'Göttingen', 'Salzgitter', 'Hildesheim', 'Delmenhorst', 'Wilhelmshaven', 'Lüneburg', 'Wolfenbüttel', 'Celle', 'Achim', 'Hameln', 'Lingen', 'Stade', 'Cuxhaven', 'Langenhagen', 'Garbsen', 'Peine', 'Goslar', 'Northeim', 'Holzminden', 'Nienburg', 'Verden', 'Buxtehude', 'Papenburg'],
+    name: 'Niedersachsen',
+    nameDe: 'Niedersachsen',
+    slug: 'niedersachsen',
+    cities: [
+      'Hannover',
+      'Braunschweig',
+      'Osnabrück',
+      'Oldenburg',
+      'Wolfsburg',
+      'Göttingen',
+      'Salzgitter',
+      'Hildesheim',
+      'Delmenhorst',
+      'Wilhelmshaven',
+      'Lüneburg',
+      'Wolfenbüttel',
+      'Celle',
+      'Achim',
+      'Hameln',
+      'Lingen',
+      'Stade',
+      'Cuxhaven',
+      'Langenhagen',
+      'Garbsen',
+      'Peine',
+      'Goslar',
+      'Northeim',
+      'Holzminden',
+      'Nienburg',
+      'Verden',
+      'Buxtehude',
+      'Papenburg',
+    ],
   },
   {
-    name: 'Nordrhein-Westfalen', nameDe: 'Nordrhein-Westfalen', slug: 'nordrhein-westfalen',
-    cities: ['Köln', 'Düsseldorf', 'Dortmund', 'Essen', 'Duisburg', 'Bochum', 'Wuppertal', 'Bielefeld', 'Bonn', 'Münster', 'Gelsenkirchen', 'Mönchengladbach', 'Aachen', 'Krefeld', 'Oberhausen', 'Hagen', 'Hamm', 'Leverkusen', 'Solingen', 'Neuss', 'Paderborn', 'Mülheim an der Ruhr', 'Siegen', 'Herne', 'Bottrop', 'Remscheid', 'Bergisch Gladbach', 'Recklinghausen', 'Witten', 'Moers'],
+    name: 'Nordrhein-Westfalen',
+    nameDe: 'Nordrhein-Westfalen',
+    slug: 'nordrhein-westfalen',
+    cities: [
+      'Köln',
+      'Düsseldorf',
+      'Dortmund',
+      'Essen',
+      'Duisburg',
+      'Bochum',
+      'Wuppertal',
+      'Bielefeld',
+      'Bonn',
+      'Münster',
+      'Gelsenkirchen',
+      'Mönchengladbach',
+      'Aachen',
+      'Krefeld',
+      'Oberhausen',
+      'Hagen',
+      'Hamm',
+      'Leverkusen',
+      'Solingen',
+      'Neuss',
+      'Paderborn',
+      'Mülheim an der Ruhr',
+      'Siegen',
+      'Herne',
+      'Bottrop',
+      'Remscheid',
+      'Bergisch Gladbach',
+      'Recklinghausen',
+      'Witten',
+      'Moers',
+    ],
   },
   {
-    name: 'Rheinland-Pfalz', nameDe: 'Rheinland-Pfalz', slug: 'rheinland-pfalz',
-    cities: ['Mainz', 'Ludwigshafen am Rhein', 'Ludwigshafen', 'Koblenz', 'Trier', 'Kaiserslautern', 'Worms', 'Neustadt an der Weinstraße', 'Bad Kreuznach', 'Pirmasens', 'Landau', 'Frankenthal', 'Speyer'],
+    name: 'Rheinland-Pfalz',
+    nameDe: 'Rheinland-Pfalz',
+    slug: 'rheinland-pfalz',
+    cities: [
+      'Mainz',
+      'Ludwigshafen am Rhein',
+      'Ludwigshafen',
+      'Koblenz',
+      'Trier',
+      'Kaiserslautern',
+      'Worms',
+      'Neustadt an der Weinstraße',
+      'Bad Kreuznach',
+      'Pirmasens',
+      'Landau',
+      'Frankenthal',
+      'Speyer',
+    ],
   },
   {
-    name: 'Saarland', nameDe: 'Saarland', slug: 'saarland',
-    cities: ['Saarbrücken', 'Neunkirchen', 'Homburg', 'Völklingen', 'Saarlouis', 'St. Ingbert', 'Merzig', 'St. Wendel'],
+    name: 'Saarland',
+    nameDe: 'Saarland',
+    slug: 'saarland',
+    cities: [
+      'Saarbrücken',
+      'Neunkirchen',
+      'Homburg',
+      'Völklingen',
+      'Saarlouis',
+      'St. Ingbert',
+      'Merzig',
+      'St. Wendel',
+    ],
   },
   {
-    name: 'Sachsen', nameDe: 'Sachsen', slug: 'sachsen',
-    cities: ['Dresden', 'Leipzig', 'Chemnitz', 'Zwickau', 'Plauen', 'Görlitz', 'Freiberg', 'Hoyerswerda', 'Bautzen', 'Pirna', 'Meißen', 'Riesa'],
+    name: 'Sachsen',
+    nameDe: 'Sachsen',
+    slug: 'sachsen',
+    cities: [
+      'Dresden',
+      'Leipzig',
+      'Chemnitz',
+      'Zwickau',
+      'Plauen',
+      'Görlitz',
+      'Freiberg',
+      'Hoyerswerda',
+      'Bautzen',
+      'Pirna',
+      'Meißen',
+      'Riesa',
+    ],
   },
   {
-    name: 'Sachsen-Anhalt', nameDe: 'Sachsen-Anhalt', slug: 'sachsen-anhalt',
-    cities: ['Magdeburg', 'Halle (Saale)', 'Halle', 'Dessau-Roßlau', 'Wittenberg', 'Merseburg', 'Stendal', 'Halberstadt', 'Bernburg', 'Bitterfeld-Wolfen'],
+    name: 'Sachsen-Anhalt',
+    nameDe: 'Sachsen-Anhalt',
+    slug: 'sachsen-anhalt',
+    cities: [
+      'Magdeburg',
+      'Halle (Saale)',
+      'Halle',
+      'Dessau-Roßlau',
+      'Wittenberg',
+      'Merseburg',
+      'Stendal',
+      'Halberstadt',
+      'Bernburg',
+      'Bitterfeld-Wolfen',
+    ],
   },
   {
-    name: 'Schleswig-Holstein', nameDe: 'Schleswig-Holstein', slug: 'schleswig-holstein',
-    cities: ['Kiel', 'Lübeck', 'Flensburg', 'Neumünster', 'Norderstedt', 'Elmshorn', 'Pinneberg', 'Itzehoe', 'Heide', 'Husum', 'Schleswig', 'Wedel', 'Ahrensburg', 'Reinbek'],
+    name: 'Schleswig-Holstein',
+    nameDe: 'Schleswig-Holstein',
+    slug: 'schleswig-holstein',
+    cities: [
+      'Kiel',
+      'Lübeck',
+      'Flensburg',
+      'Neumünster',
+      'Norderstedt',
+      'Elmshorn',
+      'Pinneberg',
+      'Itzehoe',
+      'Heide',
+      'Husum',
+      'Schleswig',
+      'Wedel',
+      'Ahrensburg',
+      'Reinbek',
+    ],
   },
   {
-    name: 'Thüringen', nameDe: 'Thüringen', slug: 'thueringen',
-    cities: ['Erfurt', 'Jena', 'Gera', 'Weimar', 'Gotha', 'Nordhausen', 'Suhl', 'Eisenach', 'Mühlhausen', 'Altenburg'],
+    name: 'Thüringen',
+    nameDe: 'Thüringen',
+    slug: 'thueringen',
+    cities: [
+      'Erfurt',
+      'Jena',
+      'Gera',
+      'Weimar',
+      'Gotha',
+      'Nordhausen',
+      'Suhl',
+      'Eisenach',
+      'Mühlhausen',
+      'Altenburg',
+    ],
   },
 ];
 
 const CATEGORIES = [
-  { name: 'Resmi İşlemler', slug: 'resmi-islemler', description: 'Anmeldung, oturum, vize' },
-  { name: 'Ev Bulma', slug: 'ev-bulma', description: 'Kira, oda, semt önerileri' },
+  {
+    name: 'Resmi İşlemler',
+    slug: 'resmi-islemler',
+    description: 'Anmeldung, oturum, vize',
+  },
+  {
+    name: 'Ev Bulma',
+    slug: 'ev-bulma',
+    description: 'Kira, oda, semt önerileri',
+  },
   { name: 'İş Bulma', slug: 'is-bulma', description: 'İş arama, CV, mülakat' },
-  { name: 'Sağlık', slug: 'saglik', description: 'Krankenkasse, doktor, sigorta' },
-  { name: 'Eğitim', slug: 'egitim', description: 'Üniversite, Ausbildung, kurs' },
+  {
+    name: 'Sağlık',
+    slug: 'saglik',
+    description: 'Krankenkasse, doktor, sigorta',
+  },
+  {
+    name: 'Eğitim',
+    slug: 'egitim',
+    description: 'Üniversite, Ausbildung, kurs',
+  },
   { name: 'Hukuk', slug: 'hukuk', description: 'Hukuki sorular ve süreçler' },
   { name: 'Vergi', slug: 'vergi', description: 'Steuer, vergi numarası' },
   { name: 'Almanca', slug: 'almanca', description: 'Dil öğrenme ve pratik' },
@@ -118,9 +410,18 @@ async function main() {
 
   // Temizlik: önceki seed'de yanlış eyalete eklenen şehirleri kaldır
   // (Bremen eyaletine yanlışlıkla Achim, Stuhr vb. Niedersachsen şehirleri eklenmişti)
-  const bremenState = await prisma.federalState.findUnique({ where: { slug: 'bremen' } });
+  const bremenState = await prisma.federalState.findUnique({
+    where: { slug: 'bremen' },
+  });
   if (bremenState) {
-    const wrongInBremen = ['achim', 'stuhr', 'weyhe', 'syke', 'bassum', 'delmenhorst'];
+    const wrongInBremen = [
+      'achim',
+      'stuhr',
+      'weyhe',
+      'syke',
+      'bassum',
+      'delmenhorst',
+    ];
     for (const slug of wrongInBremen) {
       const wrongCity = await prisma.city.findFirst({
         where: { stateId: bremenState.id, slug },
@@ -128,7 +429,10 @@ async function main() {
       if (wrongCity) {
         // İlgili referansları null'la (chat, business vs.)
         await prisma.chat.deleteMany({ where: { cityId: wrongCity.id } });
-        await prisma.profile.updateMany({ where: { cityId: wrongCity.id }, data: { cityId: null } });
+        await prisma.profile.updateMany({
+          where: { cityId: wrongCity.id },
+          data: { cityId: null },
+        });
         await prisma.city.delete({ where: { id: wrongCity.id } }).catch(() => {
           console.warn(`Şehir silinemedi (referans var): ${slug}`);
         });
@@ -181,9 +485,13 @@ async function main() {
     });
   }
 
-  const berlin = await prisma.federalState.findUnique({ where: { slug: 'berlin' } });
+  const berlin = await prisma.federalState.findUnique({
+    where: { slug: 'berlin' },
+  });
   const berlinCity = berlin
-    ? await prisma.city.findFirst({ where: { stateId: berlin.id, slug: 'berlin' } })
+    ? await prisma.city.findFirst({
+        where: { stateId: berlin.id, slug: 'berlin' },
+      })
     : null;
   const koeln = await prisma.city.findFirst({
     where: { slug: 'koeln', state: { slug: 'nordrhein-westfalen' } },
@@ -237,8 +545,12 @@ async function main() {
     },
   });
 
-  const resmiCat = await prisma.topicCategory.findUnique({ where: { slug: 'resmi-islemler' } });
-  const doktorCat = await prisma.businessCategory.findUnique({ where: { slug: 'doktor' } });
+  const resmiCat = await prisma.topicCategory.findUnique({
+    where: { slug: 'resmi-islemler' },
+  });
+  const doktorCat = await prisma.businessCategory.findUnique({
+    where: { slug: 'doktor' },
+  });
 
   if (resmiCat && berlin && berlinCity) {
     await prisma.forumTopic.upsert({
@@ -251,7 +563,7 @@ async function main() {
         stateId: berlin.id,
         cityId: berlinCity.id,
         title: 'Anmeldung için randevu bulamıyorum, ne yapmalıyım?',
-        body: 'Berlin\'e yeni geldim. Bürgeramt randevusu alamıyorum. Deneyimlerinizi paylaşır mısınız?',
+        body: "Berlin'e yeni geldim. Bürgeramt randevusu alamıyorum. Deneyimlerinizi paylaşır mısınız?",
         status: ForumTopicStatus.OPEN,
       },
     });
@@ -267,7 +579,8 @@ async function main() {
         stateId: berlin.id,
         cityId: berlinCity.id,
         title: 'Yeni Gelenler Kahvaltısı',
-        description: 'Berlin\'e yeni taşınanlar için tanışma kahvaltısı. Herkes davetli!',
+        description:
+          "Berlin'e yeni taşınanlar için tanışma kahvaltısı. Herkes davetli!",
         location: 'Kreuzberg, Berlin',
         startsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         capacity: 30,
@@ -304,17 +617,41 @@ async function main() {
   // ── Forum bot personaları ────────────────────────────────────────────────
   const botPasswordHash = await bcrypt.hash('bot-user-x7k2p9', 10);
 
-  const hamburg   = await prisma.federalState.findUnique({ where: { slug: 'hamburg' } });
-  const hamburcity = hamburg ? await prisma.city.findFirst({ where: { stateId: hamburg.id, slug: 'hamburg' } }) : null;
+  const hamburg = await prisma.federalState.findUnique({
+    where: { slug: 'hamburg' },
+  });
+  const hamburcity = hamburg
+    ? await prisma.city.findFirst({
+        where: { stateId: hamburg.id, slug: 'hamburg' },
+      })
+    : null;
 
-  const muenchen  = await prisma.federalState.findUnique({ where: { slug: 'bayern' } });
-  const muenchenCity = muenchen ? await prisma.city.findFirst({ where: { stateId: muenchen.id, slug: 'muenchen' } }) : null;
+  const muenchen = await prisma.federalState.findUnique({
+    where: { slug: 'bayern' },
+  });
+  const muenchenCity = muenchen
+    ? await prisma.city.findFirst({
+        where: { stateId: muenchen.id, slug: 'muenchen' },
+      })
+    : null;
 
-  const frankfurt  = await prisma.federalState.findUnique({ where: { slug: 'hessen' } });
-  const frankfurtCity = frankfurt ? await prisma.city.findFirst({ where: { stateId: frankfurt.id, slug: 'frankfurt-am-main' } }) : null;
+  const frankfurt = await prisma.federalState.findUnique({
+    where: { slug: 'hessen' },
+  });
+  const frankfurtCity = frankfurt
+    ? await prisma.city.findFirst({
+        where: { stateId: frankfurt.id, slug: 'frankfurt-am-main' },
+      })
+    : null;
 
-  const koeln2  = await prisma.federalState.findUnique({ where: { slug: 'nordrhein-westfalen' } });
-  const koelnCity = koeln2 ? await prisma.city.findFirst({ where: { stateId: koeln2.id, slug: 'koeln' } }) : null;
+  const koeln2 = await prisma.federalState.findUnique({
+    where: { slug: 'nordrhein-westfalen' },
+  });
+  const koelnCity = koeln2
+    ? await prisma.city.findFirst({
+        where: { stateId: koeln2.id, slug: 'koeln' },
+      })
+    : null;
 
   const bots = [
     {
@@ -374,6 +711,86 @@ async function main() {
       cityId: berlinCity?.id,
       userStatus: 'calisani',
     },
+    {
+      email: 'bot-reply-merve@turkexpatlar.de',
+      firstName: 'Merve',
+      lastName: 'Karaca',
+      stateId: hamburg?.id,
+      cityId: hamburcity?.id,
+      userStatus: 'calisani',
+    },
+    {
+      email: 'bot-reply-ahmet@turkexpatlar.de',
+      firstName: 'Ahmet',
+      lastName: 'Eren',
+      stateId: muenchen?.id,
+      cityId: muenchenCity?.id,
+      userStatus: 'ogrenci',
+    },
+    {
+      email: 'bot-reply-leyla@turkexpatlar.de',
+      firstName: 'Leyla',
+      lastName: 'Kurt',
+      stateId: frankfurt?.id,
+      cityId: frankfurtCity?.id,
+      userStatus: 'calisani',
+    },
+    {
+      email: 'bot-reply-can@turkexpatlar.de',
+      firstName: 'Can',
+      lastName: 'Özdemir',
+      stateId: koeln2?.id,
+      cityId: koelnCity?.id,
+      userStatus: 'yeni_gelen',
+    },
+    {
+      email: 'bot-reply-sude@turkexpatlar.de',
+      firstName: 'Sude',
+      lastName: 'Güneş',
+      stateId: berlin?.id,
+      cityId: berlinCity?.id,
+      userStatus: 'ogrenci',
+    },
+    {
+      email: 'bot-reply-ozan@turkexpatlar.de',
+      firstName: 'Ozan',
+      lastName: 'Yıldırım',
+      stateId: hamburg?.id,
+      cityId: hamburcity?.id,
+      userStatus: 'isadami',
+    },
+    {
+      email: 'bot-reply-ece@turkexpatlar.de',
+      firstName: 'Ece',
+      lastName: 'Korkmaz',
+      stateId: muenchen?.id,
+      cityId: muenchenCity?.id,
+      userStatus: 'calisani',
+    },
+    {
+      email: 'bot-reply-deniz@turkexpatlar.de',
+      firstName: 'Deniz',
+      lastName: 'Polat',
+      stateId: frankfurt?.id,
+      cityId: frankfurtCity?.id,
+      userStatus: 'yeni_gelen',
+    },
+    {
+      email: 'bot-reply-gokhan@turkexpatlar.de',
+      firstName: 'Gökhan',
+      lastName: 'Aslan',
+      stateId: koeln2?.id,
+      cityId: koelnCity?.id,
+      userStatus: 'calisani',
+    },
+    {
+      email: 'bot-reply-irem@turkexpatlar.de',
+      firstName: 'İrem',
+      lastName: 'Çetin',
+      stateId: berlin?.id,
+      cityId: berlinCity?.id,
+      userStatus: 'calisani',
+    },
   ];
 
   for (const bot of bots) {
@@ -387,6 +804,8 @@ async function main() {
             displayName,
             firstName: bot.firstName,
             lastName: bot.lastName,
+            bio: 'Otomasyon destekli forum yardımcısı',
+            dmEnabled: false,
           },
         },
       },
@@ -408,6 +827,128 @@ async function main() {
             interests: ['forum'],
             userStatus: bot.userStatus,
             trustScore: 10,
+            bio: 'Otomasyon destekli forum yardımcısı',
+            dmEnabled: false,
+          },
+        },
+      },
+    });
+  }
+
+  // ── Şeffaf editör ekipleri ──────────────────────────────────────────────
+  // Bu hesaplar otomasyon desteklidir; arayüzde ekip etiketiyle gösterilir.
+  const editors = [
+    {
+      email: 'editor-events-elif@turkexpatlar.de',
+      firstName: 'Elif',
+      lastName: 'Kaya',
+      team: EditorTeam.EVENTS,
+      teamLabel: 'Etkinlik Editörü',
+      stateId: berlin?.id,
+      cityId: berlinCity?.id,
+    },
+    {
+      email: 'editor-events-burak@turkexpatlar.de',
+      firstName: 'Burak',
+      lastName: 'Koç',
+      team: EditorTeam.EVENTS,
+      teamLabel: 'Etkinlik Editörü',
+      stateId: hamburg?.id,
+      cityId: hamburcity?.id,
+    },
+    {
+      email: 'editor-guide-zeynep@turkexpatlar.de',
+      firstName: 'Zeynep',
+      lastName: 'Öztürk',
+      team: EditorTeam.GUIDE,
+      teamLabel: 'Rehber Editörü',
+      stateId: muenchen?.id,
+      cityId: muenchenCity?.id,
+    },
+    {
+      email: 'editor-guide-onur@turkexpatlar.de',
+      firstName: 'Onur',
+      lastName: 'Acar',
+      team: EditorTeam.GUIDE,
+      teamLabel: 'Rehber Editörü',
+      stateId: frankfurt?.id,
+      cityId: frankfurtCity?.id,
+    },
+    {
+      email: 'editor-jobs-esra@turkexpatlar.de',
+      firstName: 'Esra',
+      lastName: 'Şen',
+      team: EditorTeam.JOBS,
+      teamLabel: 'İş İlanı Editörü',
+      stateId: koeln2?.id,
+      cityId: koelnCity?.id,
+    },
+    {
+      email: 'editor-jobs-mert@turkexpatlar.de',
+      firstName: 'Mert',
+      lastName: 'Yalçın',
+      team: EditorTeam.JOBS,
+      teamLabel: 'İş İlanı Editörü',
+      stateId: berlin?.id,
+      cityId: berlinCity?.id,
+    },
+    {
+      email: 'editor-travel-ceren@turkexpatlar.de',
+      firstName: 'Ceren',
+      lastName: 'Erdem',
+      team: EditorTeam.TRAVEL,
+      teamLabel: 'Seyahat Editörü',
+      stateId: hamburg?.id,
+      cityId: hamburcity?.id,
+    },
+    {
+      email: 'editor-travel-tolga@turkexpatlar.de',
+      firstName: 'Tolga',
+      lastName: 'Akın',
+      team: EditorTeam.TRAVEL,
+      teamLabel: 'Seyahat Editörü',
+      stateId: muenchen?.id,
+      cityId: muenchenCity?.id,
+    },
+  ];
+
+  for (const editor of editors) {
+    const displayName = `${editor.firstName} ${editor.lastName}`;
+    await prisma.user.upsert({
+      where: { email: editor.email },
+      update: {
+        isBot: true,
+        editorTeam: editor.team,
+        profile: {
+          update: {
+            displayName,
+            firstName: editor.firstName,
+            lastName: editor.lastName,
+            bio: `${editor.teamLabel} · Otomasyon destekli editör hesabı`,
+            dmEnabled: false,
+          },
+        },
+      },
+      create: {
+        email: editor.email,
+        passwordHash: botPasswordHash,
+        role: UserRole.USER,
+        isBot: true,
+        editorTeam: editor.team,
+        emailVerified: true,
+        gdprConsentAt: new Date(),
+        profile: {
+          create: {
+            displayName,
+            firstName: editor.firstName,
+            lastName: editor.lastName,
+            bio: `${editor.teamLabel} · Otomasyon destekli editör hesabı`,
+            stateId: editor.stateId ?? undefined,
+            cityId: editor.cityId ?? undefined,
+            languages: ['tr', 'de'],
+            interests: ['editorial', editor.team.toLowerCase()],
+            trustScore: 10,
+            dmEnabled: false,
           },
         },
       },
@@ -440,7 +981,9 @@ async function main() {
   console.log('Seed completed.');
   console.log('Admin:  admin@turkexpatlar.de / demo1234');
   console.log('Demo:   demo@turkexpatlar.de / demo1234');
-  console.log('Promo:  LAUNCH100 (kullanıcı, 100 kullanım) · ISLETME50 (işletme, 50 kullanım)');
+  console.log(
+    'Promo:  LAUNCH100 (kullanıcı, 100 kullanım) · ISLETME50 (işletme, 50 kullanım)',
+  );
 }
 
 main()

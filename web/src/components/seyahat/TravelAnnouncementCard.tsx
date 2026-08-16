@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Plane, Package, Calendar, User } from "lucide-react";
 import { TravelAnnouncement } from "@/lib/api";
+import { UserDisplayName } from "@/components/user/UserDisplayName";
+import type { PostalCountry } from "@/lib/postal-country";
 
 type Props = { announcement: TravelAnnouncement };
 
@@ -65,7 +67,15 @@ export function TravelAnnouncementCard({ announcement: a }: Props) {
           {/* Traveler */}
           <div className="flex items-center gap-1.5 text-sm text-muted">
             <User className="h-3.5 w-3.5" />
-            <span className="truncate max-w-[120px]">{name}</span>
+            <UserDisplayName
+              name={name}
+              userId={a.user?.id}
+              postalCountry={a.user?.profile?.postalCountry as PostalCountry | undefined}
+              linkToProfile={false}
+              isBot={a.user?.isBot}
+              editorTeam={a.user?.editorTeam}
+              nameClassName="truncate max-w-[120px] font-normal"
+            />
           </div>
 
           <div className="flex items-center gap-3 text-xs text-muted">

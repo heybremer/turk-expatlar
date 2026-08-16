@@ -317,7 +317,7 @@ export default function ForumDetailClient() {
       <div className="mt-3 flex items-center gap-3">
         <ForumAvatar name={topicAuthor} userId={topic.user?.id} role={topic.user?.role} avatarUrl={topic.user?.profile?.avatarUrl} size={topic.user?.role === "ADMIN" ? "lg" : "md"} />
         <div className="text-sm text-muted">
-          <UserDisplayName name={topicAuthor} userId={topic.user?.id} postalCountry={topic.user?.profile?.postalCountry as PostalCountry | undefined} />
+          <UserDisplayName name={topicAuthor} userId={topic.user?.id} postalCountry={topic.user?.profile?.postalCountry as PostalCountry | undefined} isBot={topic.user?.isBot} editorTeam={topic.user?.editorTeam} />
           <span> · {formatDate(topic.createdAt)}</span>
           <span className="ml-2"><ReportButton targetType="FORUM_TOPIC" targetId={topic.id} /></span>
         </div>

@@ -16,6 +16,8 @@ import { CreateTravelRequestDto } from './dto/create-travel-request.dto';
 
 const travelerSelect = {
   id: true,
+  isBot: true,
+  editorTeam: true,
   profile: {
     select: {
       displayName: true,

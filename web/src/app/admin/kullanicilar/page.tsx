@@ -19,6 +19,8 @@ type AdminUser = {
   email: string;
   role: string;
   status: string;
+  isBot: boolean;
+  editorTeam?: string | null;
   createdAt: string;
   bannedUntil?: string | null;
   referralCode?: string | null;
@@ -55,6 +57,13 @@ const ROLE_LABELS: Record<string, { label: string; cls: string }> = {
   MODERATOR:     { label: "Moderatör",  cls: "bg-accent/10 text-accent" },
   USER:          { label: "Kullanıcı",  cls: "bg-border text-muted" },
   BUSINESS_OWNER:{ label: "İşletme",    cls: "bg-success/10 text-success" },
+};
+
+const EDITOR_TEAM_LABELS: Record<string, string> = {
+  EVENTS: "Etkinlik Ekibi",
+  GUIDE: "Rehber Ekibi",
+  JOBS: "İş İlanları Ekibi",
+  TRAVEL: "Seyahat Ekibi",
 };
 
 export default function AdminUsersPage() {
@@ -199,6 +208,8 @@ function AdminUsersPageContent() {
                         userId={u.id}
                         postalCountry={u.profile?.postalCountry}
                         linkToProfile={false}
+                        isBot={u.isBot}
+                        editorTeam={u.editorTeam}
                       />
                       <p className="text-xs text-muted">{u.email}</p>
                       {u.bannedUntil && (
@@ -304,6 +315,50 @@ function AdminUsersPageContent() {
                     {u.role === r && " ✓"}
                   </MenuButton>
                 ))}
+              </MenuGroup>
+
+              <MenuGroup label="Editör ekibi">
+                {Object.entries(EDITOR_TEAM_LABELS).map(([team, label]) => (
+                  <MenuButton
+                    key={team}
+                    icon={Shield}
+                    disabled={u.editorTeam === team || actionId === u.id}
+                    onClick={() => {
+                      setActionId(u.id);
+                      setOpenMenu(null);
+                      setMenuPos(null);
+                      void doAction("Ekip değiştirme", () =>
+                        api.patch(
+                          `/admin/users/${u.id}/editor-team`,
+                          { editorTeam: team },
+                          token!,
+                        ),
+                      );
+                    }}
+                  >
+                    {label}{u.editorTeam === team && " ✓"}
+                  </MenuButton>
+                ))}
+                {u.editorTeam && (
+                  <MenuButton
+                    icon={UserCheck}
+                    disabled={actionId === u.id}
+                    onClick={() => {
+                      setActionId(u.id);
+                      setOpenMenu(null);
+                      setMenuPos(null);
+                      void doAction("Ekipten çıkarma", () =>
+                        api.patch(
+                          `/admin/users/${u.id}/editor-team`,
+                          { editorTeam: null },
+                          token!,
+                        ),
+                      );
+                    }}
+                  >
+                    Ekipten çıkar
+                  </MenuButton>
+                )}
               </MenuGroup>
 
               {u.role !== "ADMIN" && (
