@@ -45,6 +45,7 @@ function productionEnv(rootDir) {
   ].join("\n");
   const webEnv = [
     "NEXT_PUBLIC_API_URL=https://api.turkexpatlar.de",
+    "NEXT_PUBLIC_SITE_URL=https://www.turkexpatlar.de",
     `JWT_SECRET="${jwt}"`,
   ].join("\n");
   return { apiEnv, webEnv };

@@ -45,6 +45,7 @@ ENVEOF
 
 cat > ~/turkexpatlar/web/.env.local << 'ENVEOF'
 NEXT_PUBLIC_API_URL=https://turkexpatlar.de
+NEXT_PUBLIC_SITE_URL=https://www.turkexpatlar.de
 JWT_SECRET=${process.env.JWT_SECRET}
 NEXT_PUBLIC_SUPABASE_URL=${process.env.SUPABASE_URL}
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${process.env.SUPABASE_PUBLISHABLE_KEY}
