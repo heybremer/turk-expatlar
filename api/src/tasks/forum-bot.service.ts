@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { ForumTopicStatus } from '@prisma/client';
+import { QUESTION_POOL_BATCH2 } from './forum-bot-questions-batch2';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Soru havuzu — Almanya'daki Türk expatların gerçekçi, günlük dil tonunda
@@ -617,6 +618,9 @@ const QUESTION_POOL: BotQuestion[] = [
     title: 'Çocuğuma evde hem Türkçe hem Almanca öğretmek karıştırır mı?',
     body: 'İki dilli büyütmek istiyoruz çocuğumuzu. Evde ikisini birden kullanmak kafasını karıştırır mı, yoksa erken yaşta iki dil öğrenmek avantaj mı?',
   },
+
+  /* ── Ek sorular — havuzu genişletmek için (2026-08-17, batch 2) ─────────── */
+  ...QUESTION_POOL_BATCH2,
 ];
 
 /* ─────────────────────────────────────────────────────────────────────────────
