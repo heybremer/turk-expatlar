@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/site-url";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3201";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3200";
 
 const STATIC_ROUTES = [
   { path: "", priority: 1.0, freq: "daily" },
@@ -44,9 +44,10 @@ function asList<T>(raw: unknown): T[] {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
+  const siteUrl = getSiteUrl();
 
   const base: MetadataRoute.Sitemap = STATIC_ROUTES.map(({ path, priority, freq }) => ({
-    url: `${SITE_URL}${path}`,
+    url: `${siteUrl}${path}`,
     lastModified: now,
     changeFrequency: freq as Freq,
     priority,
@@ -55,7 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Forum konuları
   const topicsRaw = await fetchJson<unknown>(`${API_URL}/api/forum/topics?limit=200`);
   const topicEntries: MetadataRoute.Sitemap = asList<{ id: string; updatedAt?: string; createdAt: string }>(topicsRaw).map((t) => ({
-    url: `${SITE_URL}/forum/${t.id}`,
+    url: `${siteUrl}/forum/${t.id}`,
     lastModified: new Date(t.updatedAt ?? t.createdAt),
     changeFrequency: "weekly" as Freq,
     priority: 0.6,
@@ -64,7 +65,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Etkinlikler
   const eventsRaw = await fetchJson<unknown>(`${API_URL}/api/events?limit=200`);
   const eventEntries: MetadataRoute.Sitemap = asList<{ id: string; updatedAt?: string; createdAt: string }>(eventsRaw).map((e) => ({
-    url: `${SITE_URL}/etkinlikler/${e.id}`,
+    url: `${siteUrl}/etkinlikler/${e.id}`,
     lastModified: new Date(e.updatedAt ?? e.createdAt),
     changeFrequency: "weekly" as Freq,
     priority: 0.6,
@@ -73,7 +74,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // İşletme rehberi
   const bizRaw = await fetchJson<unknown>(`${API_URL}/api/businesses?limit=200`);
   const bizEntries: MetadataRoute.Sitemap = asList<{ id: string; updatedAt?: string; createdAt: string }>(bizRaw).map((b) => ({
-    url: `${SITE_URL}/rehber/${b.id}`,
+    url: `${siteUrl}/rehber/${b.id}`,
     lastModified: new Date(b.updatedAt ?? b.createdAt),
     changeFrequency: "monthly" as Freq,
     priority: 0.5,
@@ -82,7 +83,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Şehirler
   const citiesRaw = await fetchJson<unknown>(`${API_URL}/api/locations/cities`);
   const cityEntries: MetadataRoute.Sitemap = asList<{ slug: string }>(citiesRaw).map((c) => ({
-    url: `${SITE_URL}/sehir/${c.slug}`,
+    url: `${siteUrl}/sehir/${c.slug}`,
     lastModified: now,
     changeFrequency: "weekly" as Freq,
     priority: 0.8,

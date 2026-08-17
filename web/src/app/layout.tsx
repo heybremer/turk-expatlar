@@ -19,6 +19,7 @@ import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { PushNotificationSetup } from "@/components/layout/PushNotificationSetup";
 import { CookieConsent } from "@/components/layout/CookieConsent";
 import { fetchPublicSiteSettings } from "@/lib/site-settings";
+import { getSiteUrl, normalizeSiteUrl } from "@/lib/site-url";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -63,7 +64,9 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     keywords: s.metaKeywords?.split(",").map((k) => k.trim()).filter(Boolean),
     robots: s.robotsAllowIndex ? { index: true, follow: true } : { index: false, follow: false },
-    metadataBase: s.canonicalUrl ? new URL(s.canonicalUrl) : undefined,
+    metadataBase: new URL(
+      s.canonicalUrl?.trim() ? normalizeSiteUrl(s.canonicalUrl) : getSiteUrl(),
+    ),
     openGraph: {
       title,
       description,
