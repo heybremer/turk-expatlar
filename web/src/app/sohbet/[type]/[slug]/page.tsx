@@ -34,7 +34,7 @@ type Message = {
   createdAt: string;
   reactions?: { emoji: string; count: number }[];
   replyTo?: MessageReplyTo | null;
-  user: { id: string; role?: string; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null };
+  user: { id: string; role?: string; isBot?: boolean; editorTeam?: string | null; profile?: { displayName: string; avatarUrl?: string | null; postalCountry?: "DE" | "TR" | null } | null };
 };
 type UnreadSummaryItem = {
   chatId: string;
@@ -1093,9 +1093,11 @@ export default function SohbetOdasiPage() {
                       avatarUrl={msg.user.profile?.avatarUrl}
                       role={msg.user.role}
                       postalCountry={msg.user.profile?.postalCountry as PostalCountry | undefined}
+                      isBot={msg.user.isBot}
+                      editorTeam={msg.user.editorTeam}
                       reactions={msg.reactions}
                       replyTo={msg.replyTo}
-                      onNameClick={!isMe ? () => openDm(msg.user.id) : undefined}
+                      onNameClick={!isMe && !msg.user.isBot ? () => openDm(msg.user.id) : undefined}
                       onDelete={isMe ? () => deleteMsg(msg.id) : undefined}
                       onEdit={isMe && !!msg.body ? () => startEdit(msg) : undefined}
                       onReply={token ? () => startReply(msg) : undefined}

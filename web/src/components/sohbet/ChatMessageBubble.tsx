@@ -1,12 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, FileText, Pencil, Reply, SmilePlus, Trash2 } from "lucide-react";
+import {
+  Clock,
+  FileText,
+  Pencil,
+  Reply,
+  SmilePlus,
+  Trash2,
+} from "lucide-react";
 import { ChatAvatar } from "@/components/sohbet/ChatAvatar";
 import { ChatMessageBody } from "@/components/sohbet/ChatMessageBody";
 import { ChatReactionBar } from "@/components/sohbet/ChatReactionBar";
 import { CountryFlagBadge } from "@/components/user/CountryFlagBadge";
 import type { PostalCountry } from "@/lib/postal-country";
+
+const TEAM_LABELS: Record<string, string> = {
+  EVENTS: "Etkinlik Editörü",
+  GUIDE: "Rehber Editörü",
+  JOBS: "İş İlanı Editörü",
+  TRAVEL: "Seyahat Editörü",
+};
 
 export type ChatAttachment = {
   url: string;
@@ -18,13 +32,17 @@ export type ChatAttachment = {
 
 function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
   const [rem, setRem] = useState(() =>
-    Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)),
+    Math.max(
+      0,
+      Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000),
+    ),
   );
   useEffect(() => {
     const id = setInterval(() => setRem((r) => Math.max(0, r - 1)), 1000);
     return () => clearInterval(id);
   }, [expiresAt]);
-  if (rem <= 0) return <span className="text-[10px] text-danger">siliniyor…</span>;
+  if (rem <= 0)
+    return <span className="text-[10px] text-danger">siliniyor…</span>;
   const m = Math.floor(rem / 60);
   const s = rem % 60;
   return (
@@ -56,6 +74,8 @@ type Props = {
   avatarUrl?: string | null;
   role?: string;
   postalCountry?: PostalCountry | null;
+  isBot?: boolean;
+  editorTeam?: string | null;
   showReadReceipt?: boolean;
   reactions?: MessageReaction[];
   replyTo?: MessageReplyTo | null;
@@ -79,6 +99,8 @@ export function ChatMessageBubble({
   avatarUrl,
   role,
   postalCountry,
+  isBot = false,
+  editorTeam,
   showReadReceipt,
   reactions = [],
   replyTo,
@@ -93,7 +115,12 @@ export function ChatMessageBubble({
   const [popEmoji, setPopEmoji] = useState(false);
   const popTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionBtnRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => () => { if (popTimeoutRef.current) clearTimeout(popTimeoutRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (popTimeoutRef.current) clearTimeout(popTimeoutRef.current);
+    },
+    [],
+  );
 
   // WhatsApp'taki gibi bir mesaja çift tıklandığında hızlıca 👍 reaksiyonu eklenir.
   function handleDoubleClick() {
@@ -125,7 +152,9 @@ export function ChatMessageBubble({
         </div>
       )}
 
-      <div className={`flex max-w-[75%] flex-col ${isMe ? "items-end" : "items-start"}`}>
+      <div
+        className={`flex max-w-[75%] flex-col ${isMe ? "items-end" : "items-start"}`}
+      >
         {!grouped && !isMe && (
           <div className="mb-1 flex items-center gap-1.5 px-1">
             {onNameClick ? (
@@ -137,13 +166,27 @@ export function ChatMessageBubble({
                 {displayName}
               </button>
             ) : (
-              <span className="text-xs font-semibold text-text">{displayName}</span>
+              <span className="text-xs font-semibold text-text">
+                {displayName}
+              </span>
             )}
             <CountryFlagBadge country={postalCountry ?? undefined} />
+            {(isBot || editorTeam) && (
+              <span
+                className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
+                title="Bu hesap otomasyon destekli ve ekip tarafından denetlenir"
+              >
+                {editorTeam
+                  ? (TEAM_LABELS[editorTeam] ?? "Editör")
+                  : "Otomatik hesap"}
+              </span>
+            )}
           </div>
         )}
 
-        <div className={`flex items-end gap-1 ${isMe ? "flex-row" : "flex-row-reverse"}`}>
+        <div
+          className={`flex items-end gap-1 ${isMe ? "flex-row" : "flex-row-reverse"}`}
+        >
           {isMe && onDelete && (
             <button
               type="button"
@@ -216,11 +259,15 @@ export function ChatMessageBubble({
                     : "border-primary bg-primary/5 text-muted"
                 }`}
               >
-                <span className={`block truncate font-semibold ${isMe ? "text-white" : "text-primary"}`}>
+                <span
+                  className={`block truncate font-semibold ${isMe ? "text-white" : "text-primary"}`}
+                >
                   {replyTo.user?.profile?.displayName ?? "Kullanıcı"}
                 </span>
                 <span className="line-clamp-2 break-words">
-                  {replyTo.deletedAt ? "Silinen mesaj" : replyTo.body || "📎 Ek"}
+                  {replyTo.deletedAt
+                    ? "Silinen mesaj"
+                    : replyTo.body || "📎 Ek"}
                 </span>
               </button>
             )}
@@ -229,13 +276,20 @@ export function ChatMessageBubble({
               <div className={`space-y-1.5 ${body ? "mt-1.5" : ""}`}>
                 {(attachments as ChatAttachment[]).map((att, j) =>
                   att.type === "image" ? (
-                    <a key={j} href={att.url} target="_blank" rel="noopener noreferrer">
+                    <a
+                      key={j}
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={att.url}
                         alt={att.name}
                         className={`max-h-52 max-w-full rounded-lg object-cover ${
-                          isMe ? "border border-white/20" : "border border-border"
+                          isMe
+                            ? "border border-white/20"
+                            : "border border-border"
                         }`}
                       />
                     </a>
@@ -247,7 +301,11 @@ export function ChatMessageBubble({
                       src={att.url}
                       className="h-10 w-56 max-w-full"
                     >
-                      <a href={att.url} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         {att.name}
                       </a>
                     </audio>
@@ -265,7 +323,9 @@ export function ChatMessageBubble({
                     >
                       <FileText className="h-4 w-4 flex-shrink-0 opacity-70" />
                       <span className="max-w-[200px] truncate">{att.name}</span>
-                      <span className="opacity-70">{(att.size / 1024).toFixed(0)} KB</span>
+                      <span className="opacity-70">
+                        {(att.size / 1024).toFixed(0)} KB
+                      </span>
                     </a>
                   ),
                 )}
@@ -295,7 +355,9 @@ export function ChatMessageBubble({
 
         {/* Reaksiyonlar */}
         {reactions.length > 0 && (
-          <div className={`mt-1 flex flex-wrap items-center gap-1 px-1 ${isMe ? "justify-end" : "justify-start"}`}>
+          <div
+            className={`mt-1 flex flex-wrap items-center gap-1 px-1 ${isMe ? "justify-end" : "justify-start"}`}
+          >
             {reactions.map((r) => (
               <button
                 key={r.emoji}

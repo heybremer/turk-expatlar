@@ -16,6 +16,8 @@ import { JwtService } from '@nestjs/jwt';
 
 import { ChatService } from './chat.service';
 
+import { ChatBotService } from './chat-bot.service';
+
 import { ChatModerationService } from './chat-moderation.service';
 
 import { sanitizeAttachments } from './chat-upload.util';
@@ -78,6 +80,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   constructor(
     private chatService: ChatService,
+
+    private chatBot: ChatBotService,
 
     private chatModeration: ChatModerationService,
 
@@ -443,6 +447,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
 
     this.server.to(data.chatId).emit('new_message', message);
+
+    void this.chatBot
+      .maybeReply({
+        chatId: data.chatId,
+        senderId: client.userId,
+        body,
+      })
+      .then((botMessage) => {
+        if (botMessage) {
+          this.server.to(data.chatId).emit('new_message', botMessage);
+        }
+      });
 
     void this.notifyDmMessage(
       data.chatId,

@@ -10,6 +10,20 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
+const MESSAGE_USER_SELECT = {
+  id: true,
+  role: true,
+  isBot: true,
+  editorTeam: true,
+  profile: {
+    select: {
+      displayName: true,
+      avatarUrl: true,
+      postalCountry: true,
+    },
+  },
+} as const;
+
 @Injectable()
 export class ChatService {
   constructor(private prisma: PrismaService) {}
@@ -169,17 +183,7 @@ export class ChatService {
       take: limit,
       include: {
         user: {
-          select: {
-            id: true,
-            role: true,
-            profile: {
-              select: {
-                displayName: true,
-                avatarUrl: true,
-                postalCountry: true,
-              },
-            },
-          },
+          select: MESSAGE_USER_SELECT,
         },
         replyTo: {
           select: {
@@ -386,17 +390,7 @@ export class ChatService {
       },
       include: {
         user: {
-          select: {
-            id: true,
-            role: true,
-            profile: {
-              select: {
-                displayName: true,
-                avatarUrl: true,
-                postalCountry: true,
-              },
-            },
-          },
+          select: MESSAGE_USER_SELECT,
         },
         replyTo: {
           select: {

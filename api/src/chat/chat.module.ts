@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
+import { ChatBotService } from './chat-bot.service';
 import { ChatModerationService } from './chat-moderation.service';
 import { ChatService } from './chat.service';
 import { LinkPreviewService } from './link-preview.service';
@@ -23,6 +24,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
   providers: [
     ChatGateway,
     ChatService,
+    ChatBotService,
     ChatModerationService,
     LinkPreviewService,
     SubscriptionGuard,
