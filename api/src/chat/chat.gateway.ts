@@ -214,7 +214,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         },
       });
 
-      this.emitOnlineList(chatId);
+      void this.emitOnlineList(chatId);
     }
   }
 
@@ -232,15 +232,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (entry.refs <= 0) {
       map.delete(userId);
 
-      this.emitOnlineList(chatId);
+      void this.emitOnlineList(chatId);
     }
   }
 
-  private emitOnlineList(chatId: string) {
+  private async getOnlineList(chatId: string): Promise<OnlineUser[]> {
     const map = this.roomPresence.get(chatId);
+    const live = map ? [...map.values()].map((e) => e.user) : [];
+    const bots = await this.chatBot.getOnlinePresence(chatId);
+    const seen = new Set(live.map((user) => user.userId));
+    return [
+      ...live,
+      ...bots.filter((bot) => !seen.has(bot.userId)),
+    ];
+  }
 
-    const list = map ? [...map.values()].map((e) => e.user) : [];
-
+  private async emitOnlineList(chatId: string) {
+    const list = await this.getOnlineList(chatId);
     this.server.to(chatId).emit('online_users', list);
   }
 
@@ -313,13 +321,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.addPresence(chatId, client);
     }
 
-    // Mevcut online listesini hemen gönder
-
-    const map = this.roomPresence.get(chatId);
-
-    const list = map ? [...map.values()].map((e) => e.user) : [];
-
-    client.emit('online_users', list);
+    client.emit('online_users', await this.getOnlineList(chatId));
 
     try {
       const messages = await this.chatService.getMessages(chatId, 50);

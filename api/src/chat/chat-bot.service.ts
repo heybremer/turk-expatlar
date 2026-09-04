@@ -23,28 +23,49 @@ const PUBLIC_CHAT_TYPES: ChatType[] = [
   ChatType.CITY,
 ];
 
-const ROOM_COOLDOWN_MS = 2 * 60 * 1000;
-const MIN_DELAY_MS = 4_000;
-const MAX_DELAY_MS = 10_000;
+const ROOM_COOLDOWN_MS = 2_000;
+const MIN_DELAY_MS = 3_000;
+const MAX_DELAY_MS = 7_000;
 const PERSONAL_CLAIM_PATTERN =
   /\b(ben|bende|benim|biz|tanıdığım|arkadaşım|yaşadım|yaptım|aldım|gittim|bekledim|kullandım)\b/i;
+const CS_TONE_PATTERN =
+  /size nasıl yardımcı|nasıl yardımcı olabilirim|buyurun size|müşteri temsil|size yardımcı olmaktan/i;
+
+const GREETING_CORE =
+  /^(merhaba|selamlar|selam|slm|selamün? aleyk[uü]m|sa|günaydın|iyi (akşamlar|günler|geceler)|hey+|hi+|hello|naber|nbr|nasılsın|nasilsin|ne haber|hoş geldiniz?|hos geldiniz?)$/i;
+
+const GREETING_BANK = [
+  'Merhaba, hoş geldin.',
+  'Selam, hoş geldin.',
+  'Merhaba! Hoş geldin.',
+  'Selamlar, hoş geldin.',
+];
 
 const REPLY_BANK = [
-  'Hangi şehirdesin? Oraya göre daha net yönlendirebilirim.',
-  'Bu işler şehirden şehre değişiyor; resmi sayfadan teyit edip buraya şehir ve tarihi yazarsan bakayım.',
-  'Kısa tutayım: evrak listesini resmi kaynaktan kontrol etmek en güvenlisi. Eksik kalanı yaz, birlikte netleştirelim.',
-  'Anladım. Biraz daha detay (şehir, tarih, hangi kurum) yazarsan nokta atışı yönlendirme yapabilirim.',
-  'Hoş geldin. Burası topluluk kanalı; sorununu yaz, elimden geldiğince yardımcı olurum.',
-  'Benzer sorular sık geliyor. Resmi kurumun güncel sayfasını kontrol etmek iyi bir ilk adım, sonra buradan devam ederiz.',
-  'Tamam, bakıyorum. Şehir ve işlem türünü eklersen daha isabetli olur.',
-  'Acele etme, önce resmi kaynaktan teyit. Takıldığın noktayı yaz, oradan ilerleyelim.',
+  'Hangi şehirdesin? Oraya göre daha net bakılır.',
+  'Bu işler şehirden şehre değişiyor; resmi sayfadan bir bak, şehir ve tarihi yazarsan devam ederiz.',
+  'Evrak listesini resmi kaynaktan kontrol etmek en kolayı. Takıldığın yeri yaz.',
+  'Anladım. Şehir, tarih ve hangi kurum olduğunu eklersen daha net olur.',
+  'Benzer sorular sık geliyor. Önce resmi sayfaya bir bak, sonra buradan devam ederiz.',
+  'Tamam. Şehir ve işlem türünü yazarsan daha isabetli olur.',
+  'Acele etme, önce resmi kaynaktan teyit. Takıldığın noktayı yaz.',
 ];
 
 type ChatBot = {
   id: string;
   displayName: string;
+  avatarUrl: string | null;
+  postalCountry: string | null;
   stateId: string | null;
   cityId: string | null;
+};
+
+export type ChatBotPresence = {
+  userId: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  postalCountry?: string | null;
+  socketId: string;
 };
 
 export type ChatBotTrigger = {
@@ -52,6 +73,28 @@ export type ChatBotTrigger = {
   senderId: string;
   body: string;
 };
+
+export function normalizeChatText(body: string): string {
+  return body
+    .trim()
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[!?.,…:~]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function isGreetingOnly(body: string): boolean {
+  const text = normalizeChatText(body);
+  if (!text || text.length > 48) return false;
+  if (GREETING_CORE.test(text)) return true;
+  const words = text.split(' ');
+  if (words.length > 5) return false;
+  return words.every((word) => GREETING_CORE.test(word));
+}
+
+export function hasCustomerServiceTone(text: string): boolean {
+  return CS_TONE_PATTERN.test(text);
+}
 
 @Injectable()
 export class ChatBotService {
@@ -96,11 +139,39 @@ export class ChatBotService {
     return (await this.findAssignment(trigger)) !== null;
   }
 
+  async getOnlinePresence(chatId: string): Promise<ChatBotPresence[]> {
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: {
+        type: true,
+        stateId: true,
+        cityId: true,
+        city: { select: { stateId: true } },
+      },
+    });
+    if (!chat || !PUBLIC_CHAT_TYPES.includes(chat.type)) return [];
+
+    const eligible = this.eligibleBots(await this.getBots(), chat);
+    if (eligible.length === 0) return [];
+
+    const count = chat.type === ChatType.GLOBAL ? 3 : 2;
+    const picked = eligible.slice(0, Math.min(count, eligible.length));
+    return picked.map((bot) => ({
+      userId: bot.id,
+      displayName: bot.displayName,
+      avatarUrl: bot.avatarUrl,
+      postalCountry: bot.postalCountry,
+      socketId: `bot:${bot.id}`,
+    }));
+  }
+
   private async findAssignment(
     trigger: ChatBotTrigger,
   ): Promise<ChatBot | null> {
     const body = trigger.body.trim();
-    if (body.length < 8) return null;
+    const greeting = isGreetingOnly(body);
+    if (!greeting && body.length < 8) return null;
+    if (greeting && body.length < 2) return null;
 
     const sender = await this.prisma.user.findUnique({
       where: { id: trigger.senderId },
@@ -125,18 +196,24 @@ export class ChatBotService {
     const bots = await this.getBots();
     if (bots.length === 0) return null;
 
-    const recent = await this.prisma.message.findMany({
-      where: { chatId: trigger.chatId, deletedAt: null },
-      orderBy: { createdAt: 'desc' },
-      take: 4,
-      select: { user: { select: { isBot: true } } },
-    });
-    const recentBotCount = recent.filter(
-      (message) => message.user.isBot,
-    ).length;
-    if (recentBotCount >= 2) return null;
+    const eligible = this.eligibleBots(bots, chat);
+    if (eligible.length === 0) return null;
 
-    const eligible = bots.filter((bot) => {
+    const bot = eligible[this.nextBotIndex % eligible.length];
+    this.nextBotIndex = (this.nextBotIndex + 1) % eligible.length;
+    return bot;
+  }
+
+  private eligibleBots(
+    bots: ChatBot[],
+    chat: {
+      type: ChatType;
+      stateId: string | null;
+      cityId: string | null;
+      city: { stateId: string } | null;
+    },
+  ): ChatBot[] {
+    const matched = bots.filter((bot) => {
       if (chat.type === ChatType.GLOBAL) return true;
       if (chat.type === ChatType.STATE) {
         return !chat.stateId || bot.stateId === chat.stateId;
@@ -151,11 +228,7 @@ export class ChatBotService {
       }
       return false;
     });
-    if (eligible.length === 0) return null;
-
-    const bot = eligible[this.nextBotIndex % eligible.length];
-    this.nextBotIndex = (this.nextBotIndex + 1) % eligible.length;
-    return bot;
+    return matched.length > 0 ? matched : bots;
   }
 
   private async getBots(): Promise<ChatBot[]> {
@@ -168,6 +241,8 @@ export class ChatBotService {
         profile: {
           select: {
             displayName: true,
+            avatarUrl: true,
+            postalCountry: true,
             stateId: true,
             cityId: true,
           },
@@ -182,6 +257,8 @@ export class ChatBotService {
             {
               id: user.id,
               displayName: user.profile?.displayName ?? email,
+              avatarUrl: user.profile?.avatarUrl ?? null,
+              postalCountry: user.profile?.postalCountry ?? null,
               stateId: user.profile?.stateId ?? null,
               cityId: user.profile?.cityId ?? null,
             },
@@ -192,8 +269,18 @@ export class ChatBotService {
   }
 
   private async resolveReply(humanBody: string): Promise<string> {
+    if (isGreetingOnly(humanBody)) {
+      return GREETING_BANK[Math.floor(Math.random() * GREETING_BANK.length)];
+    }
+
     const aiReply = await this.generateAiReply(humanBody);
-    if (aiReply && !PERSONAL_CLAIM_PATTERN.test(aiReply)) return aiReply;
+    if (
+      aiReply &&
+      !PERSONAL_CLAIM_PATTERN.test(aiReply) &&
+      !hasCustomerServiceTone(aiReply)
+    ) {
+      return aiReply;
+    }
 
     for (let attempt = 0; attempt < 6; attempt += 1) {
       const candidate =
@@ -222,7 +309,7 @@ export class ChatBotService {
             {
               role: 'system',
               content:
-                'Sen Türk Expatlar genel sohbetinde "Otomatik hesap" etiketiyle görünen bir topluluk yardımcısısın. Türkçe, samimi, 1-2 kısa cümle yaz. İnsanmış gibi kişisel deneyim uydurma. Kesin hukuki/tıbbi tavsiye verme. Sadece mesaj metnini yaz.',
+                'Sen Türk Expatlar genel sohbetinde "Otomatik hesap" etiketiyle görünen bir topluluk üyesisin. Türkçe, samimi, doğal, 1-2 kısa cümle yaz. Müşteri temsilcisi gibi konuşma. "Size nasıl yardımcı olabilirim", "Nasıl yardımcı olabilirim", "Buyurun" deme. Selamlaşmaya sadece "Merhaba, hoş geldin" gibi karşılık ver. İnsanmış gibi kişisel deneyim uydurma. Kesin hukuki/tıbbi tavsiye verme. Sadece mesaj metnini yaz.',
             },
             {
               role: 'user',
