@@ -38,10 +38,20 @@ export const viewport: Viewport = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await fetchPublicSiteSettings();
-  const title = s.metaTitle ?? `${s.siteName} — ${s.siteTagline ?? "Almanya Türkçe Topluluk"}`;
+  const title =
+    s.metaTitle ??
+    `${s.siteName} — ${s.siteTagline ?? "Almanya Türkçe Topluluk"}`;
   const description =
     s.metaDescription ??
     "Almanya'daki Türkçe konuşanlar için şehir bazlı topluluk, etkinlik, soru-cevap ve güvenilir işletme rehberi.";
+  let metadataBase = new URL(getSiteUrl());
+  if (s.canonicalUrl?.trim()) {
+    try {
+      metadataBase = new URL(normalizeSiteUrl(s.canonicalUrl));
+    } catch {
+      // Geçersiz yönetici ayarında güvenli üretim alan adını kullan.
+    }
+  }
 
   return {
     title: {
@@ -62,15 +72,20 @@ export async function generateMetadata(): Promise<Metadata> {
         { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
       ],
     },
-    keywords: s.metaKeywords?.split(",").map((k) => k.trim()).filter(Boolean),
-    robots: s.robotsAllowIndex ? { index: true, follow: true } : { index: false, follow: false },
-    metadataBase: new URL(
-      s.canonicalUrl?.trim() ? normalizeSiteUrl(s.canonicalUrl) : getSiteUrl(),
-    ),
+    keywords: s.metaKeywords
+      ?.split(",")
+      .map((k) => k.trim())
+      .filter(Boolean),
+    robots: s.robotsAllowIndex
+      ? { index: true, follow: true }
+      : { index: false, follow: false },
+    metadataBase,
+    alternates: { canonical: "./" },
     openGraph: {
       title,
       description,
       siteName: s.siteName,
+      url: "./",
       images: s.ogImageUrl ? [{ url: s.ogImageUrl }] : undefined,
     },
     verification: s.googleSearchConsoleVerification
@@ -87,31 +102,35 @@ export default async function RootLayout({
   const settings = await fetchPublicSiteSettings();
 
   return (
-    <html lang="tr" className={`${inter.variable} h-dvh`} suppressHydrationWarning>
+    <html
+      lang="tr"
+      className={`${inter.variable} h-dvh`}
+      suppressHydrationWarning
+    >
       <body
         className="min-h-full flex flex-col antialiased"
         suppressHydrationWarning
       >
         <ThemeProvider>
-        <CustomHeadHtml html={settings.customHeadHtml} />
-        <SiteAnalytics settings={settings} />
-        <SessionSync />
-        <PendingRedirectHandler />
-        <OnboardingRedirect />
-        <Header settings={settings} />
-        <EmailVerificationBanner />
-        <ChatPresence />
-        <MainWrapper>
-          <MaintenanceWrapper settings={settings}>
-            <PageAccessGuard>{children}</PageAccessGuard>
-          </MaintenanceWrapper>
-        </MainWrapper>
-        <FooterVisibility>
-          <Footer settings={settings} />
-        </FooterVisibility>
-        <MobileBottomNav settings={settings} />
-        <PushNotificationSetup />
-        <CookieConsent />
+          <CustomHeadHtml html={settings.customHeadHtml} />
+          <SiteAnalytics settings={settings} />
+          <SessionSync />
+          <PendingRedirectHandler />
+          <OnboardingRedirect />
+          <Header settings={settings} />
+          <EmailVerificationBanner />
+          <ChatPresence />
+          <MainWrapper>
+            <MaintenanceWrapper settings={settings}>
+              <PageAccessGuard>{children}</PageAccessGuard>
+            </MaintenanceWrapper>
+          </MainWrapper>
+          <FooterVisibility>
+            <Footer settings={settings} />
+          </FooterVisibility>
+          <MobileBottomNav settings={settings} />
+          <PushNotificationSetup />
+          <CookieConsent />
         </ThemeProvider>
       </body>
     </html>

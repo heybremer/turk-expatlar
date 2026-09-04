@@ -1,7 +1,11 @@
 import type { MetadataRoute } from "next";
 import { getSiteUrl } from "@/lib/site-url";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3201";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === "production"
+    ? "https://api.turkexpatlar.de"
+    : "http://localhost:3201");
 
 const STATIC_ROUTES = [
   { path: "", priority: 1.0, freq: "daily" },
@@ -16,13 +20,22 @@ const STATIC_ROUTES = [
   { path: "/uygulamalar/resmi-kurumlar", priority: 0.5, freq: "monthly" },
   { path: "/uygulamalar/gezgin-rehberi", priority: 0.5, freq: "monthly" },
   { path: "/uyelik", priority: 0.7, freq: "monthly" },
+  { path: "/hakkinda", priority: 0.5, freq: "monthly" },
+  { path: "/iletisim", priority: 0.5, freq: "monthly" },
   { path: "/impressum", priority: 0.3, freq: "yearly" },
   { path: "/gizlilik", priority: 0.3, freq: "yearly" },
   { path: "/kullanim", priority: 0.3, freq: "yearly" },
   { path: "/forum/kurallar", priority: 0.4, freq: "monthly" },
 ] as const;
 
-type Freq = "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
+type Freq =
+  | "always"
+  | "hourly"
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "yearly"
+  | "never";
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
@@ -36,58 +49,119 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 
 function asList<T>(raw: unknown): T[] {
   if (Array.isArray(raw)) return raw;
-  if (raw && typeof raw === "object" && Array.isArray((raw as { items?: T[] }).items)) {
+  if (
+    raw &&
+    typeof raw === "object" &&
+    Array.isArray((raw as { items?: T[] }).items)
+  ) {
     return (raw as { items: T[] }).items;
   }
   return [];
+}
+
+function validDate(value: string | undefined, fallback: Date): Date {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
   const siteUrl = getSiteUrl();
 
-  const base: MetadataRoute.Sitemap = STATIC_ROUTES.map(({ path, priority, freq }) => ({
-    url: `${siteUrl}${path}`,
-    lastModified: now,
-    changeFrequency: freq as Freq,
-    priority,
-  }));
+  const base: MetadataRoute.Sitemap = STATIC_ROUTES.map(
+    ({ path, priority, freq }) => ({
+      url: `${siteUrl}${path}`,
+      lastModified: now,
+      changeFrequency: freq as Freq,
+      priority,
+    }),
+  );
 
-  // Forum konuları
-  const topicsRaw = await fetchJson<unknown>(`${API_URL}/api/forum/topics?limit=200`);
-  const topicEntries: MetadataRoute.Sitemap = asList<{ id: string; updatedAt?: string; createdAt: string }>(topicsRaw).map((t) => ({
-    url: `${siteUrl}/forum/${t.id}`,
-    lastModified: new Date(t.updatedAt ?? t.createdAt),
-    changeFrequency: "weekly" as Freq,
-    priority: 0.6,
-  }));
+  try {
+    const [topicsRaw, eventsRaw, bizRaw, citiesRaw] = await Promise.all([
+      fetchJson<unknown>(`${API_URL}/api/forum/topics?limit=200`),
+      fetchJson<unknown>(`${API_URL}/api/events?limit=200`),
+      fetchJson<unknown>(`${API_URL}/api/businesses?limit=200`),
+      fetchJson<unknown>(`${API_URL}/api/locations/cities`),
+    ]);
 
-  // Etkinlikler
-  const eventsRaw = await fetchJson<unknown>(`${API_URL}/api/events?limit=200`);
-  const eventEntries: MetadataRoute.Sitemap = asList<{ id: string; updatedAt?: string; createdAt: string }>(eventsRaw).map((e) => ({
-    url: `${siteUrl}/etkinlikler/${e.id}`,
-    lastModified: new Date(e.updatedAt ?? e.createdAt),
-    changeFrequency: "weekly" as Freq,
-    priority: 0.6,
-  }));
+    const topicEntries: MetadataRoute.Sitemap = asList<{
+      id?: string;
+      updatedAt?: string;
+      createdAt?: string;
+    }>(topicsRaw)
+      .filter(
+        (
+          topic,
+        ): topic is { id: string; updatedAt?: string; createdAt?: string } =>
+          Boolean(topic.id),
+      )
+      .map((topic) => ({
+        url: `${siteUrl}/forum/${encodeURIComponent(topic.id)}`,
+        lastModified: validDate(topic.updatedAt ?? topic.createdAt, now),
+        changeFrequency: "weekly" as Freq,
+        priority: 0.6,
+      }));
 
-  // İşletme rehberi
-  const bizRaw = await fetchJson<unknown>(`${API_URL}/api/businesses?limit=200`);
-  const bizEntries: MetadataRoute.Sitemap = asList<{ id: string; updatedAt?: string; createdAt: string }>(bizRaw).map((b) => ({
-    url: `${siteUrl}/rehber/${b.id}`,
-    lastModified: new Date(b.updatedAt ?? b.createdAt),
-    changeFrequency: "monthly" as Freq,
-    priority: 0.5,
-  }));
+    const eventEntries: MetadataRoute.Sitemap = asList<{
+      id?: string;
+      updatedAt?: string;
+      createdAt?: string;
+    }>(eventsRaw)
+      .filter(
+        (
+          event,
+        ): event is { id: string; updatedAt?: string; createdAt?: string } =>
+          Boolean(event.id),
+      )
+      .map((event) => ({
+        url: `${siteUrl}/etkinlikler/${encodeURIComponent(event.id)}`,
+        lastModified: validDate(event.updatedAt ?? event.createdAt, now),
+        changeFrequency: "weekly" as Freq,
+        priority: 0.6,
+      }));
 
-  // Şehirler
-  const citiesRaw = await fetchJson<unknown>(`${API_URL}/api/locations/cities`);
-  const cityEntries: MetadataRoute.Sitemap = asList<{ slug: string }>(citiesRaw).map((c) => ({
-    url: `${siteUrl}/sehir/${c.slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as Freq,
-    priority: 0.8,
-  }));
+    const bizEntries: MetadataRoute.Sitemap = asList<{
+      id?: string;
+      updatedAt?: string;
+      createdAt?: string;
+    }>(bizRaw)
+      .filter(
+        (
+          business,
+        ): business is {
+          id: string;
+          updatedAt?: string;
+          createdAt?: string;
+        } => Boolean(business.id),
+      )
+      .map((business) => ({
+        url: `${siteUrl}/rehber/${encodeURIComponent(business.id)}`,
+        lastModified: validDate(business.updatedAt ?? business.createdAt, now),
+        changeFrequency: "monthly" as Freq,
+        priority: 0.5,
+      }));
 
-  return [...base, ...cityEntries, ...topicEntries, ...eventEntries, ...bizEntries];
+    const cityEntries: MetadataRoute.Sitemap = asList<{ slug?: string }>(
+      citiesRaw,
+    )
+      .filter((city): city is { slug: string } => Boolean(city.slug))
+      .map((city) => ({
+        url: `${siteUrl}/sehir/${encodeURIComponent(city.slug)}`,
+        lastModified: now,
+        changeFrequency: "weekly" as Freq,
+        priority: 0.8,
+      }));
+
+    return [
+      ...base,
+      ...cityEntries,
+      ...topicEntries,
+      ...eventEntries,
+      ...bizEntries,
+    ];
+  } catch {
+    return base;
+  }
 }

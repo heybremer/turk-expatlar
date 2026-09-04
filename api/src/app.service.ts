@@ -20,10 +20,6 @@ export class AppService {
     @Inject(REDIS_CLIENT) private redis: Redis,
   ) {}
 
-  getHello(): string {
-    return 'Hello World!';
-  }
-
   async getHealth(): Promise<HealthCheckResult> {
     const [database, redis] = await Promise.all([
       this.checkDatabase(),

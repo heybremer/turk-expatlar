@@ -12,6 +12,10 @@ import { AppModule } from './app.module';
 import { getCorsOrigins } from './common/cors-origins';
 
 async function bootstrap() {
+  const enableSwagger =
+    process.env.NODE_ENV !== 'production' ||
+    process.env.ENABLE_SWAGGER === 'true';
+
   // rawBody: true — Stripe webhook imza doğrulaması req.rawBody'ye ihtiyaç duyar
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
@@ -21,17 +25,29 @@ async function bootstrap() {
 
   // HTTP güvenlik başlıkları
   app.use(
-    helmet({
-      crossOriginEmbedderPolicy: false, // Swagger UI için
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"], // Swagger UI için
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-        },
-      },
-    }),
+    helmet(
+      enableSwagger
+        ? {
+            crossOriginEmbedderPolicy: false,
+            contentSecurityPolicy: {
+              directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-inline'"],
+                styleSrc: ["'self'", "'unsafe-inline'"],
+                imgSrc: ["'self'", 'data:', 'https:'],
+              },
+            },
+          }
+        : {
+            crossOriginEmbedderPolicy: false,
+            contentSecurityPolicy: {
+              directives: {
+                defaultSrc: ["'none'"],
+                frameAncestors: ["'none'"],
+              },
+            },
+          },
+    ),
   );
 
   app.use(cookieParser());
@@ -49,18 +65,22 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const config = new DocumentBuilder()
-    .setTitle('Türk Expatlar API')
-    .setDescription('Almanya Türkçe konuşan topluluk platformu')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  if (enableSwagger) {
+    const config = new DocumentBuilder()
+      .setTitle('Türk Expatlar API')
+      .setDescription('Almanya Türkçe konuşan topluluk platformu')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = process.env.PORT ?? 3201;
   await app.listen(port);
   console.log(`API running on http://localhost:${port}`);
-  console.log(`Swagger: http://localhost:${port}/api/docs`);
+  if (enableSwagger) {
+    console.log(`Swagger: http://localhost:${port}/api/docs`);
+  }
 }
 bootstrap();

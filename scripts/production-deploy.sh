@@ -36,6 +36,8 @@ fi
 pm2 save
 
 echo "==> Kontrol..."
-curl -sf -o /dev/null -w "API: %{http_code}\n" http://127.0.0.1:3201/api/site-settings/public || echo "API: kontrol edilemedi"
+curl -sf -o /dev/null -w "API: %{http_code}\n" http://127.0.0.1:3201/api/health || echo "API: kontrol edilemedi"
 curl -sf -o /dev/null -w "WEB: %{http_code}\n" http://127.0.0.1:3200/ || echo "WEB: kontrol edilemedi"
+curl -sf -o /dev/null -w "ROBOTS: %{http_code}\n" http://127.0.0.1:3200/robots.txt || echo "ROBOTS: kontrol edilemedi"
+curl -sf -o /dev/null -w "SITEMAP: %{http_code}\n" http://127.0.0.1:3200/sitemap.xml || echo "SITEMAP: kontrol edilemedi"
 echo "==> Deploy tamamlandı."

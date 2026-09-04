@@ -8,7 +8,14 @@ API_DOMAIN="${API_DOMAIN:-api.${DOMAIN}}"
 cat > "/etc/nginx/sites-available/turkexpatlar" << EOF
 server {
     listen 80;
-    server_name ${DOMAIN} www.${DOMAIN};
+    server_name ${DOMAIN};
+
+    return 301 https://www.${DOMAIN}\$request_uri;
+}
+
+server {
+    listen 80;
+    server_name www.${DOMAIN};
 
     location / {
         proxy_pass http://127.0.0.1:3200;

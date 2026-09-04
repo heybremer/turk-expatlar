@@ -11,7 +11,6 @@ const EXEMPT_PREFIXES = [
   '/api/site-settings/public',
   '/api/auth',
   '/api/admin',
-  '/api/docs',
   '/api/health',
 ];
 

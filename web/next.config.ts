@@ -50,10 +50,29 @@ const securityHeaders = [
 ];
 
 const apiUrlParsed = (() => {
-  try { return new URL(API_URL); } catch { return null; }
+  try {
+    return new URL(API_URL);
+  } catch {
+    return null;
+  }
 })();
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/blog",
+        destination: "/forum",
+        permanent: true,
+      },
+      {
+        source: "/ayarlar",
+        destination: "/profil/duzenle",
+        permanent: true,
+      },
+    ];
+  },
+
   images: {
     formats: ["image/avif", "image/webp"],
     deviceSizes: [375, 640, 750, 828, 1080, 1200, 1920],
@@ -65,7 +84,8 @@ const nextConfig: NextConfig = {
       ...(apiUrlParsed
         ? [
             {
-              protocol: apiUrlParsed.protocol.replace(":", "") as "http" | "https",
+              protocol: apiUrlParsed.protocol.replace(":", "") as
+                "http" | "https",
               hostname: apiUrlParsed.hostname,
               ...(apiUrlParsed.port ? { port: apiUrlParsed.port } : {}),
               pathname: "/uploads/**",
