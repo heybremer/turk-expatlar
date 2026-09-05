@@ -6,6 +6,7 @@ import {
   hasCustomerServiceTone,
   isGreetingOnly,
   pickGreetingReply,
+  extractResponseText,
   resolveChatModel,
   shouldAddSecondVoice,
   startsWithGreeting,
@@ -309,13 +310,31 @@ describe('sohbet botu selamlaşma', () => {
     ).toBe(true);
   });
 
-  it('sohbet için gpt-4.1 kullanır', () => {
+  it('sohbet için gpt-5.6 kullanır', () => {
     const previous = process.env.OPENAI_CHAT_MODEL;
     delete process.env.OPENAI_CHAT_MODEL;
-    expect(resolveChatModel()).toBe('gpt-4.1');
-    process.env.OPENAI_CHAT_MODEL = 'gpt-4o';
-    expect(resolveChatModel()).toBe('gpt-4o');
+    expect(resolveChatModel()).toBe('gpt-5.6');
+    process.env.OPENAI_CHAT_MODEL = 'gpt-6-astra';
+    expect(resolveChatModel()).toBe('gpt-6-astra');
     if (previous === undefined) delete process.env.OPENAI_CHAT_MODEL;
     else process.env.OPENAI_CHAT_MODEL = previous;
+  });
+
+  it('Responses API metnini çözer', () => {
+    expect(
+      extractResponseText({
+        output_text: 'Bürgeramt randevusu online alınır.',
+      }),
+    ).toBe('Bürgeramt randevusu online alınır.');
+    expect(
+      extractResponseText({
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: 'Güncel ücret BAMF sayfasında.' }],
+          },
+        ],
+      }),
+    ).toBe('Güncel ücret BAMF sayfasında.');
   });
 });

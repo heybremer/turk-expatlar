@@ -70,13 +70,37 @@ const FOLLOW_BANK = [
   'Kısa tutayım: evrak listesi resmi kaynakta duruyor.',
 ];
 
-const DEFAULT_CHAT_MODEL = 'gpt-4.1';
+const DEFAULT_CHAT_MODEL = 'gpt-5.6';
+const CHAT_MODEL_FALLBACKS = ['gpt-5.6', 'gpt-5.5', 'gpt-5.6-terra'];
 
 export function resolveChatModel(): string {
-  return (
-    process.env.OPENAI_CHAT_MODEL?.trim() ||
-    DEFAULT_CHAT_MODEL
-  );
+  return process.env.OPENAI_CHAT_MODEL?.trim() || DEFAULT_CHAT_MODEL;
+}
+
+export function extractResponseText(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const rec = data as {
+    output_text?: unknown;
+    output?: Array<{
+      type?: string;
+      content?: Array<{ type?: string; text?: string }>;
+    }>;
+  };
+  if (typeof rec.output_text === 'string' && rec.output_text.trim()) {
+    return rec.output_text.trim();
+  }
+  const texts = (rec.output ?? [])
+    .flatMap((item) => item.content ?? [])
+    .filter(
+      (part) => part.type === 'output_text' && typeof part.text === 'string',
+    )
+    .map((part) => part.text as string);
+  const joined = texts.join('\n').trim();
+  return joined.length > 0 ? joined : null;
+}
+
+function uniqueModels(preferred: string): string[] {
+  return [...new Set([preferred, ...CHAT_MODEL_FALLBACKS])];
 }
 
 type ChatBot = {
@@ -478,6 +502,11 @@ export class ChatBotService {
     if (forbidGreeting && startsWithGreeting(text)) {
       text = stripLeadingGreeting(text);
     }
+    text = text
+      .replace(/【[^】]*】/g, '')
+      .replace(/\[\d+\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     if (
       PERSONAL_CLAIM_PATTERN.test(text) ||
       hasCustomerServiceTone(text) ||
@@ -505,22 +534,43 @@ export class ChatBotService {
       .map((line) => `${line.name}: ${line.body}`)
       .join('\n');
     const firstName = speakerName.split(' ')[0] || speakerName;
-    const model = resolveChatModel();
+    const today = new Date().toLocaleDateString('tr-TR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
 
     const system =
       voice === 'follow'
-        ? `Sen ${firstName} adıyla Türk Expatlar sohbetindesin; profilinde "Otomatik hesap" yazıyor. WhatsApp grubundaki biri gibi 1 kısa cümle yaz: ${otherName ?? 'diğerinin'} sözüne katıl veya tek somut ayrıntı ekle. Günlük konuşma dili, küçük harf/nokta serbest. Merhaba/selam ile başlama. Müşteri temsilcisi gibi konuşma. Yaşanmış hikaye, tanıdık veya kimlik uydurma. Sadece mesaj metnini yaz.`
-        : `Sen ${firstName} adıyla Türk Expatlar sohbetindesin; profilinde "Otomatik hesap" yazıyor. WhatsApp grubundaki biri gibi yaz: kısa, somut, günlük Türkçe, 1-2 cümle. Soruya gerçekten cevap ver; genel geçer "şehir yaz" ile kaçma. Cevaba merhaba/selam ile başlama. Müşteri temsilcisi gibi konuşma, "nasıl yardımcı olabilirim" deme. Yaşanmış hikaye, tanıdık veya kimlik uydurma. Kesin hukuki/tıbbi/vergi hükmü verme; resmi kaynağa yönlendir. Sadece mesaj metnini yaz.`;
+        ? `Sen ${firstName} adıyla Türk Expatlar sohbetindesin; profilinde "Otomatik hesap" yazıyor. Bugün ${today}. WhatsApp grubundaki biri gibi 1 kısa cümle yaz: ${otherName ?? 'diğerinin'} sözüne katıl veya tek güncel ayrıntı ekle. 2024 bilgi kesimine güvenme; emin değilsen web araması kullan. Merhaba/selam ile başlama. Müşteri temsilcisi gibi konuşma. Yaşanmış hikaye uydurma. Sadece mesaj metnini yaz.`
+        : `Sen ${firstName} adıyla Türk Expatlar sohbetindesin; profilinde "Otomatik hesap" yazıyor. Bugün ${today}. Eğitim verin eski olabilir (2024); Almanya işlemleri, ücret, randevu, yasa ve kurum bilgisi için mutlaka web araması yap ve güncel resmi kaynağa dayan. "Kasım 2024 itibarıyla" gibi eski kesim cümleleri kurma. WhatsApp dili, 1-2 kısa cümle, somut cevap. Cevaba merhaba/selam ile başlama. Müşteri temsilcisi gibi konuşma. Yaşanmış hikaye uydurma. Kesin hukuki/tıbbi/vergi hükmü verme. Uzun link listesi yazma. Sadece mesaj metnini yaz.`;
 
     const user =
       voice === 'follow'
         ? `Son konuşma:\n${history || '(yok)'}\n\n${otherName ?? 'Biri'}: ${otherBody ?? ''}\nKullanıcı: ${humanBody}\n\n${firstName} olarak kısa bir ek cümle yaz, merhaba deme.`
-        : `Son konuşma:\n${history || '(yok)'}\n\nKullanıcı: ${humanBody}\n\n${firstName} olarak doğal, işe yarar bir sohbet cevabı yaz. Merhaba ile başlama.`;
+        : `Son konuşma:\n${history || '(yok)'}\n\nKullanıcı: ${humanBody}\n\n${firstName} olarak güncel, işe yarar bir sohbet cevabı yaz. Gerekirse web ara. Merhaba ile başlama.`;
 
+    for (const model of uniqueModels(resolveChatModel())) {
+      const result = await this.callResponses(apiKey, model, system, user);
+      if (result.text) {
+        const cleaned = result.text.replace(/^["'“”]+|["'“”]+$/g, '');
+        if (cleaned.length >= 5) return cleaned.slice(0, 280);
+      }
+      if (!result.fallback) break;
+    }
+    return null;
+  }
+
+  private async callResponses(
+    apiKey: string,
+    model: string,
+    instructions: string,
+    input: string,
+  ): Promise<{ text: string | null; fallback: boolean }> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 14_000);
+    const timeout = setTimeout(() => controller.abort(), 22_000);
     try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const res = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -528,14 +578,21 @@ export class ChatBotService {
         },
         body: JSON.stringify({
           model,
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
+          instructions,
+          input,
+          tools: [
+            {
+              type: 'web_search',
+              user_location: {
+                type: 'approximate',
+                country: 'DE',
+                timezone: 'Europe/Berlin',
+              },
+            },
           ],
-          max_tokens: 160,
-          temperature: 0.9,
-          presence_penalty: 0.35,
-          frequency_penalty: 0.2,
+          tool_choice: 'auto',
+          reasoning: { effort: 'low' },
+          max_output_tokens: 220,
         }),
         signal: controller.signal,
       });
@@ -544,18 +601,13 @@ export class ChatBotService {
         this.logger.warn(
           `Sohbet AI isteği başarısız (${model}, ${res.status}): ${errText.slice(0, 180)}`,
         );
-        return null;
+        return { text: null, fallback: res.status === 400 || res.status === 404 };
       }
-      const data = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
-      };
-      const raw = data.choices?.[0]?.message?.content;
-      if (typeof raw !== 'string') return null;
-      const cleaned = raw.trim().replace(/^["'“”]+|["'“”]+$/g, '');
-      return cleaned.length >= 5 ? cleaned.slice(0, 280) : null;
+      const data: unknown = await res.json();
+      return { text: extractResponseText(data), fallback: false };
     } catch (err) {
       this.logger.warn(`Sohbet AI çağrısı hata verdi (${model}): ${String(err)}`);
-      return null;
+      return { text: null, fallback: false };
     } finally {
       clearTimeout(timeout);
     }
