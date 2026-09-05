@@ -5,6 +5,10 @@ import {
   ChatBotService,
   hasCustomerServiceTone,
   isGreetingOnly,
+  pickGreetingReply,
+  shouldAddSecondVoice,
+  startsWithGreeting,
+  stripLeadingGreeting,
 } from './chat-bot.service';
 import { ChatService } from './chat.service';
 
@@ -128,7 +132,9 @@ describe('ChatBotService', () => {
         body: 'Berlin’de Anmeldung için randevu nasıl bulunuyor?',
       });
       await jest.advanceTimersByTimeAsync(8_000);
-      await expect(first).resolves.toMatchObject({ id: 'bot-msg-1' });
+      await expect(first).resolves.toEqual([
+        expect.objectContaining({ id: 'bot-msg-1' }),
+      ]);
 
       await jest.advanceTimersByTimeAsync(2_500);
       await expect(
@@ -188,6 +194,89 @@ describe('ChatBotService', () => {
       expect.objectContaining({ userId: 'bot-3', displayName: 'Ahmet Eren' }),
     ]);
   });
+
+  it('bir soruya en fazla 3 kişilik kadrodan 2 bot yazar', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'bot-1',
+        email: 'bot-derya@turkexpatlar.de',
+        profile: { displayName: 'Derya Arslan', stateId: 'st-1', cityId: 'ct-1' },
+      },
+      {
+        id: 'bot-2',
+        email: 'bot-reply-merve@turkexpatlar.de',
+        profile: { displayName: 'Merve Karaca', stateId: 'st-2', cityId: 'ct-2' },
+      },
+      {
+        id: 'bot-3',
+        email: 'bot-reply-ahmet@turkexpatlar.de',
+        profile: { displayName: 'Ahmet Eren', stateId: 'st-3', cityId: 'ct-3' },
+      },
+    ]);
+
+    const plan = await service.planReply({
+      chatId: 'chat-1',
+      senderId: 'human-1',
+      body: 'Berlin’de Anmeldung için randevu nasıl bulunuyor?',
+    });
+    expect(plan?.primary.id).toBeTruthy();
+    expect(plan?.secondary?.id).toBeTruthy();
+    expect(plan?.secondary?.id).not.toBe(plan?.primary.id);
+    expect(plan?.kind).toBe('answer');
+  });
+
+  it('selamda ikinci bot yazmaz', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'bot-1',
+        email: 'bot-derya@turkexpatlar.de',
+        profile: { displayName: 'Derya Arslan', stateId: 'st-1', cityId: 'ct-1' },
+      },
+      {
+        id: 'bot-2',
+        email: 'bot-reply-merve@turkexpatlar.de',
+        profile: { displayName: 'Merve Karaca', stateId: 'st-2', cityId: 'ct-2' },
+      },
+    ]);
+
+    const plan = await service.planReply({
+      chatId: 'chat-1',
+      senderId: 'human-1',
+      body: 'merhaba',
+    });
+    expect(plan?.kind).toBe('greeting');
+    expect(plan?.secondary).toBeNull();
+  });
+
+  it('yazarken typing olaylarını yayınlar', async () => {
+    const previousKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    jest.useFakeTimers();
+    chatService.saveMessage.mockResolvedValue({ id: 'bot-msg-1' });
+    const typing: string[] = [];
+
+    try {
+      const pending = service.maybeReply(
+        {
+          chatId: 'chat-1',
+          senderId: 'human-1',
+          body: 'Berlin’de Anmeldung için randevu nasıl bulunuyor?',
+        },
+        {
+          onTyping: (user) => typing.push(`start:${user.displayName}`),
+          onTypingStop: (userId) => typing.push(`stop:${userId}`),
+        },
+      );
+      await jest.advanceTimersByTimeAsync(8_000);
+      await pending;
+      expect(typing[0]).toMatch(/^start:/);
+      expect(typing).toContain('stop:bot-1');
+    } finally {
+      jest.useRealTimers();
+      if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = previousKey;
+    }
+  });
 });
 
 describe('sohbet botu selamlaşma', () => {
@@ -206,5 +295,16 @@ describe('sohbet botu selamlaşma', () => {
       true,
     );
     expect(hasCustomerServiceTone('Merhaba, hoş geldin.')).toBe(false);
+  });
+
+  it('tekrar selamda merhaba ile başlamaz', () => {
+    expect(startsWithGreeting(pickGreetingReply(true))).toBe(false);
+    expect(stripLeadingGreeting('Merhaba, Berlin’de bakayım.')).toBe(
+      'Berlin’de bakayım.',
+    );
+    expect(shouldAddSecondVoice('merhaba')).toBe(false);
+    expect(
+      shouldAddSecondVoice('Berlin’de Anmeldung nasıl bulunuyor?'),
+    ).toBe(true);
   });
 });

@@ -450,17 +450,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.server.to(data.chatId).emit('new_message', message);
 
-    void this.chatBot
-      .maybeReply({
+    void this.chatBot.maybeReply(
+      {
         chatId: data.chatId,
         senderId: client.userId,
         body,
-      })
-      .then((botMessage) => {
-        if (botMessage) {
+      },
+      {
+        onTyping: (user) => {
+          this.server.to(data.chatId).emit('user_typing', {
+            chatId: data.chatId,
+            userId: user.userId,
+            displayName: user.displayName,
+          });
+        },
+        onTypingStop: (userId) => {
+          this.server.to(data.chatId).emit('user_typing_stop', {
+            chatId: data.chatId,
+            userId,
+          });
+        },
+        onMessage: (botMessage) => {
           this.server.to(data.chatId).emit('new_message', botMessage);
-        }
-      });
+        },
+      },
+    );
 
     void this.notifyDmMessage(
       data.chatId,

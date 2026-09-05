@@ -24,12 +24,19 @@ const PUBLIC_CHAT_TYPES: ChatType[] = [
 ];
 
 const ROOM_COOLDOWN_MS = 2_000;
-const MIN_DELAY_MS = 3_000;
-const MAX_DELAY_MS = 7_000;
+const CAST_SIZE = 3;
+const FIRST_MIN_DELAY_MS = 2_500;
+const FIRST_MAX_DELAY_MS = 5_000;
+const SECOND_GAP_MIN_MS = 1_200;
+const SECOND_GAP_MAX_MS = 2_800;
+const SECOND_TYPE_MIN_MS = 2_000;
+const SECOND_TYPE_MAX_MS = 4_000;
 const PERSONAL_CLAIM_PATTERN =
-  /\b(ben|bende|benim|biz|tanıdığım|arkadaşım|yaşadım|yaptım|aldım|gittim|bekledim|kullandım)\b/i;
+  /\b(tanıdığım|arkadaşım|yaşadım|yaptım|aldım|gittim|bekledim|kullandım)\b/i;
 const CS_TONE_PATTERN =
   /size nasıl yardımcı|nasıl yardımcı olabilirim|buyurun size|müşteri temsil|size yardımcı olmaktan/i;
+const GREETING_LEAD = /^(merhaba|selamlar|selam)([,.!]|\s)+/i;
+const BOT_GREETING_BODY = /\b(merhaba|hoş geldin|hos geldin)\b/i;
 
 const GREETING_CORE =
   /^(merhaba|selamlar|selam|slm|selamün? aleyk[uü]m|sa|günaydın|iyi (akşamlar|günler|geceler)|hey+|hi+|hello|naber|nbr|nasılsın|nasilsin|ne haber|hoş geldiniz?|hos geldiniz?)$/i;
@@ -38,7 +45,12 @@ const GREETING_BANK = [
   'Merhaba, hoş geldin.',
   'Selam, hoş geldin.',
   'Merhaba! Hoş geldin.',
-  'Selamlar, hoş geldin.',
+];
+
+const GREETING_AGAIN = [
+  'Nasılsın?',
+  'Hey, ne var ne yok?',
+  'Sorunu yaz, bakalım.',
 ];
 
 const REPLY_BANK = [
@@ -51,6 +63,13 @@ const REPLY_BANK = [
   'Acele etme, önce resmi kaynaktan teyit. Takıldığın noktayı yaz.',
 ];
 
+const FOLLOW_BANK = [
+  'Doğru, şehir burada önemli.',
+  'Evet, resmi sayfadan bakmak en temizi.',
+  'Aynen, tarihi de yazınca netleşir.',
+  'Kısa tutayım: evrak listesi resmi kaynakta duruyor.',
+];
+
 type ChatBot = {
   id: string;
   displayName: string;
@@ -58,6 +77,13 @@ type ChatBot = {
   postalCountry: string | null;
   stateId: string | null;
   cityId: string | null;
+};
+
+type RecentLine = {
+  body: string;
+  userId: string;
+  isBot: boolean;
+  name: string;
 };
 
 export type ChatBotPresence = {
@@ -72,6 +98,19 @@ export type ChatBotTrigger = {
   chatId: string;
   senderId: string;
   body: string;
+};
+
+export type ChatBotLiveEvents = {
+  onTyping?: (user: { userId: string; displayName: string }) => void;
+  onTypingStop?: (userId: string) => void;
+  onMessage?: (message: unknown) => void;
+};
+
+export type ChatBotPlan = {
+  primary: ChatBot;
+  secondary: ChatBot | null;
+  kind: 'greeting' | 'answer';
+  alreadyGreeted: boolean;
 };
 
 export function normalizeChatText(body: string): string {
@@ -96,78 +135,108 @@ export function hasCustomerServiceTone(text: string): boolean {
   return CS_TONE_PATTERN.test(text);
 }
 
+export function startsWithGreeting(text: string): boolean {
+  return GREETING_LEAD.test(text.trim());
+}
+
+export function stripLeadingGreeting(text: string): string {
+  const stripped = text.trim().replace(GREETING_LEAD, '').trim();
+  return stripped.length >= 5 ? stripped : text.trim();
+}
+
+export function pickGreetingReply(alreadyGreeted: boolean): string {
+  const bank = alreadyGreeted ? GREETING_AGAIN : GREETING_BANK;
+  return bank[Math.floor(Math.random() * bank.length)];
+}
+
+export function shouldAddSecondVoice(body: string): boolean {
+  return !isGreetingOnly(body) && body.trim().length >= 12;
+}
+
 @Injectable()
 export class ChatBotService {
   private readonly logger = new Logger(ChatBotService.name);
   private bots: ChatBot[] | null = null;
-  private nextBotIndex = 0;
   private lastReplyAt = new Map<string, number>();
+  private busyRooms = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly chatService: ChatService,
   ) {}
 
-  async maybeReply(trigger: ChatBotTrigger) {
+  async maybeReply(trigger: ChatBotTrigger, events?: ChatBotLiveEvents) {
+    const messages: unknown[] = [];
     try {
-      const assignment = await this.findAssignment(trigger);
-      if (!assignment) return null;
+      const plan = await this.planReply(trigger);
+      if (!plan) return messages;
+      if (this.busyRooms.has(trigger.chatId)) return messages;
+      this.busyRooms.add(trigger.chatId);
 
-      const delay =
-        MIN_DELAY_MS +
-        Math.floor(Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS));
-      await new Promise((resolve) => setTimeout(resolve, delay));
-
-      const body = await this.resolveReply(trigger.body);
-      const message = await this.chatService.saveMessage(
+      const recent = await this.loadRecent(trigger.chatId);
+      const firstBody = await this.resolveReply(
+        trigger.body,
+        plan.kind,
+        plan.alreadyGreeted,
+        recent,
+        'primary',
+      );
+      const first = await this.deliver(
         trigger.chatId,
-        assignment.id,
-        body,
+        plan.primary,
+        firstBody,
+        events,
+        FIRST_MIN_DELAY_MS,
+        FIRST_MAX_DELAY_MS,
       );
+      if (first) messages.push(first);
+
+      if (plan.secondary && first) {
+        await this.sleep(this.jitter(SECOND_GAP_MIN_MS, SECOND_GAP_MAX_MS));
+        const followRecent = [
+          {
+            body: firstBody,
+            userId: plan.primary.id,
+            isBot: true,
+            name: plan.primary.displayName,
+          },
+          ...recent,
+        ];
+        const secondBody = await this.resolveReply(
+          trigger.body,
+          'answer',
+          true,
+          followRecent,
+          'follow',
+          plan.primary.displayName,
+          firstBody,
+        );
+        const second = await this.deliver(
+          trigger.chatId,
+          plan.secondary,
+          secondBody,
+          events,
+          SECOND_TYPE_MIN_MS,
+          SECOND_TYPE_MAX_MS,
+        );
+        if (second) messages.push(second);
+      }
+
       this.lastReplyAt.set(trigger.chatId, Date.now());
-      this.logger.log(
-        `${assignment.displayName} sohbet cevabı yazdı: ${trigger.chatId}`,
-      );
-      return message;
+      return messages;
     } catch (err) {
       this.logger.error('Sohbet botu hatası:', err);
-      return null;
+      return messages;
+    } finally {
+      this.busyRooms.delete(trigger.chatId);
     }
   }
 
   async shouldReply(trigger: ChatBotTrigger): Promise<boolean> {
-    return (await this.findAssignment(trigger)) !== null;
+    return (await this.planReply(trigger)) !== null;
   }
 
-  async getOnlinePresence(chatId: string): Promise<ChatBotPresence[]> {
-    const chat = await this.prisma.chat.findUnique({
-      where: { id: chatId },
-      select: {
-        type: true,
-        stateId: true,
-        cityId: true,
-        city: { select: { stateId: true } },
-      },
-    });
-    if (!chat || !PUBLIC_CHAT_TYPES.includes(chat.type)) return [];
-
-    const eligible = this.eligibleBots(await this.getBots(), chat);
-    if (eligible.length === 0) return [];
-
-    const count = chat.type === ChatType.GLOBAL ? 3 : 2;
-    const picked = eligible.slice(0, Math.min(count, eligible.length));
-    return picked.map((bot) => ({
-      userId: bot.id,
-      displayName: bot.displayName,
-      avatarUrl: bot.avatarUrl,
-      postalCountry: bot.postalCountry,
-      socketId: `bot:${bot.id}`,
-    }));
-  }
-
-  private async findAssignment(
-    trigger: ChatBotTrigger,
-  ): Promise<ChatBot | null> {
+  async planReply(trigger: ChatBotTrigger): Promise<ChatBotPlan | null> {
     const body = trigger.body.trim();
     const greeting = isGreetingOnly(body);
     if (!greeting && body.length < 8) return null;
@@ -192,16 +261,65 @@ export class ChatBotService {
 
     const lastReply = this.lastReplyAt.get(trigger.chatId) ?? 0;
     if (Date.now() - lastReply < ROOM_COOLDOWN_MS) return null;
+    if (this.busyRooms.has(trigger.chatId)) return null;
 
-    const bots = await this.getBots();
-    if (bots.length === 0) return null;
+    const cast = await this.getRoomCast(trigger.chatId, chat);
+    if (cast.length === 0) return null;
 
-    const eligible = this.eligibleBots(bots, chat);
-    if (eligible.length === 0) return null;
+    const recent = await this.loadRecent(trigger.chatId);
+    const lastBotId = recent.find((line) => line.isBot)?.userId;
+    const primary =
+      cast.find((bot) => bot.id !== lastBotId) ??
+      cast[0];
+    const secondary =
+      greeting || !shouldAddSecondVoice(body)
+        ? null
+        : (cast.find((bot) => bot.id !== primary.id) ?? null);
+    const alreadyGreeted = recent.some(
+      (line) => line.isBot && BOT_GREETING_BODY.test(line.body),
+    );
 
-    const bot = eligible[this.nextBotIndex % eligible.length];
-    this.nextBotIndex = (this.nextBotIndex + 1) % eligible.length;
-    return bot;
+    return {
+      primary,
+      secondary,
+      kind: greeting ? 'greeting' : 'answer',
+      alreadyGreeted,
+    };
+  }
+
+  async getOnlinePresence(chatId: string): Promise<ChatBotPresence[]> {
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: {
+        type: true,
+        stateId: true,
+        cityId: true,
+        city: { select: { stateId: true } },
+      },
+    });
+    if (!chat || !PUBLIC_CHAT_TYPES.includes(chat.type)) return [];
+
+    const cast = await this.getRoomCast(chatId, chat);
+    return cast.map((bot) => ({
+      userId: bot.id,
+      displayName: bot.displayName,
+      avatarUrl: bot.avatarUrl,
+      postalCountry: bot.postalCountry,
+      socketId: `bot:${bot.id}`,
+    }));
+  }
+
+  private async getRoomCast(
+    _chatId: string,
+    chat: {
+      type: ChatType;
+      stateId: string | null;
+      cityId: string | null;
+      city: { stateId: string } | null;
+    },
+  ): Promise<ChatBot[]> {
+    const eligible = this.eligibleBots(await this.getBots(), chat);
+    return eligible.slice(0, CAST_SIZE);
   }
 
   private eligibleBots(
@@ -228,7 +346,12 @@ export class ChatBotService {
       }
       return false;
     });
-    return matched.length > 0 ? matched : bots;
+    if (matched.length >= CAST_SIZE) return matched;
+    const extras = bots.filter(
+      (bot) => !matched.some((item) => item.id === bot.id),
+    );
+    const filled = [...matched, ...extras];
+    return filled.length > 0 ? filled : bots;
   }
 
   private async getBots(): Promise<ChatBot[]> {
@@ -268,20 +391,56 @@ export class ChatBotService {
     return this.bots;
   }
 
-  private async resolveReply(humanBody: string): Promise<string> {
-    if (isGreetingOnly(humanBody)) {
-      return GREETING_BANK[Math.floor(Math.random() * GREETING_BANK.length)];
+  private async loadRecent(chatId: string): Promise<RecentLine[]> {
+    const rows = await this.prisma.message.findMany({
+      where: { chatId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      take: 16,
+      select: {
+        body: true,
+        userId: true,
+        user: {
+          select: {
+            isBot: true,
+            profile: { select: { displayName: true } },
+          },
+        },
+      },
+    });
+    return rows.map((row) => ({
+      body: row.body,
+      userId: row.userId,
+      isBot: row.user.isBot,
+      name: row.user.profile?.displayName ?? 'Üye',
+    }));
+  }
+
+  private async resolveReply(
+    humanBody: string,
+    kind: 'greeting' | 'answer',
+    alreadyGreeted: boolean,
+    recent: RecentLine[],
+    voice: 'primary' | 'follow',
+    otherName?: string,
+    otherBody?: string,
+  ): Promise<string> {
+    if (kind === 'greeting' && voice === 'primary') {
+      return pickGreetingReply(alreadyGreeted);
     }
 
-    const aiReply = await this.generateAiReply(humanBody);
-    if (
-      aiReply &&
-      !PERSONAL_CLAIM_PATTERN.test(aiReply) &&
-      !hasCustomerServiceTone(aiReply)
-    ) {
-      return aiReply;
-    }
+    const aiReply = await this.generateAiReply(
+      humanBody,
+      recent,
+      voice,
+      otherName,
+      otherBody,
+    );
+    const cleaned = this.sanitizeReply(aiReply, alreadyGreeted || voice === 'follow');
+    if (cleaned) return cleaned;
 
+    if (voice === 'follow') {
+      return FOLLOW_BANK[Math.floor(Math.random() * FOLLOW_BANK.length)];
+    }
     for (let attempt = 0; attempt < 6; attempt += 1) {
       const candidate =
         REPLY_BANK[Math.floor(Math.random() * REPLY_BANK.length)];
@@ -290,9 +449,50 @@ export class ChatBotService {
     return REPLY_BANK[0];
   }
 
-  private async generateAiReply(humanBody: string): Promise<string | null> {
+  private sanitizeReply(
+    raw: string | null,
+    forbidGreeting: boolean,
+  ): string | null {
+    if (!raw) return null;
+    let text = raw.trim();
+    if (forbidGreeting && startsWithGreeting(text)) {
+      text = stripLeadingGreeting(text);
+    }
+    if (
+      PERSONAL_CLAIM_PATTERN.test(text) ||
+      hasCustomerServiceTone(text) ||
+      text.length < 5
+    ) {
+      return null;
+    }
+    return text.slice(0, 280);
+  }
+
+  private async generateAiReply(
+    humanBody: string,
+    recent: RecentLine[],
+    voice: 'primary' | 'follow',
+    otherName?: string,
+    otherBody?: string,
+  ): Promise<string | null> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return null;
+
+    const history = [...recent]
+      .reverse()
+      .slice(-8)
+      .map((line) => `${line.name}: ${line.body}`)
+      .join('\n');
+
+    const system =
+      voice === 'follow'
+        ? 'Sen Türk Expatlar genel sohbetinde "Otomatik hesap" etiketiyle görünen bir topluluk üyesisin. Odadaki başka birinin sözüne 1 kısa cümleyle katılıyorsun veya tek ayrıntı ekliyorsun. Merhaba/selam ile başlama. Müşteri temsilcisi gibi konuşma. İnsanmış gibi kişisel deneyim uydurma. Sadece mesaj metnini yaz.'
+        : 'Sen Türk Expatlar genel sohbetinde "Otomatik hesap" etiketiyle görünen bir topluluk üyesisin. Türkçe, samimi, doğal, 1-2 kısa cümle yaz. Cevaba merhaba veya selam ile başlama. Müşteri temsilcisi gibi konuşma. "Size nasıl yardımcı olabilirim" deme. İnsanmış gibi kişisel deneyim uydurma. Kesin hukuki/tıbbi tavsiye verme. Sadece mesaj metnini yaz.';
+
+    const user =
+      voice === 'follow'
+        ? `Son konuşma:\n${history || '(yok)'}\n\n${otherName ?? 'Biri'}: ${otherBody ?? ''}\nKullanıcı: ${humanBody}\n\nKısa bir ek cümle yaz, merhaba deme.`
+        : `Son konuşma:\n${history || '(yok)'}\n\nKullanıcı: ${humanBody}\n\nDoğal bir sohbet cevabı yaz. Merhaba ile başlama.`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
@@ -306,18 +506,11 @@ export class ChatBotService {
         body: JSON.stringify({
           model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
           messages: [
-            {
-              role: 'system',
-              content:
-                'Sen Türk Expatlar genel sohbetinde "Otomatik hesap" etiketiyle görünen bir topluluk üyesisin. Türkçe, samimi, doğal, 1-2 kısa cümle yaz. Müşteri temsilcisi gibi konuşma. "Size nasıl yardımcı olabilirim", "Nasıl yardımcı olabilirim", "Buyurun" deme. Selamlaşmaya sadece "Merhaba, hoş geldin" gibi karşılık ver. İnsanmış gibi kişisel deneyim uydurma. Kesin hukuki/tıbbi tavsiye verme. Sadece mesaj metnini yaz.',
-            },
-            {
-              role: 'user',
-              content: `Kullanıcı mesajı: ${humanBody}\n\nKısa ve doğal bir sohbet cevabı yaz.`,
-            },
+            { role: 'system', content: system },
+            { role: 'user', content: user },
           ],
           max_tokens: 120,
-          temperature: 0.8,
+          temperature: 0.85,
         }),
         signal: controller.signal,
       });
@@ -334,5 +527,33 @@ export class ChatBotService {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private async deliver(
+    chatId: string,
+    bot: ChatBot,
+    body: string,
+    events: ChatBotLiveEvents | undefined,
+    minDelay: number,
+    maxDelay: number,
+  ) {
+    events?.onTyping?.({ userId: bot.id, displayName: bot.displayName });
+    await this.sleep(this.jitter(minDelay, maxDelay));
+    try {
+      const message = await this.chatService.saveMessage(chatId, bot.id, body);
+      events?.onMessage?.(message);
+      this.logger.log(`${bot.displayName} sohbet cevabı yazdı: ${chatId}`);
+      return message;
+    } finally {
+      events?.onTypingStop?.(bot.id);
+    }
+  }
+
+  private jitter(min: number, max: number) {
+    return min + Math.floor(Math.random() * (max - min));
+  }
+
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

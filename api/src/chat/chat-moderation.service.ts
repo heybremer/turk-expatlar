@@ -141,6 +141,11 @@ export class ChatModerationService {
       }
     }
 
+    if (isChannel) {
+      const consecutive = await this.checkConsecutiveGuest(userId, chatId);
+      if (consecutive) return consecutive;
+    }
+
     const rateHit = this.checkRateLimit(userId);
     if (rateHit) {
       return this.warnOnly(
@@ -417,6 +422,30 @@ export class ChatModerationService {
     const digitsOnly = body.replace(/\D/g, '');
     if (digitsOnly.length < 9) return false;
     return PHONE_PATTERNS.some((re) => re.test(body));
+  }
+
+  private async checkConsecutiveGuest(
+    userId: string,
+    chatId: string,
+  ): Promise<ModerationResult | null> {
+    const last = await this.prisma.message.findFirst({
+      where: {
+        chatId,
+        deletedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { userId: true, createdAt: true },
+    });
+    if (!last || last.userId !== userId) return null;
+    if (Date.now() - last.createdAt.getTime() > 2 * 60 * 1000) return null;
+    return {
+      allowed: false,
+      code: 'CONSECUTIVE',
+      message:
+        'Ardışık mesaj göndermek yok. Önce başkasının yazmasını bekle, sonra devam et.',
+      clearInput: false,
+    };
   }
 
   private checkRateLimit(userId: string): boolean {
