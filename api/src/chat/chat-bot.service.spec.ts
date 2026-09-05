@@ -6,6 +6,7 @@ import {
   hasCustomerServiceTone,
   isGreetingOnly,
   pickGreetingReply,
+  resolveChatModel,
   shouldAddSecondVoice,
   startsWithGreeting,
   stripLeadingGreeting,
@@ -306,5 +307,15 @@ describe('sohbet botu selamlaşma', () => {
     expect(
       shouldAddSecondVoice('Berlin’de Anmeldung nasıl bulunuyor?'),
     ).toBe(true);
+  });
+
+  it('sohbet için gpt-4.1 kullanır', () => {
+    const previous = process.env.OPENAI_CHAT_MODEL;
+    delete process.env.OPENAI_CHAT_MODEL;
+    expect(resolveChatModel()).toBe('gpt-4.1');
+    process.env.OPENAI_CHAT_MODEL = 'gpt-4o';
+    expect(resolveChatModel()).toBe('gpt-4o');
+    if (previous === undefined) delete process.env.OPENAI_CHAT_MODEL;
+    else process.env.OPENAI_CHAT_MODEL = previous;
   });
 });

@@ -70,6 +70,15 @@ const FOLLOW_BANK = [
   'Kısa tutayım: evrak listesi resmi kaynakta duruyor.',
 ];
 
+const DEFAULT_CHAT_MODEL = 'gpt-4.1';
+
+export function resolveChatModel(): string {
+  return (
+    process.env.OPENAI_CHAT_MODEL?.trim() ||
+    DEFAULT_CHAT_MODEL
+  );
+}
+
 type ChatBot = {
   id: string;
   displayName: string;
@@ -174,25 +183,33 @@ export class ChatBotService {
       this.busyRooms.add(trigger.chatId);
 
       const recent = await this.loadRecent(trigger.chatId);
-      const firstBody = await this.resolveReply(
-        trigger.body,
-        plan.kind,
-        plan.alreadyGreeted,
-        recent,
-        'primary',
-      );
-      const first = await this.deliver(
+      const first = await this.speak(
         trigger.chatId,
         plan.primary,
-        firstBody,
         events,
         FIRST_MIN_DELAY_MS,
         FIRST_MAX_DELAY_MS,
+        () =>
+          this.resolveReply(
+            trigger.body,
+            plan.kind,
+            plan.alreadyGreeted,
+            recent,
+            'primary',
+            plan.primary.displayName,
+          ),
       );
       if (first) messages.push(first);
 
       if (plan.secondary && first) {
         await this.sleep(this.jitter(SECOND_GAP_MIN_MS, SECOND_GAP_MAX_MS));
+        const firstBody =
+          typeof first === 'object' &&
+          first &&
+          'body' in first &&
+          typeof first.body === 'string'
+            ? first.body
+            : '';
         const followRecent = [
           {
             body: firstBody,
@@ -202,22 +219,23 @@ export class ChatBotService {
           },
           ...recent,
         ];
-        const secondBody = await this.resolveReply(
-          trigger.body,
-          'answer',
-          true,
-          followRecent,
-          'follow',
-          plan.primary.displayName,
-          firstBody,
-        );
-        const second = await this.deliver(
+        const second = await this.speak(
           trigger.chatId,
           plan.secondary,
-          secondBody,
           events,
           SECOND_TYPE_MIN_MS,
           SECOND_TYPE_MAX_MS,
+          () =>
+            this.resolveReply(
+              trigger.body,
+              'answer',
+              true,
+              followRecent,
+              'follow',
+              plan.secondary!.displayName,
+              plan.primary.displayName,
+              firstBody,
+            ),
         );
         if (second) messages.push(second);
       }
@@ -421,6 +439,7 @@ export class ChatBotService {
     alreadyGreeted: boolean,
     recent: RecentLine[],
     voice: 'primary' | 'follow',
+    speakerName: string,
     otherName?: string,
     otherBody?: string,
   ): Promise<string> {
@@ -432,6 +451,7 @@ export class ChatBotService {
       humanBody,
       recent,
       voice,
+      speakerName,
       otherName,
       otherBody,
     );
@@ -472,6 +492,7 @@ export class ChatBotService {
     humanBody: string,
     recent: RecentLine[],
     voice: 'primary' | 'follow',
+    speakerName: string,
     otherName?: string,
     otherBody?: string,
   ): Promise<string | null> {
@@ -483,19 +504,21 @@ export class ChatBotService {
       .slice(-8)
       .map((line) => `${line.name}: ${line.body}`)
       .join('\n');
+    const firstName = speakerName.split(' ')[0] || speakerName;
+    const model = resolveChatModel();
 
     const system =
       voice === 'follow'
-        ? 'Sen Türk Expatlar genel sohbetinde "Otomatik hesap" etiketiyle görünen bir topluluk üyesisin. Odadaki başka birinin sözüne 1 kısa cümleyle katılıyorsun veya tek ayrıntı ekliyorsun. Merhaba/selam ile başlama. Müşteri temsilcisi gibi konuşma. İnsanmış gibi kişisel deneyim uydurma. Sadece mesaj metnini yaz.'
-        : 'Sen Türk Expatlar genel sohbetinde "Otomatik hesap" etiketiyle görünen bir topluluk üyesisin. Türkçe, samimi, doğal, 1-2 kısa cümle yaz. Cevaba merhaba veya selam ile başlama. Müşteri temsilcisi gibi konuşma. "Size nasıl yardımcı olabilirim" deme. İnsanmış gibi kişisel deneyim uydurma. Kesin hukuki/tıbbi tavsiye verme. Sadece mesaj metnini yaz.';
+        ? `Sen ${firstName} adıyla Türk Expatlar sohbetindesin; profilinde "Otomatik hesap" yazıyor. WhatsApp grubundaki biri gibi 1 kısa cümle yaz: ${otherName ?? 'diğerinin'} sözüne katıl veya tek somut ayrıntı ekle. Günlük konuşma dili, küçük harf/nokta serbest. Merhaba/selam ile başlama. Müşteri temsilcisi gibi konuşma. Yaşanmış hikaye, tanıdık veya kimlik uydurma. Sadece mesaj metnini yaz.`
+        : `Sen ${firstName} adıyla Türk Expatlar sohbetindesin; profilinde "Otomatik hesap" yazıyor. WhatsApp grubundaki biri gibi yaz: kısa, somut, günlük Türkçe, 1-2 cümle. Soruya gerçekten cevap ver; genel geçer "şehir yaz" ile kaçma. Cevaba merhaba/selam ile başlama. Müşteri temsilcisi gibi konuşma, "nasıl yardımcı olabilirim" deme. Yaşanmış hikaye, tanıdık veya kimlik uydurma. Kesin hukuki/tıbbi/vergi hükmü verme; resmi kaynağa yönlendir. Sadece mesaj metnini yaz.`;
 
     const user =
       voice === 'follow'
-        ? `Son konuşma:\n${history || '(yok)'}\n\n${otherName ?? 'Biri'}: ${otherBody ?? ''}\nKullanıcı: ${humanBody}\n\nKısa bir ek cümle yaz, merhaba deme.`
-        : `Son konuşma:\n${history || '(yok)'}\n\nKullanıcı: ${humanBody}\n\nDoğal bir sohbet cevabı yaz. Merhaba ile başlama.`;
+        ? `Son konuşma:\n${history || '(yok)'}\n\n${otherName ?? 'Biri'}: ${otherBody ?? ''}\nKullanıcı: ${humanBody}\n\n${firstName} olarak kısa bir ek cümle yaz, merhaba deme.`
+        : `Son konuşma:\n${history || '(yok)'}\n\nKullanıcı: ${humanBody}\n\n${firstName} olarak doğal, işe yarar bir sohbet cevabı yaz. Merhaba ile başlama.`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12_000);
+    const timeout = setTimeout(() => controller.abort(), 14_000);
     try {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -504,17 +527,25 @@ export class ChatBotService {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+          model,
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: user },
           ],
-          max_tokens: 120,
-          temperature: 0.85,
+          max_tokens: 160,
+          temperature: 0.9,
+          presence_penalty: 0.35,
+          frequency_penalty: 0.2,
         }),
         signal: controller.signal,
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        this.logger.warn(
+          `Sohbet AI isteği başarısız (${model}, ${res.status}): ${errText.slice(0, 180)}`,
+        );
+        return null;
+      }
       const data = (await res.json()) as {
         choices?: { message?: { content?: string } }[];
       };
@@ -522,27 +553,31 @@ export class ChatBotService {
       if (typeof raw !== 'string') return null;
       const cleaned = raw.trim().replace(/^["'“”]+|["'“”]+$/g, '');
       return cleaned.length >= 5 ? cleaned.slice(0, 280) : null;
-    } catch {
+    } catch (err) {
+      this.logger.warn(`Sohbet AI çağrısı hata verdi (${model}): ${String(err)}`);
       return null;
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  private async deliver(
+  private async speak(
     chatId: string,
     bot: ChatBot,
-    body: string,
     events: ChatBotLiveEvents | undefined,
     minDelay: number,
     maxDelay: number,
+    compose: () => Promise<string>,
   ) {
     events?.onTyping?.({ userId: bot.id, displayName: bot.displayName });
-    await this.sleep(this.jitter(minDelay, maxDelay));
     try {
+      const [body] = await Promise.all([
+        compose(),
+        this.sleep(this.jitter(minDelay, maxDelay)),
+      ]);
       const message = await this.chatService.saveMessage(chatId, bot.id, body);
       events?.onMessage?.(message);
-      this.logger.log(`${bot.displayName} sohbet cevabı yazdı: ${chatId}`);
+      this.logger.log(`${bot.displayName} sohbet cevabı yazdı (${resolveChatModel()}): ${chatId}`);
       return message;
     } finally {
       events?.onTypingStop?.(bot.id);
