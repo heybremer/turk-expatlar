@@ -28,6 +28,7 @@ export default function YeniEtkinlik() {
   const [cityId, setCityId] = useState("");
   const [stateId, setStateId] = useState("");
   const [priceType, setPriceType] = useState<"FREE" | "PAID">("FREE");
+  const [priceAmount, setPriceAmount] = useState("");
 
   const { data: states } = useQuery({
     queryKey: ["states"],
@@ -39,7 +40,7 @@ export default function YeniEtkinlik() {
 
   const createMut = useMutation({
     mutationFn: () =>
-      api.post<{ id: string }>("/events", { title, description, location, startsAt, cityId, stateId, priceType }, token),
+      api.post<{ id: string }>("/events", { title, description, location, startsAt, cityId, stateId, priceType, ...(priceType === "PAID" ? { priceAmount: Number(priceAmount) } : {}) }, token),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ["events"] });
       router.replace(`/(tabs)/etkinlikler/${res.id}`);
@@ -47,7 +48,7 @@ export default function YeniEtkinlik() {
     onError: () => Alert.alert("Hata", "Etkinlik oluşturulamadı"),
   });
 
-  const canSubmit = title.trim() && description.trim() && location.trim() && startsAt && stateId && cityId;
+  const canSubmit = title.trim() && description.trim() && location.trim() && startsAt && stateId && cityId && (priceType === "FREE" || Number(priceAmount) > 0);
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -115,6 +116,19 @@ export default function YeniEtkinlik() {
             ))}
           </View>
         </View>
+        {priceType === "PAID" ? (
+          <View>
+            <Text className="mb-1 text-sm font-medium text-text">Bilet fiyatı (€)</Text>
+            <TextInput
+              value={priceAmount}
+              onChangeText={setPriceAmount}
+              placeholder="Örn. 15"
+              keyboardType="decimal-pad"
+              placeholderTextColor="#9ca3af"
+              className="min-h-12 rounded-xl border border-border bg-surface px-4 text-text"
+            />
+          </View>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

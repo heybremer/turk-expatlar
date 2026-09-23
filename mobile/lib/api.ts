@@ -92,11 +92,20 @@ export type LevelProgress = {
 export type AuthUser = {
   id: string;
   email: string;
+  phone?: string | null;
   role: string;
   emailVerified?: boolean;
+  twoFactorEnabled?: boolean;
   levelProgress?: LevelProgress;
   profile?: {
     displayName: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    bio?: string | null;
+    occupation?: string | null;
+    userStatus?: string | null;
+    languages?: string[];
+    dmEnabled?: boolean;
     avatarUrl?: string | null;
     stateId?: string | null;
     cityId?: string | null;
@@ -228,6 +237,56 @@ export type Notification = {
   link?: string | null;
   read: boolean;
   createdAt: string;
+};
+
+export type CourierRequest = {
+  id: string;
+  direction: "DE_TO_TR" | "TR_TO_DE";
+  fromArea: string;
+  toArea: string;
+  itemName: string;
+  itemCategory: string;
+  weightKg?: number | null;
+  estimatedValueEur?: number | null;
+  paymentType: "FREE" | "PAID" | "NEGOTIABLE";
+  paymentAmount?: number | null;
+  notes?: string | null;
+  preferredDate?: string | null;
+  status: "OPEN" | "MATCHED" | "COMPLETED" | "CANCELLED";
+  acceptanceCount?: number;
+  createdAt: string;
+  owner?: ChatUserRef | null;
+  confirmed?: {
+    id: string;
+    travelDate?: string | null;
+    traveler: ChatUserRef;
+  } | null;
+};
+
+export type TravelAnnouncement = {
+  id: string;
+  direction: "DE_TO_TR" | "TR_TO_DE";
+  fromCity: string;
+  toCity: string;
+  departureDate: string;
+  availableKg?: number | null;
+  notes?: string | null;
+  status: "OPEN" | "CLOSED" | "EXPIRED";
+  createdAt: string;
+  requestCount?: number;
+  _count?: { requests: number };
+  isOwner?: boolean;
+  user?: ChatUserRef | null;
+  requests?: {
+    id: string;
+    itemName: string;
+    description?: string | null;
+    weightKg?: number | null;
+    paymentType: "FREE" | "PAID" | "NEGOTIABLE";
+    paymentAmount?: number | null;
+    status: string;
+    user: ChatUserRef;
+  }[];
 };
 
 export type HomeFeed = {

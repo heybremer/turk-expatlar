@@ -181,7 +181,7 @@ export default function YeniForumKonusu() {
             <Text className="text-sm font-medium text-text">Anonim olarak gönder</Text>
             <Text className="text-xs text-muted mt-0.5">Moderasyon onayından geçer</Text>
           </View>
-          <Switch value={isAnonymous} onValueChange={setIsAnonymous} trackColor={{ true: "#1a56db" }} />
+          <Switch value={isAnonymous} onValueChange={setIsAnonymous} trackColor={{ true: "#0f766e" }} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

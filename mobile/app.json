@@ -20,15 +20,14 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1a56db"
+        "backgroundColor": "#0f766e"
       },
       "package": "de.turkexpatlar.app",
       "versionCode": 1,
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
+        "POST_NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"
       ]
@@ -42,7 +41,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash.png",
-          "backgroundColor": "#1a56db",
+          "backgroundColor": "#0f766e",
           "resizeMode": "contain",
           "imageWidth": 200
         }
@@ -53,7 +52,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#1a56db"
+          "color": "#0f766e"
         }
       ],
       [
@@ -68,12 +67,7 @@
           "microphonePermission": "Sesli mesaj göndermek için mikrofon izni gereklidir."
         }
       ],
-      [
-        "@sentry/react-native/expo",
-        {
-          "disableAutoUpload": true
-        }
-      ]
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

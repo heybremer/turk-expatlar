@@ -53,7 +53,7 @@ export default function EtkinlikDetay() {
 
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 16 }}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
       >
         <View className="bg-surface rounded-2xl p-4 border border-border">
           <View className="flex-row flex-wrap gap-2 mb-3">
@@ -67,7 +67,7 @@ export default function EtkinlikDetay() {
           <View className="gap-2 mb-4">
             <View className="flex-row items-center gap-3">
               <View className="h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-                <Ionicons name="calendar-outline" size={16} color="#1a56db" />
+                <Ionicons name="calendar-outline" size={16} color="#0f766e" />
               </View>
               <View>
                 <Text className="text-sm font-medium text-text">{formatDateTime(data.startsAt)}</Text>
@@ -76,13 +76,13 @@ export default function EtkinlikDetay() {
             </View>
             <View className="flex-row items-center gap-3">
               <View className="h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-                <Ionicons name="location-outline" size={16} color="#1a56db" />
+                <Ionicons name="location-outline" size={16} color="#0f766e" />
               </View>
               <Text className="text-sm text-text flex-1">{data.location} · {data.city.name}, {data.state.name}</Text>
             </View>
             <View className="flex-row items-center gap-3">
               <View className="h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
-                <Ionicons name="people-outline" size={16} color="#1a56db" />
+                <Ionicons name="people-outline" size={16} color="#0f766e" />
               </View>
               <Text className="text-sm text-text">
                 {data._count?.attendees ?? 0} katılımcı

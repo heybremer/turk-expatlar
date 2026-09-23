@@ -76,7 +76,7 @@ function MenuRow({
       }`}
     >
       <View className={`h-10 w-10 items-center justify-center rounded-xl ${active ? "bg-white/20" : "bg-surface"}`}>
-        <Ionicons name={item.icon} size={19} color={active ? "#ffffff" : "#1a56db"} />
+        <Ionicons name={item.icon} size={19} color={active ? "#ffffff" : "#0f766e"} />
       </View>
       <View className="flex-1">
         <Text className={`text-sm font-bold ${active ? "text-white" : "text-text"}`}>{item.label}</Text>
@@ -162,9 +162,12 @@ export function NavigationMenuProvider({ children }: { children: ReactNode }) {
 
   const secondaryItems: MenuItem[] = useMemo(
     () => [
+      { icon: "search-outline", label: "Arama", description: "Tüm içeriklerde arayın", href: "/ara" },
       { icon: "storefront-outline", label: "Rehber", description: "Türkçe hizmet veren işletmeler", href: "/rehber" },
       { icon: "briefcase-outline", label: "İş İlanları", description: "İş ve kariyer fırsatları", href: "/isler" },
+      { icon: "airplane-outline", label: "Seyahat", description: "Taşıma talepleri ve yolculuk ilanları", href: "/seyahat" as Href },
       { icon: "apps-outline", label: "Mini Uygulamalar", description: "Haberler ve pratik araçlar", href: "/uygulamalar" },
+      { icon: "shield-checkmark-outline", label: "Sohbet Kuralları", description: "Güvenli iletişim ilkeleri", href: "/uygulamalar/web?tool=sohbet-kurallar" as Href },
     ],
     [],
   );
@@ -173,6 +176,8 @@ export function NavigationMenuProvider({ children }: { children: ReactNode }) {
     () => [
       { icon: "person-outline", label: "Profilim", description: "Hesap, bildirim ve ayarlar", href: "/(tabs)/profil" },
       { icon: "notifications-outline", label: "Bildirimler", description: "Tüm aktiviteleriniz", href: "/(tabs)/profil/bildirimler", badge: unreadCount },
+      { icon: "help-buoy-outline", label: "Destek", description: "Sorun, öneri ve istek gönderin", href: "/destek" },
+      { icon: "information-circle-outline", label: "Hakkında ve Yasal", description: "Gizlilik ve kullanım koşulları", href: "/bilgi/hakkinda" as Href },
     ],
     [unreadCount],
   );

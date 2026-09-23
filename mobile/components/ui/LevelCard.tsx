@@ -15,7 +15,7 @@ export function LevelCard({ levelProgress, compact = false }: Props) {
   if (compact) {
     return (
       <View className="flex-row items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1">
-        <Ionicons name="trophy" size={12} color="#1a56db" />
+        <Ionicons name="trophy" size={12} color="#0f766e" />
         <Text className="text-xs font-semibold text-primary">Seviye {level}</Text>
       </View>
     );
@@ -26,7 +26,7 @@ export function LevelCard({ levelProgress, compact = false }: Props) {
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center gap-2.5">
           <View className="h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-            <Ionicons name="trophy" size={16} color="#1a56db" />
+            <Ionicons name="trophy" size={16} color="#0f766e" />
           </View>
           <View>
             <Text className="text-sm font-bold text-text">Seviye {level}</Text>

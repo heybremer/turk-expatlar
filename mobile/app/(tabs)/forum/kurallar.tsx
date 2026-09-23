@@ -58,7 +58,7 @@ export default function ForumKurallarScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
         <View className="flex-row items-center gap-3 mb-4">
           <View className="w-11 h-11 rounded-full bg-primary/10 items-center justify-center">
-            <Ionicons name="document-text-outline" size={20} color="#1a56db" />
+            <Ionicons name="document-text-outline" size={20} color="#0f766e" />
           </View>
           <Text className="flex-1 text-sm text-muted leading-5">
             Forum, Almanya&apos;daki Türkçe konuşan topluluğun soru-cevap ve deneyim paylaşım alanıdır. Herkesin

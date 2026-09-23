@@ -71,7 +71,7 @@ export function ForwardModal({ visible, token, onClose, onSelect }: Props) {
 
           {searching ? (
             <View className="py-6 items-center">
-              <ActivityIndicator color="#1a56db" />
+              <ActivityIndicator color="#0f766e" />
             </View>
           ) : data.length === 0 ? (
             <Text className="text-sm text-muted text-center py-6">

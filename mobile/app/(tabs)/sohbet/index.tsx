@@ -32,7 +32,7 @@ function RoomRow({ room }: { room: RoomRowData }) {
       className="flex-row items-center gap-3 px-4 py-3 border-b border-border bg-surface"
     >
       <View className="w-11 h-11 bg-primary/10 rounded-full items-center justify-center">
-        <Ionicons name={room.icon} size={20} color="#1a56db" />
+        <Ionicons name={room.icon} size={20} color="#0f766e" />
       </View>
       <View className="flex-1">
         <Text className="font-semibold text-text">{room.label}</Text>
@@ -230,7 +230,7 @@ export default function SohbetIndex() {
                 onPress={() => router.push("/(tabs)/sohbet/yeni" as never)}
                 className="w-9 h-9 rounded-full bg-primary/10 items-center justify-center"
               >
-                <Ionicons name="create-outline" size={18} color="#1a56db" />
+                <Ionicons name="create-outline" size={18} color="#0f766e" />
               </TouchableOpacity>
             ) : undefined
           }
@@ -274,7 +274,7 @@ export default function SohbetIndex() {
         <FlatList
           data={items}
           keyExtractor={(item) => item.key}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
           renderItem={({ item }) => (item.kind === "header" ? <SectionLabel label={item.label} /> : <RoomRow room={item.room} />)}
         />
       ) : !token ? (
@@ -285,7 +285,7 @@ export default function SohbetIndex() {
         <FlatList
           data={visibleDms}
           keyExtractor={(d) => d.chatId}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
           renderItem={({ item }) => <DmRow dm={item} onDelete={handleDeleteDm} />}
         />
       )}

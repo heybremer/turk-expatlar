@@ -27,7 +27,7 @@ function SectionHeader({ title, onMore }: { title: string; onMore?: () => void }
       {onMore && (
         <TouchableOpacity onPress={onMore} className="flex-row items-center gap-1">
           <Text className="text-sm text-primary">Tümü</Text>
-          <Ionicons name="chevron-forward" size={14} color="#1a56db" />
+          <Ionicons name="chevron-forward" size={14} color="#0f766e" />
         </TouchableOpacity>
       )}
     </View>
@@ -161,7 +161,7 @@ export default function AkisScreen() {
         data={buildList()}
         keyExtractor={(item) => item.key}
         contentContainerStyle={{ padding: 16, flexGrow: 1 }}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
         ListEmptyComponent={
           <EmptyState
             icon="newspaper-outline"

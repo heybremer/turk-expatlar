@@ -49,7 +49,7 @@ export function OnlineUsersModal({ visible, users, currentUserId, onClose, onSel
                     </View>
                     {!isMe && (
                       <View className="flex-row items-center gap-1 bg-primary/10 rounded-full px-2.5 py-1">
-                        <Ionicons name="chatbubble-outline" size={13} color="#1a56db" />
+                        <Ionicons name="chatbubble-outline" size={13} color="#0f766e" />
                         <Text className="text-xs font-semibold text-primary">Mesaj</Text>
                       </View>
                     )}

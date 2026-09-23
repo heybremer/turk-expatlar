@@ -77,11 +77,14 @@ export const useAuth = create<AuthState>()(
   ),
 );
 
-export async function login(email: string, password: string) {
-  const res = await api.post<{ user: AuthUser; accessToken: string }>(
+export async function login(email: string, password: string, code?: string) {
+  const res = await api.post<
+    { user: AuthUser; accessToken: string } | { requiresTwoFactor: true }
+  >(
     "/auth/login",
-    { email, password },
+    { email, password, ...(code ? { code } : {}) },
   );
+  if ("requiresTwoFactor" in res) return res;
   useAuth.getState().setAuth(res.user, res.accessToken);
   markSessionIndicatorCookie();
   if (res.user.role === "ADMIN" || res.user.role === "MODERATOR") {

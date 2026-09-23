@@ -10,7 +10,12 @@ type Props = {
 export function StarRating({ rating, size = 14, color = "#d97706" }: Props) {
   const rounded = Math.round(rating);
   return (
-    <View className="flex-row items-center gap-0.5">
+    <View
+      className="flex-row items-center gap-0.5"
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={`${rating.toFixed(1)} / 5 yıldız`}
+    >
       {Array.from({ length: 5 }, (_, i) => (
         <Ionicons key={i} name={i < rounded ? "star" : "star-outline"} size={size} color={color} />
       ))}

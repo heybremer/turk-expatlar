@@ -6,6 +6,7 @@ import { api, Notification } from "@/lib/api";
 import { formatRelative } from "@/lib/utils";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { DetailHeader } from "@/components/navigation/DetailHeader";
 
 type NotifResponse = { items: Notification[]; unreadCount: number };
@@ -26,6 +27,18 @@ function resolveNotificationRoute(link?: string | null): string | null {
       return `/isler/${id}`;
     case "rehber":
       return `/rehber/${id}`;
+    case "kullanici":
+      return `/kullanici/${id}`;
+    case "seyahat":
+      return segments[1] === "yolculuk" && segments[2]
+        ? `/seyahat/yolculuk/${segments[2]}`
+        : `/seyahat/${id}`;
+    case "sohbet":
+      return segments[1] === "dm" && segments[2]
+        ? `/(tabs)/sohbet/dm-${segments[2]}`
+        : "/(tabs)/sohbet";
+    case "uyelik":
+      return "/uyelik";
     default:
       return null;
   }
@@ -36,7 +49,7 @@ export default function BildirimlerScreen() {
   const router = useRouter();
   const qc = useQueryClient();
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => api.get<NotifResponse>("/notifications", token),
     enabled: !!token,
@@ -73,12 +86,14 @@ export default function BildirimlerScreen() {
 
       {isLoading ? (
         <LoadingScreen />
+      ) : isError ? (
+        <ErrorState title="Bildirimler yüklenemedi" onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={data?.items ?? []}
           keyExtractor={(n) => n.id}
           contentContainerStyle={{ padding: 16 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
           renderItem={({ item }) => (
             <TouchableOpacity
               activeOpacity={0.7}

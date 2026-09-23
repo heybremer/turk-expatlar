@@ -58,7 +58,9 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(dto);
-    setTokenCookie(res, result.accessToken);
+    if ('accessToken' in result) {
+      setTokenCookie(res, result.accessToken);
+    }
     return result;
   }
 

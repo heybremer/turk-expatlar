@@ -17,6 +17,7 @@ export function BackButton({ onPress, color = colors.primary, size = 22, ...rest
       accessibilityRole="button"
       accessibilityLabel="Geri"
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      className="h-11 w-11 items-center justify-center"
       {...rest}
     >
       <Ionicons name="arrow-back" size={size} color={color} />

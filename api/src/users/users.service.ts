@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { createUniqueReferralCode } from '../common/referral.util';
 import { resolveAllowedPages } from '../common/page-permissions';
 import { validatePostalForCountry } from '../common/postal-country.util';
+import { sanitizeUser } from '../common/sanitize-user.util';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { getLevelProgress } from '../gamification/level.util';
@@ -37,7 +38,7 @@ export class UsersService {
       },
     });
     if (!user) throw new NotFoundException();
-    const { passwordHash: _, ...safe } = user;
+    const safe = sanitizeUser(user);
 
     // Onboarding yalnızca posta kodu doluysa otomatik tamamlanır (eski 5 dk kuralı kaldırıldı)
 
@@ -229,23 +230,37 @@ export class UsersService {
   }
 
   async deleteAccount(userId: string) {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        deletedAt: new Date(),
-        email: `deleted_${userId}@anonymized.local`,
-        status: 'BANNED',
-        profile: {
-          update: {
-            displayName: 'Silinmiş Kullanıcı',
-            firstName: null,
-            lastName: null,
-            bio: null,
-            avatarUrl: null,
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          deletedAt: new Date(),
+          email: `deleted_${userId}@anonymized.local`,
+          status: 'BANNED',
+          phone: null,
+          passwordHash: null,
+          googleId: null,
+          twoFactorEnabled: false,
+          twoFactorSecret: null,
+          expoPushToken: null,
+          profile: {
+            update: {
+              displayName: 'Silinmiş Kullanıcı',
+              firstName: null,
+              lastName: null,
+              bio: null,
+              avatarUrl: null,
+              occupation: null,
+              postalCode: null,
+              dmEnabled: false,
+            },
           },
         },
-      },
-    });
+      }),
+      this.prisma.pushSubscription.deleteMany({ where: { userId } }),
+      this.prisma.emailVerificationToken.deleteMany({ where: { userId } }),
+      this.prisma.passwordResetToken.deleteMany({ where: { userId } }),
+    ]);
     return { message: 'Hesabınız silindi ve verileriniz anonimleştirildi' };
   }
 
@@ -272,7 +287,7 @@ export class UsersService {
             displayName: true,
             avatarUrl: true,
             postalCountry: true,
-            city: { select: { name: true } },
+            city: { select: { name: true, slug: true } },
             state: { select: { name: true } },
           },
         },

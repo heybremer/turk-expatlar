@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -24,7 +25,11 @@ export function usePushNotifications() {
   const registered = useRef(false);
 
   useEffect(() => {
-    if (!token || registered.current) return;
+    if (!token) {
+      registered.current = false;
+      return;
+    }
+    if (registered.current) return;
 
     void registerForPushNotifications(token).then(() => {
       registered.current = true;
@@ -77,7 +82,14 @@ async function registerForPushNotifications(authToken: string) {
   }
 
   try {
-    const expoPushToken = (await Notifications.getExpoPushTokenAsync()).data;
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+    const expoPushToken = (
+      await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined,
+      )
+    ).data;
     await api.post("/notifications/expo-token", { token: expoPushToken }, authToken);
   } catch {
     // Push token kaydı kritik değil, sessizce devam et

@@ -4,14 +4,15 @@
  * className kullanamayan yerlerde bu sabitler kullanılır.
  */
 export const colors = {
-  primary: "#1a56db",
-  primaryDark: "#1444b8",
+  primary: "#0f766e",
+  primaryDark: "#115e59",
+  accent: "#e11d48",
   surface: "#ffffff",
-  background: "#f3f4f6",
-  border: "#e5e7eb",
-  text: "#111827",
-  muted: "#6b7280",
-  mutedLight: "#9ca3af",
+  background: "#f8fafc",
+  border: "#e2e8f0",
+  text: "#0f172a",
+  muted: "#64748b",
+  mutedLight: "#94a3b8",
   success: "#16a34a",
   danger: "#dc2626",
   warning: "#d97706",

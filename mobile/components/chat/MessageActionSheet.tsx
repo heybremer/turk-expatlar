@@ -53,7 +53,7 @@ export function MessageActionSheet({
             }}
             className="flex-row items-center gap-3 py-3"
           >
-            <Ionicons name="arrow-undo-outline" size={18} color="#1a56db" />
+            <Ionicons name="arrow-undo-outline" size={18} color="#0f766e" />
             <Text className="text-sm font-medium text-text">Yanıtla</Text>
           </TouchableOpacity>
 

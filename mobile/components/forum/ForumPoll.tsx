@@ -32,7 +32,7 @@ export function ForumPoll({ initialPoll }: { initialPoll: ForumPollType | null }
   return (
     <View className="mt-4 rounded-xl border border-border bg-background p-3.5">
       <View className="flex-row items-center gap-2">
-        <Ionicons name="bar-chart-outline" size={16} color="#1a56db" />
+        <Ionicons name="bar-chart-outline" size={16} color="#0f766e" />
         <Text className="text-sm font-semibold text-text flex-1">{poll.question}</Text>
       </View>
 
@@ -54,7 +54,7 @@ export function ForumPoll({ initialPoll }: { initialPoll: ForumPollType | null }
             )}
             <View className="relative flex-row items-center justify-between px-3 py-2.5">
               <View className="flex-row items-center gap-2 flex-1 min-w-0">
-                {option.userVoted && <Ionicons name="checkmark-circle" size={15} color="#1a56db" />}
+                {option.userVoted && <Ionicons name="checkmark-circle" size={15} color="#0f766e" />}
                 <Text className="text-sm text-text flex-shrink" numberOfLines={2}>
                   {option.text}
                 </Text>

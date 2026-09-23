@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Text, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -57,7 +57,7 @@ export default function HaberlerScreen() {
 
       {loading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#1a56db" />
+          <ActivityIndicator size="large" color="#0f766e" />
         </View>
       ) : error ? (
         <EmptyState icon="newspaper-outline" title={error} subtitle="Profil bilgilerinizi tamamlayın" />
@@ -69,6 +69,11 @@ export default function HaberlerScreen() {
           keyExtractor={(a, i) => `${i}-${a.url}`}
           contentContainerStyle={{ padding: 16 }}
           renderItem={({ item }) => (
+            <TouchableOpacity
+              onPress={() => void Linking.openURL(item.url)}
+              accessibilityRole="link"
+              accessibilityLabel={`${item.title} haberini aç`}
+            >
             <Card className="mb-3">
               <Text className="font-semibold text-text mb-1" numberOfLines={2}>{item.title}</Text>
               {item.description && (
@@ -79,6 +84,7 @@ export default function HaberlerScreen() {
                 {item.publishedAt && <Text className="text-xs text-muted">{item.publishedAt.slice(0, 10)}</Text>}
               </View>
             </Card>
+            </TouchableOpacity>
           )}
         />
       )}

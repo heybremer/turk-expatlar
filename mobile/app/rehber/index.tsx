@@ -85,7 +85,7 @@ export default function RehberIndex() {
           data={data?.items ?? []}
           keyExtractor={(b) => b.id}
           contentContainerStyle={{ padding: 16 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
           renderItem={({ item }) => <BusinessCard biz={item} />}
           ListEmptyComponent={<EmptyState icon="storefront-outline" title="İşletme bulunamadı" />}
           ListFooterComponent={

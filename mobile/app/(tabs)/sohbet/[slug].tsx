@@ -799,7 +799,7 @@ export default function ChatRoomScreen() {
         <DetailHeader title={roomName || "Şifreli Oda"} onBack={() => router.back()} />
         <View className="flex-1 items-center justify-center px-6 gap-4">
           <View className="w-16 h-16 rounded-full bg-primary/10 items-center justify-center">
-            <Ionicons name="key-outline" size={28} color="#1a56db" />
+            <Ionicons name="key-outline" size={28} color="#0f766e" />
           </View>
           <Text className="text-base font-bold text-text">Şifreli Oda</Text>
           <Text className="text-sm text-muted text-center">Devam etmek için oda şifresini girin.</Text>
@@ -915,10 +915,10 @@ export default function ChatRoomScreen() {
             </Text>
           ) : null}
           <TouchableOpacity onPress={() => goToSearchMatch(-1)} disabled={searchMatches.length === 0}>
-            <Ionicons name="chevron-up" size={18} color={searchMatches.length === 0 ? "#d1d5db" : "#1a56db"} />
+            <Ionicons name="chevron-up" size={18} color={searchMatches.length === 0 ? "#d1d5db" : "#0f766e"} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => goToSearchMatch(1)} disabled={searchMatches.length === 0}>
-            <Ionicons name="chevron-down" size={18} color={searchMatches.length === 0 ? "#d1d5db" : "#1a56db"} />
+            <Ionicons name="chevron-down" size={18} color={searchMatches.length === 0 ? "#d1d5db" : "#0f766e"} />
           </TouchableOpacity>
         </View>
       )}
@@ -946,7 +946,7 @@ export default function ChatRoomScreen() {
           ListHeaderComponent={
             loadingOlder ? (
               <View className="items-center py-3">
-                <ActivityIndicator size="small" color="#1a56db" />
+                <ActivityIndicator size="small" color="#0f766e" />
               </View>
             ) : null
           }
@@ -980,6 +980,11 @@ export default function ChatRoomScreen() {
                 onReact={(emoji) => handleReact(item.id, emoji)}
                 onImagePress={(url) => setViewerImageUrl(url)}
                 onRetry={() => retrySendMessage(item)}
+                onUserPress={
+                  isMe
+                    ? undefined
+                    : () => router.push(`/kullanici/${item.user.id}` as never)
+                }
                 token={token}
                 highlighted={searchOpen && searchMatches[searchMatchPos] === index}
               />
@@ -1048,7 +1053,7 @@ export default function ChatRoomScreen() {
             <VoiceRecorderBar onCancel={() => setIsRecordingVoice(false)} onSend={(uri, dur) => void sendVoiceMessage(uri, dur)} />
           ) : uploadingVoice ? (
             <View className="flex-row items-center justify-center gap-2 py-2.5">
-              <ActivityIndicator size="small" color="#1a56db" />
+              <ActivityIndicator size="small" color="#0f766e" />
               <Text className="text-sm text-muted">Sesli mesaj gönderiliyor…</Text>
             </View>
           ) : (
@@ -1059,7 +1064,7 @@ export default function ChatRoomScreen() {
                 className="w-9 h-9 rounded-full items-center justify-center"
               >
                 {uploadingImage ? (
-                  <ActivityIndicator size="small" color="#1a56db" />
+                  <ActivityIndicator size="small" color="#0f766e" />
                 ) : (
                   <Ionicons name="image-outline" size={20} color="#6b7280" />
                 )}

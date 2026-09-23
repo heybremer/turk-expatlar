@@ -39,12 +39,20 @@ export function Avatar({ name, url, size = "md" }: Props) {
         source={{ uri: src }}
         style={{ width: px, height: px, borderRadius: px / 2 }}
         className="rounded-full"
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={`${name} profil fotoğrafı`}
       />
     );
   }
 
   return (
-    <View className={`${outer} ${pickColor(name)} rounded-full items-center justify-center`}>
+    <View
+      className={`${outer} ${pickColor(name)} rounded-full items-center justify-center`}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`${name} profil resmi`}
+    >
       <Text className={`${text} font-bold text-white`}>{getInitials(name)}</Text>
     </View>
   );

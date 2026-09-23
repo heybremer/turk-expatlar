@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
+import { sanitizeUser } from '../../common/sanitize-user.util';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -15,7 +16,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Cookie'den önce Bearer header'a bak, yoksa HttpOnly cookie'den al
       jwtFromRequest: ExtractJwt.fromExtractors([
         ExtractJwt.fromAuthHeaderAsBearerToken(),
-        (req: Request) => (req?.cookies as Record<string, string>)?.['token'] ?? null,
+        (req: Request) =>
+          (req?.cookies as Record<string, string>)?.['token'] ?? null,
       ]),
       secretOrKey: config.getOrThrow<string>('JWT_SECRET'),
     });
@@ -32,7 +34,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     if (user.status === 'BANNED') {
-      throw new UnauthorizedException('Hesabınız kalıcı olarak askıya alınmıştır');
+      throw new UnauthorizedException(
+        'Hesabınız kalıcı olarak askıya alınmıştır',
+      );
     }
 
     if (user.status === 'SUSPENDED') {
@@ -50,7 +54,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
     }
 
-    const { passwordHash: _, ...safeUser } = user;
-    return safeUser;
+    return sanitizeUser(user);
   }
 }

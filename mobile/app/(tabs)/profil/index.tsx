@@ -37,8 +37,12 @@ export default function ProfilScreen() {
     { icon: "create-outline", label: "Profili Düzenle", onPress: () => router.push("/(tabs)/profil/duzenle") },
     { icon: "chatbubbles-outline", label: "Forum Konularım", onPress: () => router.push("/(tabs)/forum") },
     { icon: "chatbox-ellipses-outline", label: "Mesajlarım", onPress: () => router.push("/(tabs)/sohbet") },
+    { icon: "people-outline", label: "Arkadaşlar", onPress: () => router.push("/arkadaslar" as never) },
+    { icon: "sparkles-outline", label: "Üyelik", onPress: () => router.push("/uyelik" as never) },
     { icon: "notifications-outline", label: "Bildirimler", onPress: () => router.push("/(tabs)/profil/bildirimler") },
     { icon: "lock-closed-outline", label: "Şifre Değiştir", onPress: () => router.push("/(tabs)/profil/sifre") },
+    { icon: "shield-checkmark-outline", label: "İki Aşamalı Doğrulama", onPress: () => router.push("/iki-asamali-dogrulama" as never) },
+    { icon: "person-remove-outline", label: "Hesap ve Gizlilik", onPress: () => router.push("/hesap" as never) },
     { icon: "apps-outline", label: "Mini Uygulamalar", onPress: () => router.push("/uygulamalar") },
     { icon: "log-out-outline", label: "Çıkış Yap", onPress: () => void logout(), danger: true },
   ];
@@ -106,7 +110,7 @@ export default function ProfilScreen() {
               className={`flex-row items-center gap-3 px-4 py-4 ${i < menuItems.length - 1 ? "border-b border-border" : ""}`}
             >
               <View className={`h-9 w-9 items-center justify-center rounded-xl ${item.danger ? "bg-danger/10" : "bg-background"}`}>
-                <Ionicons name={item.icon} size={18} color={item.danger ? "#dc2626" : "#1a56db"} />
+                <Ionicons name={item.icon} size={18} color={item.danger ? "#dc2626" : "#0f766e"} />
               </View>
               <Text className={`flex-1 text-sm font-medium ${item.danger ? "text-danger" : "text-text"}`}>{item.label}</Text>
               {!item.danger && <Ionicons name="chevron-forward" size={16} color="#6b7280" />}

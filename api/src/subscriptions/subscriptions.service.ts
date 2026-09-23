@@ -3,14 +3,25 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
-import { MembershipPlan, SubscriptionStatus } from '@prisma/client';
+import { MembershipPlan, Prisma, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApplyPromoDto } from './dto/apply-promo.dto';
 
 const PLAN_PRICES: Record<string, number> = {
   USER_YEARLY: 10,
   BUSINESS_YEARLY: 50,
+};
+
+export type StripeCheckoutSession = {
+  id?: string;
+  payment_status?: string;
+  amount_total?: number | null;
+  currency?: string | null;
+  created?: number;
+  customer?: string | { id: string } | null;
+  metadata?: { userId?: string; plan?: string } | null;
 };
 
 @Injectable()
@@ -32,11 +43,20 @@ export class SubscriptionsService {
     return { subscription: sub, plan, status, isActive };
   }
 
+  private isSubscriptionActive(
+    sub: { status: SubscriptionStatus; expiresAt: Date | null } | null,
+  ) {
+    return (
+      sub?.status === SubscriptionStatus.ACTIVE &&
+      (!sub.expiresAt || sub.expiresAt > new Date())
+    );
+  }
+
   async applyPromoCode(userId: string, dto: ApplyPromoDto) {
     const existing = await this.prisma.subscription.findUnique({
       where: { userId },
     });
-    if (existing?.status === SubscriptionStatus.ACTIVE) {
+    if (this.isSubscriptionActive(existing)) {
       throw new ConflictException('Zaten aktif bir üyeliğiniz var');
     }
 
@@ -51,7 +71,8 @@ export class SubscriptionsService {
       where: { code: dto.code.toUpperCase() },
     });
 
-    if (!promo || !promo.active) throw new NotFoundException('Promosyon kodu bulunamadı');
+    if (!promo || !promo.active)
+      throw new NotFoundException('Promosyon kodu bulunamadı');
     if (promo.validUntil && promo.validUntil < new Date()) {
       throw new BadRequestException('Promosyon kodunun süresi dolmuş');
     }
@@ -66,32 +87,54 @@ export class SubscriptionsService {
     const expiresAt = new Date();
     expiresAt.setFullYear(expiresAt.getFullYear() + 1);
 
-    const [subscription] = await this.prisma.$transaction([
-      this.prisma.subscription.upsert({
-        where: { userId },
-        create: {
-          userId,
-          plan: targetPlan,
-          status: SubscriptionStatus.ACTIVE,
-          promoCodeId: promo.id,
-          expiresAt,
-        },
-        update: {
-          plan: targetPlan,
-          status: SubscriptionStatus.ACTIVE,
-          promoCodeId: promo.id,
-          expiresAt,
-          cancelledAt: null,
-        },
-      }),
-      this.prisma.promoCode.update({
-        where: { id: promo.id },
-        data: { usedCount: { increment: 1 } },
-      }),
-      this.prisma.promoCodeRedemption.create({
-        data: { promoCodeId: promo.id, userId },
-      }),
-    ]);
+    let subscription;
+    try {
+      subscription = await this.prisma.$transaction(async (tx) => {
+        // Koşullu artış: eşzamanlı isteklerde maxUses aşılamaz
+        const claimed = await tx.promoCode.updateMany({
+          where: {
+            id: promo.id,
+            active: true,
+            usedCount: { lt: promo.maxUses },
+          },
+          data: { usedCount: { increment: 1 } },
+        });
+        if (claimed.count === 0) {
+          throw new BadRequestException('Promosyon kodu kullanım limiti doldu');
+        }
+
+        await tx.promoCodeRedemption.create({
+          data: { promoCodeId: promo.id, userId },
+        });
+
+        return tx.subscription.upsert({
+          where: { userId },
+          create: {
+            userId,
+            plan: targetPlan,
+            status: SubscriptionStatus.ACTIVE,
+            promoCodeId: promo.id,
+            expiresAt,
+          },
+          update: {
+            plan: targetPlan,
+            status: SubscriptionStatus.ACTIVE,
+            promoCodeId: promo.id,
+            startsAt: new Date(),
+            expiresAt,
+            cancelledAt: null,
+          },
+        });
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new ConflictException('Daha önce bir promosyon kodu kullandınız');
+      }
+      throw err;
+    }
 
     return {
       message: 'Promosyon kodu uygulandı! 1 yıllık üyeliğiniz aktif.',
@@ -105,12 +148,20 @@ export class SubscriptionsService {
     const price = PLAN_PRICES[plan];
     if (!price) throw new BadRequestException('Geçersiz plan');
 
+    const existing = await this.prisma.subscription.findUnique({
+      where: { userId },
+    });
+    if (this.isSubscriptionActive(existing)) {
+      throw new ConflictException('Zaten aktif bir üyeliğiniz var');
+    }
+
     // Stripe key tanımlıysa gerçek session oluştur
     const stripeKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeKey || stripeKey === 'sk_test_PLACEHOLDER') {
       return {
         url: null,
-        message: 'Stripe henüz yapılandırılmadı. Lütfen STRIPE_SECRET_KEY ortam değişkenini ayarlayın.',
+        message:
+          'Stripe henüz yapılandırılmadı. Lütfen STRIPE_SECRET_KEY ortam değişkenini ayarlayın.',
         plan,
         priceEur: price,
       };
@@ -149,37 +200,92 @@ export class SubscriptionsService {
 
   async handleStripeWebhook(rawBody: Buffer, signature: string) {
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!webhookSecret) return;
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    // 2xx dönülürse Stripe olayı teslim edilmiş sayar ve ödeme kaybolur
+    if (!webhookSecret || !stripeKey) {
+      throw new ServiceUnavailableException('Stripe webhook yapılandırılmadı');
+    }
+    if (!rawBody || !signature) {
+      throw new BadRequestException('Geçersiz webhook isteği');
+    }
 
     const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const stripe = new Stripe(stripeKey);
 
-    const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
-
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as { metadata?: { userId?: string; plan?: string } };
-      const { userId, plan } = session.metadata ?? {};
-      if (!userId || !plan) return;
-
-      const expiresAt = new Date();
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-
-      await this.prisma.subscription.upsert({
-        where: { userId },
-        create: {
-          userId,
-          plan: plan as MembershipPlan,
-          status: SubscriptionStatus.ACTIVE,
-          expiresAt,
-        },
-        update: {
-          plan: plan as MembershipPlan,
-          status: SubscriptionStatus.ACTIVE,
-          expiresAt,
-          cancelledAt: null,
-        },
-      });
+    let event: { type: string; data: { object: unknown } };
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    } catch {
+      throw new BadRequestException('Webhook imzası doğrulanamadı');
     }
+
+    if (
+      event.type === 'checkout.session.completed' ||
+      event.type === 'checkout.session.async_payment_succeeded'
+    ) {
+      await this.activateFromCheckoutSession(
+        event.data.object as StripeCheckoutSession,
+      );
+    }
+    return { received: true };
+  }
+
+  async activateFromCheckoutSession(session: StripeCheckoutSession) {
+    if (session.payment_status !== 'paid') return;
+
+    const { userId, plan } = session.metadata ?? {};
+    if (!userId || !plan) return;
+    const price = PLAN_PRICES[plan];
+    if (!price) return;
+    if (
+      session.amount_total !== price * 100 ||
+      session.currency?.toLowerCase() !== 'eur'
+    ) {
+      console.error('[Stripe webhook] Tutar/plan uyuşmazlığı', {
+        sessionId: session.id,
+        plan,
+        amountTotal: session.amount_total,
+        currency: session.currency,
+      });
+      return;
+    }
+
+    // Süre Stripe oturum zamanından hesaplanır: aynı olay tekrar gelirse sonuç değişmez
+    const paidAt = session.created
+      ? new Date(session.created * 1000)
+      : new Date();
+    const expiresAt = new Date(paidAt);
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+
+    const existing = await this.prisma.subscription.findUnique({
+      where: { userId },
+    });
+    const keepLaterExpiry =
+      this.isSubscriptionActive(existing) &&
+      existing!.expiresAt !== null &&
+      existing!.expiresAt > expiresAt;
+    const finalExpiresAt = keepLaterExpiry ? existing!.expiresAt! : expiresAt;
+    const customerId =
+      typeof session.customer === 'string' ? session.customer : undefined;
+
+    await this.prisma.subscription.upsert({
+      where: { userId },
+      create: {
+        userId,
+        plan: plan as MembershipPlan,
+        status: SubscriptionStatus.ACTIVE,
+        startsAt: paidAt,
+        expiresAt: finalExpiresAt,
+        stripeCustomerId: customerId,
+      },
+      update: {
+        plan: plan as MembershipPlan,
+        status: SubscriptionStatus.ACTIVE,
+        expiresAt: finalExpiresAt,
+        cancelledAt: null,
+        ...(customerId ? { stripeCustomerId: customerId } : {}),
+      },
+    });
   }
 
   // Admin: promo kod listesi + istatistik

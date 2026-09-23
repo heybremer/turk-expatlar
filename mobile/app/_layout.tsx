@@ -16,7 +16,7 @@ SplashScreen.preventAutoHideAsync();
 initSentry();
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { token, _hasHydrated } = useAuth();
+  const { token, user, _hasHydrated } = useAuth();
   const segments = useSegments();
   const navigationState = useRootNavigationState();
   usePushNotifications();
@@ -45,13 +45,26 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const inAuthGroup = segments[0] === "(auth)";
   const onIndex = !segments[0];
   const onOAuthCallback = segments[0] === "oauth";
+  const onWelcome = segments[0] === "hosgeldin";
+  const onPublicRoute = ["email-dogrula", "sifre-sifirla", "bilgi"].includes(
+    segments[0] ?? "",
+  );
 
-  if (!token && !inAuthGroup && !onOAuthCallback) {
+  if (!token && !inAuthGroup && !onOAuthCallback && !onPublicRoute) {
     return <Redirect href="/(auth)/giris" />;
   }
 
   if (token && (inAuthGroup || onIndex)) {
     return <Redirect href="/(tabs)/akis" />;
+  }
+
+  if (
+    token &&
+    user?.profile &&
+    !user.profile.onboardingCompletedAt &&
+    !onWelcome
+  ) {
+    return <Redirect href="/hosgeldin" />;
   }
 
   return <>{children}</>;
@@ -74,6 +87,8 @@ function RootLayout() {
                 <Stack.Screen name="isler/[id]" />
                 <Stack.Screen name="uygulamalar/haberler" />
                 <Stack.Screen name="uygulamalar/tatil-gunleri" />
+                <Stack.Screen name="email-dogrula" />
+                <Stack.Screen name="sifre-sifirla" />
               </Stack>
             </NavigationMenuProvider>
           </AuthGuard>

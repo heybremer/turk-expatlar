@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { authenticator } from 'otplib';
 import { PostalCountry } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -15,6 +16,7 @@ import {
   normalizeReferralCode,
 } from '../common/referral.util';
 import { validatePostalForCountry } from '../common/postal-country.util';
+import { sanitizeUser } from '../common/sanitize-user.util';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { isFeatureEnabled } from '../site-settings/runtime-config.store';
@@ -40,12 +42,16 @@ export class AuthService {
     try {
       validatePostalForCountry(dto.postalCountry, dto.postalCode);
     } catch (err) {
-      throw new BadRequestException(err instanceof Error ? err.message : 'Geçersiz posta kodu');
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'Geçersiz posta kodu',
+      );
     }
 
     if (dto.postalCountry === PostalCountry.DE) {
       if (!dto.stateId || !dto.cityId) {
-        throw new BadRequestException('Almanya kaydı için eyalet ve şehir gerekli');
+        throw new BadRequestException(
+          'Almanya kaydı için eyalet ve şehir gerekli',
+        );
       }
     }
 
@@ -86,7 +92,8 @@ export class AuthService {
         profile: {
           create: {
             displayName: dto.displayName,
-            stateId: dto.postalCountry === PostalCountry.DE ? dto.stateId : null,
+            stateId:
+              dto.postalCountry === PostalCountry.DE ? dto.stateId : null,
             cityId: dto.postalCountry === PostalCountry.DE ? dto.cityId : null,
             postalCode: dto.postalCode,
             postalCountry: dto.postalCountry,
@@ -124,12 +131,28 @@ export class AuthService {
     }
 
     if (!user.passwordHash) {
-      throw new UnauthorizedException('Bu hesap şifre ile giriş desteklemiyor. Google ile giriş yapın.');
+      throw new UnauthorizedException(
+        'Bu hesap şifre ile giriş desteklemiyor. Google ile giriş yapın.',
+      );
     }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
       throw new UnauthorizedException('Geçersiz giriş bilgileri');
+    }
+
+    if (user.twoFactorEnabled && user.twoFactorSecret) {
+      if (!dto.code) {
+        return { requiresTwoFactor: true as const };
+      }
+      if (
+        !authenticator.verify({
+          token: dto.code,
+          secret: user.twoFactorSecret,
+        })
+      ) {
+        throw new UnauthorizedException('Geçersiz doğrulama kodu');
+      }
     }
 
     await this.prisma.user.update({
@@ -153,6 +176,7 @@ export class AuthService {
     });
 
     if (user) {
+      this.assertCanSignIn(user);
       return this.prisma.user.update({
         where: { id: user.id },
         data: { lastLoginAt: new Date() },
@@ -167,6 +191,7 @@ export class AuthService {
     });
 
     if (user) {
+      this.assertCanSignIn(user);
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -270,7 +295,9 @@ export class AuthService {
 
     // Güvenlik: kullanıcı yoksa da başarı döndür (e-posta sızdırma önlemi)
     if (!user || user.deletedAt || user.status === 'BANNED') {
-      return { message: 'Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.' };
+      return {
+        message: 'Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.',
+      };
     }
 
     // Eski geçersiz token'ları temizle
@@ -290,7 +317,9 @@ export class AuthService {
 
     await this.mail.sendPasswordReset(user.email, resetLink);
 
-    return { message: 'Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.' };
+    return {
+      message: 'Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.',
+    };
   }
 
   async resetPassword(token: string, newPassword: string) {
@@ -303,7 +332,11 @@ export class AuthService {
       throw new BadRequestException('Geçersiz veya süresi dolmuş bağlantı');
     }
 
-    if (!record.user || record.user.deletedAt || record.user.status === 'BANNED') {
+    if (
+      !record.user ||
+      record.user.deletedAt ||
+      record.user.status === 'BANNED'
+    ) {
       throw new NotFoundException('Kullanıcı bulunamadı');
     }
 
@@ -327,6 +360,25 @@ export class AuthService {
     return { message: 'Şifreniz başarıyla güncellendi. Giriş yapabilirsiniz.' };
   }
 
+  private assertCanSignIn(user: {
+    deletedAt: Date | null;
+    status: string;
+    bannedUntil: Date | null;
+  }) {
+    if (user.deletedAt) {
+      throw new UnauthorizedException('Hesap bulunamadı');
+    }
+    if (user.status === 'BANNED') {
+      throw new UnauthorizedException('Hesabınız askıya alınmış');
+    }
+    if (
+      user.status === 'SUSPENDED' &&
+      (!user.bannedUntil || user.bannedUntil > new Date())
+    ) {
+      throw new UnauthorizedException('Hesabınız askıya alınmış');
+    }
+  }
+
   private buildAuthResponse(user: {
     id: string;
     email: string;
@@ -334,8 +386,11 @@ export class AuthService {
     emailVerified?: boolean;
     profile: unknown;
     passwordHash?: string | null;
+    twoFactorSecret?: string | null;
+    googleId?: string | null;
+    expoPushToken?: string | null;
   }) {
-    const { passwordHash: _, ...safeUser } = user;
+    const safeUser = sanitizeUser(user);
     const token = this.jwt.sign({
       sub: user.id,
       role: user.role,

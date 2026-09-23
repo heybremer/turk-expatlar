@@ -16,6 +16,8 @@ function GirisForm() {
   const { token, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -38,7 +40,16 @@ function GirisForm() {
     setError("");
     setLoading(true);
     try {
-      const res = await login(email, password);
+      const res = await login(
+        email,
+        password,
+        requiresTwoFactor ? code : undefined,
+      );
+      if ("requiresTwoFactor" in res) {
+        setRequiresTwoFactor(true);
+        setCode("");
+        return;
+      }
       router.push(resolvePostLoginRedirect(res.user, redirectTo));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Giriş başarısız");
@@ -53,10 +64,31 @@ function GirisForm() {
         <div className="py-12 text-center text-sm text-muted">Yönlendiriliyor…</div>
       ) : (
         <>
-          <h1 className="text-2xl font-bold">Giriş Yap</h1>
-          <p className="mt-2 text-sm text-muted">Hesabına giriş yap</p>
+          <h1 className="text-2xl font-bold">
+            {requiresTwoFactor ? "Doğrulama Kodu" : "Giriş Yap"}
+          </h1>
+          <p className="mt-2 text-sm text-muted">
+            {requiresTwoFactor
+              ? "Doğrulama uygulamandaki 6 haneli kodu gir"
+              : "Hesabına giriş yap"}
+          </p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+            {requiresTwoFactor ? (
+              <Input
+                label="Doğrulama kodu"
+                inputMode="numeric"
+                value={code}
+                onChange={(e) =>
+                  setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                required
+                minLength={6}
+                maxLength={6}
+                autoFocus
+              />
+            ) : (
+              <>
             <Input
               label="E-posta"
               type="email"
@@ -79,15 +111,32 @@ function GirisForm() {
                 className="mt-1"
               />
             </div>
+              </>
+            )}
 
             {error && <p className="text-sm text-danger">{error}</p>}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+              {loading
+                ? "Kontrol ediliyor..."
+                : requiresTwoFactor
+                  ? "Doğrula"
+                  : "Giriş Yap"}
             </Button>
+            {requiresTwoFactor && (
+              <button
+                type="button"
+                onClick={() => setRequiresTwoFactor(false)}
+                className="w-full text-sm font-medium text-primary"
+              >
+                Geri dön
+              </button>
+            )}
           </form>
 
           {/* Sosyal giriş */}
+          {!requiresTwoFactor && (
+            <>
           <div className="mt-6">
             <div className="relative flex items-center">
               <div className="flex-1 border-t border-border" />
@@ -107,6 +156,8 @@ function GirisForm() {
               Google ile devam et
             </a>
           </div>
+            </>
+          )}
 
           {process.env.NODE_ENV === "development" && (
             <p className="mt-4 text-center text-xs text-muted">
@@ -114,12 +165,12 @@ function GirisForm() {
             </p>
           )}
 
-          <p className="mt-6 text-center text-sm text-muted">
+          {!requiresTwoFactor && <p className="mt-6 text-center text-sm text-muted">
             Hesabın yok mu?{" "}
             <Link href="/kayit" className="text-primary hover:underline">
               Kayıt ol
             </Link>
-          </p>
+          </p>}
         </>
       )}
     </div>

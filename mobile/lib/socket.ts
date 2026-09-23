@@ -1,6 +1,9 @@
 import { io, Socket } from "socket.io-client";
+import { API_URL } from "./api";
 
-const WS_URL = "https://api.turkexpatlar.de";
+const WS_URL =
+  process.env.EXPO_PUBLIC_WS_URL ??
+  API_URL.replace(/\/api\/?$/, "");
 
 let socket: Socket | null = null;
 let currentToken: string | null | undefined = undefined;
@@ -18,7 +21,7 @@ export function getSocket(token?: string | null): Socket {
   currentToken = token;
 
   socket = io(`${WS_URL}/chat`, {
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
     auth: token ? { token } : {},
     reconnection: true,
     reconnectionAttempts: 10,

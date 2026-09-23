@@ -70,7 +70,7 @@ export function DmPasswordModal({ visible, chatId, token, hasPassword, onClose, 
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center gap-3">
               <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center">
-                <Ionicons name="key-outline" size={18} color="#1a56db" />
+                <Ionicons name="key-outline" size={18} color="#0f766e" />
               </View>
               <View>
                 <Text className="font-semibold text-text">Sohbet Şifresi</Text>

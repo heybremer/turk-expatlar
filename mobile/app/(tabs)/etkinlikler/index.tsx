@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Pagination } from "@/components/ui/Pagination";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { AppHeader } from "@/components/navigation/AppHeader";
@@ -57,7 +58,7 @@ export default function EtkinliklerIndex() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["events", search, page],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: "10" });
@@ -87,12 +88,14 @@ export default function EtkinliklerIndex() {
 
       {isLoading ? (
         <LoadingScreen />
+      ) : isError ? (
+        <ErrorState title="Etkinlikler yüklenemedi" onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={data?.items ?? []}
           keyExtractor={(e) => e.id}
           contentContainerStyle={{ padding: 16 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
           renderItem={({ item }) => <EventCard event={item} />}
           ListEmptyComponent={<EmptyState icon="calendar-outline" title="Etkinlik bulunamadı" />}
           ListFooterComponent={

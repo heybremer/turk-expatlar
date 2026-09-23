@@ -63,7 +63,7 @@ export default function NewMessageScreen() {
         <EmptyState icon="person-add-outline" title="Kullanıcı arayın" subtitle="En az 2 karakter girin" />
       ) : searching ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#1a56db" />
+          <ActivityIndicator color="#0f766e" />
         </View>
       ) : results.length === 0 ? (
         <EmptyState icon="search-outline" title="Sonuç bulunamadı" subtitle={`"${query}" için kullanıcı bulunamadı`} />
@@ -86,7 +86,7 @@ export default function NewMessageScreen() {
                   {location ? <Text className="text-xs text-muted mt-0.5">{location}</Text> : null}
                 </View>
                 {startingDm === item.id ? (
-                  <ActivityIndicator size="small" color="#1a56db" />
+                  <ActivityIndicator size="small" color="#0f766e" />
                 ) : (
                   <Ionicons name="chatbubble-outline" size={18} color="#9ca3af" />
                 )}

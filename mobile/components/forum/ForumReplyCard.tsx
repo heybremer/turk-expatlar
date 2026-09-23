@@ -120,7 +120,7 @@ export function ForumReplyCard({
                   disabled={reply._optimistic}
                   className="flex-row items-center gap-1"
                 >
-                  <Ionicons name="thumbs-up-outline" size={14} color={reply.userVoted ? "#1a56db" : "#6b7280"} />
+                  <Ionicons name="thumbs-up-outline" size={14} color={reply.userVoted ? "#0f766e" : "#6b7280"} />
                   <Text className={`text-xs ${reply.userVoted ? "text-primary font-semibold" : "text-muted"}`}>
                     Faydalı{reply.voteCount ? ` (${reply.voteCount})` : ""}
                   </Text>

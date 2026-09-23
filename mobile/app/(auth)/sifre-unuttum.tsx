@@ -46,7 +46,7 @@ export default function SifreUnuttumScreen() {
         {sent ? (
           <View className="rounded-2xl bg-surface p-8 items-center">
             <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Ionicons name="mail-outline" size={28} color="#1a56db" />
+              <Ionicons name="mail-outline" size={28} color="#0f766e" />
             </View>
             <Text className="text-xl font-bold text-text mb-2">E-posta Gönderildi</Text>
             <Text className="text-muted text-center mb-6">
@@ -83,7 +83,7 @@ export default function SifreUnuttumScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => router.back()} className="flex-row items-center justify-center gap-1 py-2">
-              <Ionicons name="arrow-back" size={14} color="#1a56db" />
+              <Ionicons name="arrow-back" size={14} color="#0f766e" />
               <Text className="text-primary text-sm">Geri Dön</Text>
             </TouchableOpacity>
           </View>

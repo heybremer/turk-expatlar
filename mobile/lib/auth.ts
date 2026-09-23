@@ -2,6 +2,8 @@ import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { api, AuthUser } from "./api";
+import { queryClient } from "./query-client";
+import { disconnectSocket } from "./socket";
 
 const secureStorage = {
   getItem: async (key: string) => {
@@ -48,6 +50,7 @@ export const useAuth = create<AuthState>()(
       refreshUser: (user) => set({ user }),
       logout: async () => {
         const token = get().token;
+        disconnectSocket();
         try {
           if (token) {
             await api.delete("/notifications/expo-token", token).catch(() => {});
@@ -57,6 +60,7 @@ export const useAuth = create<AuthState>()(
           // ignore
         }
         set({ user: null, token: null });
+        queryClient.clear();
       },
       isAuthenticated: () => !!get().token,
       setHydrated: () => set({ _hasHydrated: true }),
@@ -76,11 +80,11 @@ export const useAuth = create<AuthState>()(
   ),
 );
 
-export async function login(email: string, password: string) {
-  const res = await api.post<{ user: AuthUser; accessToken: string }>("/auth/login", {
-    email,
-    password,
-  });
+export async function login(email: string, password: string, code?: string) {
+  const res = await api.post<
+    { user: AuthUser; accessToken: string } | { requiresTwoFactor: true }
+  >("/auth/login", { email, password, ...(code ? { code } : {}) });
+  if ("requiresTwoFactor" in res) return res;
   useAuth.getState().setAuth(res.user, res.accessToken);
   return res;
 }

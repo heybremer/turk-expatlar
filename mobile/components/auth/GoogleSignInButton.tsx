@@ -16,7 +16,10 @@ export function GoogleSignInButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={loading}
-      className="flex-row items-center justify-center rounded-xl border border-border bg-surface py-3.5"
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: loading, busy: loading }}
+      className="min-h-12 flex-row items-center justify-center rounded-xl border border-border bg-surface py-3.5"
     >
       {loading ? (
         <ActivityIndicator color="#4285F4" />

@@ -30,7 +30,7 @@ export function VoiceMessagePlayer({ url, isMe, fallbackDurationSec }: { url: st
       className="flex-row items-center gap-2 min-w-[160px] py-1"
     >
       <View className={`w-8 h-8 rounded-full items-center justify-center ${isMe ? "bg-white/20" : "bg-primary/10"}`}>
-        <Ionicons name={status.playing ? "pause" : "play"} size={15} color={isMe ? "#fff" : "#1a56db"} />
+        <Ionicons name={status.playing ? "pause" : "play"} size={15} color={isMe ? "#fff" : "#0f766e"} />
       </View>
       <View className="flex-1 gap-1">
         <View className={`h-1 rounded-full ${isMe ? "bg-white/25" : "bg-border"}`}>

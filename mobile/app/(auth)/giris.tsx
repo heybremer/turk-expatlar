@@ -22,18 +22,36 @@ export default function GirisScreen() {
   const { error: oauthError } = useLocalSearchParams<{ error?: string }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  async function handleLogin() {
-    if (!email.trim() || !password) {
+  async function handleLogin(credentials?: { email: string; password: string }) {
+    const loginEmail = credentials?.email ?? email.trim();
+    const loginPassword = credentials?.password ?? password;
+    if (!loginEmail || !loginPassword) {
       Alert.alert("Hata", "Email ve şifre giriniz.");
       return;
     }
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      const result = await login(
+        loginEmail,
+        loginPassword,
+        requiresTwoFactor ? code : undefined,
+      );
+      if ("requiresTwoFactor" in result) {
+        setRequiresTwoFactor(true);
+        setCode("");
+      }
     } catch (err) {
+      if (__DEV__) {
+        console.warn("Login failed", {
+          status: err instanceof ApiError ? err.status : undefined,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
       Alert.alert(
         "Giriş Başarısız",
         err instanceof ApiError ? err.message : "Bir hata oluştu",
@@ -84,8 +102,12 @@ export default function GirisScreen() {
 
           {/* Form */}
           <View className="rounded-2xl bg-surface p-6 shadow-sm">
-            <Text className="mb-6 text-xl font-bold text-text">Giriş Yap</Text>
+            <Text className="mb-6 text-xl font-bold text-text">
+              {requiresTwoFactor ? "Doğrulama Kodu" : "Giriş Yap"}
+            </Text>
 
+            {!requiresTwoFactor ? (
+              <>
             <Text className="mb-1 text-sm font-medium text-text">E-posta</Text>
             <TextInput
               value={email}
@@ -114,19 +136,65 @@ export default function GirisScreen() {
                 <Text className="text-sm text-primary">Şifremi unuttum</Text>
               </TouchableOpacity>
             </Link>
+              </>
+            ) : (
+              <>
+                <Text className="mb-2 text-sm text-muted">
+                  Doğrulama uygulamandaki 6 haneli kodu gir.
+                </Text>
+                <TextInput
+                  value={code}
+                  onChangeText={(value) =>
+                    setCode(value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  placeholder="000000"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  autoFocus
+                  className="mb-6 rounded-xl border border-border bg-background px-4 py-3 text-center text-2xl font-bold tracking-[8px] text-text"
+                  placeholderTextColor="#9ca3af"
+                />
+              </>
+            )}
 
             <TouchableOpacity
               onPress={() => void handleLogin()}
-              disabled={loading || googleLoading}
+              disabled={
+                loading ||
+                googleLoading ||
+                (requiresTwoFactor && code.length !== 6)
+              }
               className="items-center rounded-xl bg-primary py-4"
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text className="text-base font-semibold text-white">Giriş Yap</Text>
+                <Text className="text-base font-semibold text-white">
+                  {requiresTwoFactor ? "Doğrula" : "Giriş Yap"}
+                </Text>
               )}
             </TouchableOpacity>
 
+            {__DEV__ && !requiresTwoFactor ? (
+              <TouchableOpacity
+                onPress={() =>
+                  void handleLogin({
+                    email: "demo@turkexpatlar.de",
+                    password: "demo1234",
+                  })
+                }
+                disabled={loading || googleLoading}
+                className="mt-3 min-h-12 items-center justify-center rounded-xl border border-primary"
+                accessibilityRole="button"
+              >
+                <Text className="font-semibold text-primary">
+                  Demo hesapla giriş
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {!requiresTwoFactor ? (
+              <>
             <View className="my-6 flex-row items-center">
               <View className="h-px flex-1 bg-border" />
               <Text className="mx-3 text-xs text-muted">veya</Text>
@@ -140,6 +208,15 @@ export default function GirisScreen() {
 
             {typeof oauthError === "string" && oauthError.length > 0 && (
               <Text className="mt-4 text-center text-sm text-danger">{oauthError}</Text>
+            )}
+              </>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setRequiresTwoFactor(false)}
+                className="mt-3 min-h-11 items-center justify-center"
+              >
+                <Text className="font-semibold text-primary">Geri dön</Text>
+              </TouchableOpacity>
             )}
           </View>
 

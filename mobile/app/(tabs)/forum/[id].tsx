@@ -273,7 +273,7 @@ export default function ForumTopicScreen() {
               data.userInterested ? "border-primary bg-primary/10" : "border-border"
             }`}
           >
-            <Ionicons name="hand-left-outline" size={15} color={data.userInterested ? "#1a56db" : "#6b7280"} />
+            <Ionicons name="hand-left-outline" size={15} color={data.userInterested ? "#0f766e" : "#6b7280"} />
             <Text className={`text-xs font-medium ${data.userInterested ? "text-primary" : "text-muted"}`}>
               Ben de yaşıyorum ({interestCount})
             </Text>
@@ -332,7 +332,7 @@ export default function ForumTopicScreen() {
         ListHeaderComponent={header}
         contentContainerStyle={{ padding: 16, paddingBottom: 20, gap: 10 }}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
         ListEmptyComponent={
           data.replies.length === 0 ? (
             <Text className="text-sm text-muted text-center py-6">Henüz cevap yok. İlk cevabı sen yaz.</Text>

@@ -21,6 +21,19 @@ const LISTING_TYPES = [
   { value: "SEEKER", label: "İş Arıyorum" },
 ];
 
+const JOB_CATEGORIES = [
+  { value: "yazilim", label: "Yazılım & IT" },
+  { value: "muhendislik", label: "Mühendislik" },
+  { value: "gastronomi", label: "Gastronomi & Turizm" },
+  { value: "saglik", label: "Sağlık" },
+  { value: "egitim", label: "Eğitim" },
+  { value: "lojistik", label: "Lojistik & Depo" },
+  { value: "satis", label: "Satış & Pazarlama" },
+  { value: "ofis", label: "Ofis & İdari" },
+  { value: "ticaret", label: "Ticaret & Perakende" },
+  { value: "diger", label: "Diğer" },
+];
+
 export default function YeniIsIlani() {
   const { token } = useAuth();
   const router = useRouter();
@@ -29,6 +42,7 @@ export default function YeniIsIlani() {
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("diger");
   const [jobType, setJobType] = useState("FULL_TIME");
   const [turkishFriendly, setTurkishFriendly] = useState(false);
   const [stateId, setStateId] = useState("");
@@ -42,7 +56,7 @@ export default function YeniIsIlani() {
   const selectedState = states?.find((s) => s.id === stateId);
 
   const createMut = useMutation({
-    mutationFn: () => api.post<{ id: string }>("/jobs", { listingType, title, company, description, jobType, workMode: "ONSITE", turkishFriendly, stateId, cityId, contactMethod: "PLATFORM" }, token),
+    mutationFn: () => api.post<{ id: string }>("/jobs", { listingType, title, company, description, category, jobType, workMode: "ONSITE", turkishFriendly, stateId, cityId, contactMethod: "PLATFORM" }, token),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ["jobs"] });
       router.replace(`/isler/${res.id}`);
@@ -88,6 +102,25 @@ export default function YeniIsIlani() {
         <View>
           <Text className="text-sm font-medium text-text mb-1">Açıklama</Text>
           <TextInput value={description} onChangeText={setDescription} placeholder="İlanı detaylandırın…" placeholderTextColor="#9ca3af" multiline numberOfLines={5} textAlignVertical="top" className="bg-surface border border-border rounded-xl px-4 py-3 text-text min-h-[120]" />
+        </View>
+
+        <View>
+          <Text className="text-sm font-medium text-text mb-2">Kategori</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {JOB_CATEGORIES.map((item) => (
+              <TouchableOpacity
+                key={item.value}
+                onPress={() => setCategory(item.value)}
+                className={`min-h-11 justify-center rounded-full border px-4 ${
+                  category === item.value ? "border-primary bg-primary" : "border-border bg-surface"
+                }`}
+              >
+                <Text className={`text-sm font-medium ${category === item.value ? "text-white" : "text-muted"}`}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         <View>

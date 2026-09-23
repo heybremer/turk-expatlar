@@ -18,9 +18,9 @@ const TEXT_CLASSES: Record<Variant, string> = {
 };
 
 const SIZE_CLASSES: Record<Size, string> = {
-  sm: "px-3 py-1.5",
-  md: "px-4 py-2.5",
-  lg: "px-6 py-3.5",
+  sm: "min-h-11 px-3 py-2",
+  md: "min-h-12 px-4 py-2.5",
+  lg: "min-h-14 px-6 py-3.5",
 };
 
 const TEXT_SIZE: Record<Size, string> = {
@@ -41,10 +41,13 @@ export function Button({ variant = "primary", size = "md", loading, label, disab
     <TouchableOpacity
       {...rest}
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityLabel={rest.accessibilityLabel ?? label}
+      accessibilityState={{ disabled: disabled || loading, busy: Boolean(loading) }}
       className={`flex-row items-center justify-center rounded-xl ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${disabled || loading ? "opacity-60" : ""}`}
     >
       {loading ? (
-        <ActivityIndicator color={variant === "secondary" || variant === "ghost" ? "#1a56db" : "#fff"} size="small" />
+        <ActivityIndicator color={variant === "secondary" || variant === "ghost" ? "#0f766e" : "#fff"} size="small" />
       ) : (
         <Text className={`font-semibold ${TEXT_CLASSES[variant]} ${TEXT_SIZE[size]}`}>{label}</Text>
       )}

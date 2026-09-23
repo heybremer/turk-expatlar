@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Pagination } from "@/components/ui/Pagination";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { AppHeader } from "@/components/navigation/AppHeader";
@@ -92,7 +93,7 @@ export default function ForumIndex() {
     enabled: !!token,
   });
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["forum-topics", activeCat, search, sort, page],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page) });
@@ -175,12 +176,14 @@ export default function ForumIndex() {
 
       {isLoading ? (
         <LoadingScreen />
+      ) : isError ? (
+        <ErrorState title="Forum yüklenemedi" onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={data?.items ?? []}
           keyExtractor={(t) => t.id}
           contentContainerStyle={{ padding: 16 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
           renderItem={({ item }) => <TopicRow topic={item} />}
           ListEmptyComponent={<EmptyState icon="chatbubbles-outline" title="Konu bulunamadı" />}
           ListFooterComponent={

@@ -95,7 +95,7 @@ export default function IslerIndex() {
           data={data?.items ?? []}
           keyExtractor={(j) => j.id}
           contentContainerStyle={{ padding: 16 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
           renderItem={({ item }) => <JobCard job={item} />}
           ListEmptyComponent={<EmptyState icon="briefcase-outline" title="İlan bulunamadı" />}
           ListFooterComponent={

@@ -36,6 +36,7 @@ type Props = {
   onReact?: (emoji: string) => void;
   onImagePress?: (url: string) => void;
   onRetry?: () => void;
+  onUserPress?: () => void;
   highlighted?: boolean;
   token?: string | null;
 };
@@ -49,6 +50,7 @@ export function ChatMessageBubble({
   onReact,
   onImagePress,
   onRetry,
+  onUserPress,
   highlighted,
   token,
 }: Props) {
@@ -62,13 +64,24 @@ export function ChatMessageBubble({
     <View className={`${grouped ? "mt-0.5" : "mt-3"} flex-row ${isMe ? "justify-end" : "justify-start"}`}>
       {!isMe && (
         <View className="w-8 mr-2 self-end">
-          {!grouped ? <Avatar name={name} url={message.user.profile?.avatarUrl} size="xs" /> : null}
+          {!grouped ? (
+            <TouchableOpacity
+              onPress={onUserPress}
+              disabled={!onUserPress}
+              accessibilityRole={onUserPress ? "button" : undefined}
+              accessibilityLabel={`${name} profilini aç`}
+            >
+              <Avatar name={name} url={message.user.profile?.avatarUrl} size="xs" />
+            </TouchableOpacity>
+          ) : null}
         </View>
       )}
 
       <View className={`max-w-[78%] ${isMe ? "items-end" : "items-start"}`}>
         {!grouped && !isMe && (
-          <Text className="text-xs font-semibold text-text mb-1 px-1">{name}</Text>
+          <TouchableOpacity onPress={onUserPress} disabled={!onUserPress}>
+            <Text className="text-xs font-semibold text-text mb-1 px-1">{name}</Text>
+          </TouchableOpacity>
         )}
 
         <TouchableOpacity

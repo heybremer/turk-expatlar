@@ -1,4 +1,5 @@
-import { Alert, Linking, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useState } from "react";
+import { Alert, Linking, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,11 +21,33 @@ export default function BusinessDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
   const qc = useQueryClient();
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["business", id],
     queryFn: () => api.get<BusinessDetail>(`/businesses/${id}`, token),
     enabled: !!id,
+  });
+
+  const reviewMut = useMutation({
+    mutationFn: () =>
+      api.post(
+        `/businesses/${id}/reviews`,
+        { rating, ...(comment.trim() ? { comment: comment.trim() } : {}) },
+        token,
+      ),
+    onSuccess: () => {
+      setRating(0);
+      setComment("");
+      void qc.invalidateQueries({ queryKey: ["business", id] });
+      Alert.alert("Teşekkürler", "Yorumun incelendikten sonra yayınlanacak.");
+    },
+    onError: (error) =>
+      Alert.alert(
+        "Yorum gönderilemedi",
+        error instanceof Error ? error.message : "Lütfen tekrar deneyin.",
+      ),
   });
 
   if (isLoading) return <LoadingScreen />;
@@ -92,6 +115,52 @@ export default function BusinessDetailScreen() {
             </View>
           </Card>
         )}
+
+        <Card>
+          <Text className="text-base font-bold text-text">Deneyimini paylaş</Text>
+          <Text className="mt-1 text-sm text-muted">
+            Puanın ve yorumun diğer üyelere yardımcı olur.
+          </Text>
+          <View className="mt-4 flex-row gap-2">
+            {[1, 2, 3, 4, 5].map((value) => (
+              <TouchableOpacity
+                key={value}
+                onPress={() => setRating(value)}
+                className="h-11 w-11 items-center justify-center rounded-xl bg-background"
+                accessibilityLabel={`${value} yıldız`}
+              >
+                <Ionicons
+                  name={value <= rating ? "star" : "star-outline"}
+                  size={24}
+                  color={value <= rating ? "#d97706" : "#9ca3af"}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput
+            value={comment}
+            onChangeText={setComment}
+            placeholder="Yorumun (isteğe bağlı, en az 10 karakter)"
+            placeholderTextColor="#9ca3af"
+            multiline
+            maxLength={1000}
+            className="mt-4 min-h-24 rounded-xl border border-border bg-background p-3 text-text"
+            textAlignVertical="top"
+          />
+          <TouchableOpacity
+            disabled={
+              !rating ||
+              reviewMut.isPending ||
+              (comment.trim().length > 0 && comment.trim().length < 10)
+            }
+            onPress={() => reviewMut.mutate()}
+            className="mt-3 min-h-12 items-center justify-center rounded-xl bg-primary disabled:opacity-40"
+          >
+            <Text className="font-semibold text-white">
+              {reviewMut.isPending ? "Gönderiliyor…" : "Yorumu gönder"}
+            </Text>
+          </TouchableOpacity>
+        </Card>
 
         {data.reviews && data.reviews.length > 0 && (
           <View>

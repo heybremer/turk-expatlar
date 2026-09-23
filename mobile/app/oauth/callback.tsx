@@ -28,7 +28,7 @@ export default function OAuthCallbackScreen() {
 
   return (
     <View className="flex-1 items-center justify-center bg-background px-6">
-      <ActivityIndicator size="large" color="#1a56db" />
+      <ActivityIndicator size="large" color="#0f766e" />
       <Text className="mt-4 text-muted">Google ile giriş yapılıyor...</Text>
     </View>
   );

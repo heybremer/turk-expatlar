@@ -1,5 +1,6 @@
 import { format, formatDistanceToNow, isValid, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
+import { API_URL } from "./api";
 
 export function formatDate(dateStr: string): string {
   try {
@@ -50,7 +51,9 @@ export function truncate(str: string, maxLength: number): string {
   return str.slice(0, maxLength) + "…";
 }
 
-export const CDN_URL = "https://api.turkexpatlar.de";
+export const CDN_URL =
+  process.env.EXPO_PUBLIC_CDN_URL ??
+  API_URL.replace(/\/api\/?$/, "");
 
 export function avatarUrl(url?: string | null): string | undefined {
   if (!url) return undefined;

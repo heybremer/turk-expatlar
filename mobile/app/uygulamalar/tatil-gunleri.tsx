@@ -80,7 +80,7 @@ export default function TatilGunleri() {
           data={data.holidays}
           keyExtractor={(h) => h.date}
           contentContainerStyle={{ padding: 16 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#1a56db" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
           renderItem={({ item }) => {
             const isPast = item.date < today;
             const isToday = item.date === today;
