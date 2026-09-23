@@ -10,9 +10,10 @@
 - api: tsc, build, jest (60/60), eslint (değişen dosyalar) ✓
 - web: tsc ✓ · mobile: tsc ✓, expo-doctor 18/18 ✓
 
+- Web: `/profil/hesap` (engellenenler + hesap silme).
+- Google + 2FA: callback 5 dk'lık bilet verir (`#twofa=` / mobilde `twofa`), `POST /auth/2fa/google` kodla token'a çevirir.
+
 ## Açık riskler / sıradaki
 - iOS: Dijital üyeliğin Stripe ile satılması App Store 3.1.1'e takılabilir (IAP veya iOS'ta satın almayı gizleme kararı gerekli).
-- Web'de hesap silme arayüzü yok (API hazır).
-- Google girişi 2FA'yı atlıyor.
 - Stripe webhook canlıda test edilmedi (gizli anahtar gerekir).
 - Mobilde otomatik test yok.

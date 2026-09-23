@@ -360,6 +360,43 @@ export class AuthService {
     return { message: 'Şifreniz başarıyla güncellendi. Giriş yapabilirsiniz.' };
   }
 
+  async completeGoogleTwoFactor(ticket: string, code: string) {
+    let payload: { sub?: string; purpose?: string };
+    try {
+      payload = this.jwt.verify(ticket, {
+        secret: this.googleTwoFactorSecret(),
+      });
+    } catch {
+      throw new UnauthorizedException(
+        'Doğrulama süresi doldu. Google ile tekrar giriş yapın.',
+      );
+    }
+    if (payload.purpose !== 'google-2fa' || !payload.sub) {
+      throw new UnauthorizedException('Geçersiz doğrulama bileti');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      include: { profile: { include: { state: true, city: true } } },
+    });
+    if (!user) throw new UnauthorizedException('Hesap bulunamadı');
+    this.assertCanSignIn(user);
+
+    if (
+      user.twoFactorEnabled &&
+      user.twoFactorSecret &&
+      !authenticator.verify({ token: code, secret: user.twoFactorSecret })
+    ) {
+      throw new UnauthorizedException('Geçersiz doğrulama kodu');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+    return this.buildAuthResponse(user);
+  }
+
   private assertCanSignIn(user: {
     deletedAt: Date | null;
     status: string;
@@ -399,12 +436,28 @@ export class AuthService {
     return { user: safeUser, accessToken: token };
   }
 
+  private googleTwoFactorSecret() {
+    const base = process.env.JWT_SECRET;
+    if (!base) throw new Error('JWT_SECRET tanımlı değil');
+    // Ayrı anahtar: bilet, erişim token'ı olarak JwtStrategy'den geçemez
+    return `${base}:google-2fa`;
+  }
+
   buildGoogleAuthResponse(user: {
     id: string;
     email: string;
     role: string;
     emailVerified?: boolean;
-  }) {
+    twoFactorEnabled?: boolean;
+    twoFactorSecret?: string | null;
+  }): { accessToken: string } | { twoFactorTicket: string } {
+    if (user.twoFactorEnabled && user.twoFactorSecret) {
+      const twoFactorTicket = this.jwt.sign(
+        { sub: user.id, purpose: 'google-2fa' },
+        { secret: this.googleTwoFactorSecret(), expiresIn: '5m' },
+      );
+      return { twoFactorTicket };
+    }
     const token = this.jwt.sign({
       sub: user.id,
       role: user.role,

@@ -7,7 +7,7 @@ import { ApiError } from "@/lib/api";
 
 export default function OAuthCallbackScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ token?: string; error?: string }>();
+  const params = useLocalSearchParams<{ token?: string; error?: string; twofa?: string }>();
 
   useEffect(() => {
     void (async () => {
@@ -15,8 +15,16 @@ export default function OAuthCallbackScreen() {
         const query = new URLSearchParams();
         if (typeof params.token === "string") query.set("token", params.token);
         if (typeof params.error === "string") query.set("error", params.error);
+        if (typeof params.twofa === "string") query.set("twofa", params.twofa);
         const callbackBase = Linking.createURL("/oauth/callback").split("?")[0];
-        await completeGoogleOAuthCallback(`${callbackBase}?${query.toString()}`);
+        const result = await completeGoogleOAuthCallback(`${callbackBase}?${query.toString()}`);
+        if (result) {
+          router.replace({
+            pathname: "/(auth)/giris",
+            params: { twofa: result.twoFactorTicket },
+          });
+          return;
+        }
         router.replace("/(tabs)/akis");
       } catch (err) {
         const message =
@@ -24,7 +32,7 @@ export default function OAuthCallbackScreen() {
         router.replace(`/(auth)/giris?error=${encodeURIComponent(message)}`);
       }
     })();
-  }, [params.error, params.token, router]);
+  }, [params.error, params.token, params.twofa, router]);
 
   return (
     <View className="flex-1 items-center justify-center bg-background px-6">

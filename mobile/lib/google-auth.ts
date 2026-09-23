@@ -23,8 +23,20 @@ function readQueryParam(params: Linking.QueryParams | null | undefined, key: str
   return null;
 }
 
-export async function completeGoogleOAuthCallback(url: string): Promise<void> {
+export type GoogleLoginResult = { twoFactorTicket: string } | void;
+
+export async function completeGoogleTwoFactor(ticket: string, code: string): Promise<void> {
+  const res = await api.post<{ user: AuthUser; accessToken: string }>("/auth/2fa/google", {
+    ticket,
+    code,
+  });
+  useAuth.getState().setAuth(res.user, res.accessToken);
+}
+
+export async function completeGoogleOAuthCallback(url: string): Promise<GoogleLoginResult> {
   const parsed = Linking.parse(url);
+  const twoFactorTicket = readQueryParam(parsed.queryParams, "twofa");
+  if (twoFactorTicket) return { twoFactorTicket };
   const error = readQueryParam(parsed.queryParams, "error");
   if (error) {
     if (error === "oauth_disabled") {
@@ -42,7 +54,7 @@ export async function completeGoogleOAuthCallback(url: string): Promise<void> {
   useAuth.getState().setAuth(user, token);
 }
 
-export async function loginWithGoogle(): Promise<void> {
+export async function loginWithGoogle(): Promise<GoogleLoginResult> {
   const result = await WebBrowser.openAuthSessionAsync(buildGoogleAuthUrl(), REDIRECT_URI);
 
   if (result.type === "cancel" || result.type === "dismiss") {
@@ -53,5 +65,5 @@ export async function loginWithGoogle(): Promise<void> {
     throw new ApiError("Google ile giriş başarısız.", 401);
   }
 
-  await completeGoogleOAuthCallback(result.url);
+  return completeGoogleOAuthCallback(result.url);
 }

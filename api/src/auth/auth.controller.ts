@@ -1,4 +1,16 @@
-import { Body, Controller, Post, Res, HttpCode, HttpStatus, UseGuards, Get, Query, Req, UseFilters } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Res,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
+  Get,
+  Query,
+  Req,
+  UseFilters,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
@@ -7,10 +19,14 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { OAuthRedirectFilter } from './filters/oauth-redirect.filter';
-import { parseOAuthState, resolveMobileOAuthRedirect } from './mobile-oauth.util';
+import {
+  parseOAuthState,
+  resolveMobileOAuthRedirect,
+} from './mobile-oauth.util';
 import { AuthService } from './auth.service';
 import { TwoFactorService } from './two-factor.service';
 import { LoginDto } from './dto/login.dto';
+import { GoogleTwoFactorDto } from './dto/google-two-factor.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -48,7 +64,10 @@ export class AuthController {
   @Post('register')
   @RequireFeature('registration')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.register(dto);
     setTokenCookie(res, result.accessToken);
     return result;
@@ -56,7 +75,10 @@ export class AuthController {
 
   @Post('login')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.login(dto);
     if ('accessToken' in result) {
       setTokenCookie(res, result.accessToken);
@@ -136,6 +158,21 @@ export class AuthController {
 
   // ─── Google OAuth ──────────────────────────────────────────────────────────
 
+  @Post('2fa/google')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async completeGoogleTwoFactor(
+    @Body() dto: GoogleTwoFactorDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.completeGoogleTwoFactor(
+      dto.ticket,
+      dto.code,
+    );
+    setTokenCookie(res, result.accessToken);
+    return result;
+  }
+
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   googleAuth() {
@@ -145,7 +182,17 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   async googleCallback(
-    @Req() req: { user?: { id: string; email: string; role: string; emailVerified?: boolean } },
+    @Req()
+    req: {
+      user?: {
+        id: string;
+        email: string;
+        role: string;
+        emailVerified?: boolean;
+        twoFactorEnabled?: boolean;
+        twoFactorSecret?: string | null;
+      };
+    },
     @Res() res: Response,
     @Query('state') state?: string,
   ) {
@@ -164,6 +211,20 @@ export class AuthController {
     }
     try {
       const result = this.authService.buildGoogleAuthResponse(req.user);
+      if ('twoFactorTicket' in result) {
+        if (isMobile) {
+          res.redirect(
+            resolveMobileOAuthRedirect(state, {
+              twofa: result.twoFactorTicket,
+            }),
+          );
+        } else {
+          res.redirect(
+            `${webUrl}/oauth/callback#twofa=${encodeURIComponent(result.twoFactorTicket)}`,
+          );
+        }
+        return;
+      }
       if (isMobile) {
         res.redirect(
           resolveMobileOAuthRedirect(state, {
@@ -176,7 +237,9 @@ export class AuthController {
       res.cookie('s', '1', { ...COOKIE_OPTIONS, httpOnly: false });
       // Token URL fragment ile taşınır: fragment sunucuya gönderilmez,
       // loglara ve Referer başlığına sızmaz (query string sızıyordu).
-      res.redirect(`${webUrl}/oauth/callback#token=${encodeURIComponent(result.accessToken)}`);
+      res.redirect(
+        `${webUrl}/oauth/callback#token=${encodeURIComponent(result.accessToken)}`,
+      );
     } catch (err) {
       console.error('[Google OAuth callback]', err);
       if (!res.headersSent) {

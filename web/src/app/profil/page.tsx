@@ -409,6 +409,7 @@ export default function ProfilPage() {
             { href: "/etkinlikler", label: "Katıldığım etkinlikler" },
             { href: "/isler", label: "İş ilanlarım" },
             { href: "/seyahat", label: "Taşıma taleplerim" },
+            { href: "/profil/hesap", label: "Hesap ve gizlilik" },
           ].map((l) => (
             <Link
               key={l.href}

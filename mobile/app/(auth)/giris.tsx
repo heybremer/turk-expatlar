@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,20 +14,54 @@ import { Link, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { login } from "@/lib/auth";
-import { loginWithGoogle } from "@/lib/google-auth";
+import { completeGoogleTwoFactor, loginWithGoogle } from "@/lib/google-auth";
 import { ApiError } from "@/lib/api";
 
 export default function GirisScreen() {
   const insets = useSafeAreaInsets();
-  const { error: oauthError } = useLocalSearchParams<{ error?: string }>();
+  const { error: oauthError, twofa } = useLocalSearchParams<{ error?: string; twofa?: string }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
+  const [passwordTwoFactor, setPasswordTwoFactor] = useState(false);
+  const [googleTicket, setGoogleTicket] = useState<string | null>(
+    typeof twofa === "string" && twofa ? twofa : null,
+  );
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const requiresTwoFactor = passwordTwoFactor || !!googleTicket;
+
+  useEffect(() => {
+    if (typeof twofa === "string" && twofa) {
+      setGoogleTicket(twofa);
+      setCode("");
+    }
+  }, [twofa]);
+
+  function resetTwoFactor() {
+    setPasswordTwoFactor(false);
+    setGoogleTicket(null);
+    setCode("");
+  }
+
+  async function handleGoogleTwoFactor(ticket: string) {
+    setLoading(true);
+    try {
+      await completeGoogleTwoFactor(ticket, code);
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Bir hata oluştu";
+      if (err instanceof ApiError && /süresi doldu|bilet/i.test(message)) resetTwoFactor();
+      Alert.alert("Doğrulama Başarısız", message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleLogin(credentials?: { email: string; password: string }) {
+    if (googleTicket) {
+      await handleGoogleTwoFactor(googleTicket);
+      return;
+    }
     const loginEmail = credentials?.email ?? email.trim();
     const loginPassword = credentials?.password ?? password;
     if (!loginEmail || !loginPassword) {
@@ -42,7 +76,7 @@ export default function GirisScreen() {
         requiresTwoFactor ? code : undefined,
       );
       if ("requiresTwoFactor" in result) {
-        setRequiresTwoFactor(true);
+        setPasswordTwoFactor(true);
         setCode("");
       }
     } catch (err) {
@@ -64,7 +98,11 @@ export default function GirisScreen() {
   async function handleGoogleLogin() {
     setGoogleLoading(true);
     try {
-      await loginWithGoogle();
+      const result = await loginWithGoogle();
+      if (result) {
+        setGoogleTicket(result.twoFactorTicket);
+        setCode("");
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 0) return;
       Alert.alert(
@@ -212,7 +250,7 @@ export default function GirisScreen() {
               </>
             ) : (
               <TouchableOpacity
-                onPress={() => setRequiresTwoFactor(false)}
+                onPress={resetTwoFactor}
                 className="mt-3 min-h-11 items-center justify-center"
               >
                 <Text className="font-semibold text-primary">Geri dön</Text>
