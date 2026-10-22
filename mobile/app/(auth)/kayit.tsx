@@ -1,200 +1,270 @@
-import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRef, useState } from "react";
+import { Pressable, Text, TextInput, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Check, CircleAlert, Gift, Lock, Mail, UserPlus, UserRound } from "lucide-react-native";
+
+import { AuthDivider, AuthFooterLink, AuthLayout } from "@/components/auth/AuthLayout";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
-import { register } from "@/lib/auth";
+import {
+  EMPTY_POSTAL_LOCATION,
+  PostalLocation,
+  PostalLocationErrors,
+  PostalLocationFields,
+  validatePostalLocation,
+} from "@/components/auth/PostalLocationFields";
+import { Button } from "@/components/ui/Button";
+import { TextField } from "@/components/ui/TextField";
+import { useAuth } from "@/lib/auth";
 import { loginWithGoogle } from "@/lib/google-auth";
-import { ApiError } from "@/lib/api";
+import { api, ApiError, AuthUser } from "@/lib/api";
+import { colors } from "@/lib/colors";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type FieldErrors = {
+  displayName?: string;
+  email?: string;
+  password?: string;
+  gdpr?: string;
+} & PostalLocationErrors;
 
 export default function KayitScreen() {
-  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { ref } = useLocalSearchParams<{ ref?: string }>();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [postalCode, setPostalCode] = useState("");
-  const [postalCountry, setPostalCountry] = useState<"DE" | "TR">("DE");
+  const [referralCode, setReferralCode] = useState(
+    typeof ref === "string" ? ref.toUpperCase().slice(0, 12) : "",
+  );
+  const [location, setLocation] = useState<PostalLocation>(EMPTY_POSTAL_LOCATION);
   const [gdprConsent, setGdprConsent] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const referralRef = useRef<TextInput>(null);
+  const postalRef = useRef<TextInput>(null);
+
+  const clearError = (key: keyof FieldErrors) =>
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+
+  function validate(): FieldErrors {
+    const next: FieldErrors = { ...validatePostalLocation(location) };
+    if (displayName.trim().length < 2) next.displayName = "Görünen adını gir (en az 2 karakter).";
+    if (!EMAIL_RE.test(email.trim())) next.email = "Geçerli bir e-posta adresi gir.";
+    if (password.length < 8) next.password = "Şifre en az 8 karakter olmalı.";
+    if (!gdprConsent) next.gdpr = "Devam etmek için KVKK/GDPR onayı gerekli.";
+    return next;
+  }
+
   async function handleRegister() {
-    if (!displayName.trim() || !email.trim() || !password || !postalCode.trim()) {
-      Alert.alert("Hata", "Tüm alanları doldurunuz.");
-      return;
-    }
-    if (!gdprConsent) {
-      Alert.alert("Hata", "KVKK onayı zorunludur.");
-      return;
-    }
+    if (loading || googleLoading) return;
+    setFormError("");
+    const next = validate();
+    setErrors(next);
+    if (Object.values(next).some(Boolean)) return;
+
     setLoading(true);
     try {
-      await register({
+      const isDe = location.postalCountry === "DE";
+      const res = await api.post<{ user: AuthUser; accessToken: string }>("/auth/register", {
         displayName: displayName.trim(),
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
-        postalCode: postalCode.trim(),
-        postalCountry,
+        postalCountry: location.postalCountry,
+        postalCode: location.postalCode,
+        ...(isDe ? { stateId: location.stateId, cityId: location.cityId } : {}),
         gdprConsent: true,
+        ...(referralCode.trim() ? { referralCode: referralCode.trim() } : {}),
       });
+      useAuth.getState().setAuth(res.user, res.accessToken);
     } catch (err) {
-      Alert.alert("Kayıt Başarısız", err instanceof ApiError ? err.message : "Bir hata oluştu");
+      const message = err instanceof ApiError ? err.message : "Kayıt başarısız. Tekrar dene.";
+      if (/e-posta/i.test(message)) setErrors((prev) => ({ ...prev, email: message }));
+      else setFormError(message);
     } finally {
       setLoading(false);
     }
   }
 
   async function handleGoogleRegister() {
+    if (loading || googleLoading) return;
+    setFormError("");
     setGoogleLoading(true);
     try {
-      await loginWithGoogle();
+      const result = await loginWithGoogle();
+      if (result) {
+        router.replace({ pathname: "/(auth)/giris", params: { twofa: result.twoFactorTicket } });
+      }
     } catch (err) {
-      if (err instanceof ApiError && err.status === 0) return;
-      Alert.alert(
-        "Google Kaydı",
-        err instanceof ApiError ? err.message : "Bir hata oluştu",
-      );
+      if (err instanceof ApiError && err.status === 0 && /iptal/i.test(err.message)) return;
+      setFormError(err instanceof ApiError ? err.message : "Google ile kayıt başarısız.");
     } finally {
       setGoogleLoading(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-background"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <AuthLayout
+      title="Hesap oluştur"
+      subtitle="Birkaç adımda topluluğa katıl, çevrendeki Türklerle tanış."
+      footer={
+        <AuthFooterLink
+          prompt="Zaten hesabın var mı?"
+          label="Giriş yap"
+          onPress={() => router.replace("/(auth)/giris")}
+        />
+      }
     >
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: "center",
-          paddingTop: insets.top,
-          paddingBottom: insets.bottom,
+      <GoogleSignInButton
+        onPress={() => void handleGoogleRegister()}
+        loading={googleLoading}
+        disabled={loading}
+        label="Google ile kayıt ol"
+      />
+
+      <AuthDivider label="veya e-posta ile" />
+
+      <TextField
+        label="Görünen ad"
+        icon={UserRound}
+        value={displayName}
+        onChangeText={(v) => {
+          setDisplayName(v);
+          clearError("displayName");
         }}
-        keyboardShouldPersistTaps="handled"
+        placeholder="Adınız Soyadınız"
+        autoCapitalize="words"
+        autoComplete="name"
+        textContentType="name"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => emailRef.current?.focus()}
+        error={errors.displayName}
+      />
+      <TextField
+        ref={emailRef}
+        label="E-posta"
+        icon={Mail}
+        value={email}
+        onChangeText={(v) => {
+          setEmail(v);
+          clearError("email");
+        }}
+        placeholder="ornek@email.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        error={errors.email}
+      />
+      <TextField
+        ref={passwordRef}
+        label="Şifre"
+        icon={Lock}
+        password
+        value={password}
+        onChangeText={(v) => {
+          setPassword(v);
+          clearError("password");
+        }}
+        placeholder="En az 8 karakter"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => referralRef.current?.focus()}
+        hint="En az 8 karakter kullan."
+        error={errors.password}
+      />
+      <TextField
+        ref={referralRef}
+        label="Referans kodu (isteğe bağlı)"
+        icon={Gift}
+        value={referralCode}
+        onChangeText={(v) => setReferralCode(v.toUpperCase().replace(/\s/g, "").slice(0, 12))}
+        placeholder="ABC12345"
+        autoCapitalize="characters"
+        autoCorrect={false}
+        autoComplete="off"
+        maxLength={12}
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => postalRef.current?.focus()}
+      />
+
+      <PostalLocationFields
+        ref={postalRef}
+        value={location}
+        onChange={(patch) => {
+          setLocation((prev) => ({ ...prev, ...patch }));
+          if (patch.postalCode !== undefined) clearError("postalCode");
+          if (patch.stateId !== undefined || patch.cityId !== undefined) clearError("location");
+        }}
+        errors={errors}
+        returnKeyType="done"
+      />
+
+      <Pressable
+        onPress={() => {
+          setGdprConsent((v) => !v);
+          clearError("gdpr");
+        }}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: gdprConsent }}
+        accessibilityLabel="Kişisel verilerimin işlenmesine onay veriyorum"
+        className={`min-h-11 flex-row items-start gap-3 rounded-2xl border bg-surface p-3.5 active:opacity-70 ${
+          errors.gdpr ? "border-danger" : "border-border"
+        }`}
       >
-        <View className="px-6 py-12">
-          <View className="mb-8 items-center">
-            <View className="mb-4 h-14 w-14 items-center justify-center rounded-2xl bg-primary">
-              <Text className="text-2xl font-bold text-white">TE</Text>
-            </View>
-            <Text className="text-2xl font-bold text-text">Hesap Oluştur</Text>
-          </View>
-
-          <View className="rounded-2xl bg-surface p-6 shadow-sm">
-            <Text className="mb-1 text-sm font-medium text-text">Görünen Ad</Text>
-            <TextInput
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="Adınız"
-              className="mb-4 rounded-xl border border-border bg-background px-4 py-3 text-text"
-              placeholderTextColor="#9ca3af"
-            />
-
-            <Text className="mb-1 text-sm font-medium text-text">E-posta</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="ornek@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              className="mb-4 rounded-xl border border-border bg-background px-4 py-3 text-text"
-              placeholderTextColor="#9ca3af"
-            />
-
-            <Text className="mb-1 text-sm font-medium text-text">Şifre</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="En az 8 karakter"
-              secureTextEntry
-              className="mb-4 rounded-xl border border-border bg-background px-4 py-3 text-text"
-              placeholderTextColor="#9ca3af"
-            />
-
-            <Text className="mb-2 text-sm font-medium text-text">Bulunduğunuz Ülke</Text>
-            <View className="mb-4 flex-row gap-3">
-              {(["DE", "TR"] as const).map((c) => (
-                <TouchableOpacity
-                  key={c}
-                  onPress={() => setPostalCountry(c)}
-                  className={`flex-1 items-center rounded-xl border py-3 ${postalCountry === c ? "border-primary bg-primary/10" : "border-border bg-background"}`}
-                >
-                  <Text className={`font-semibold ${postalCountry === c ? "text-primary" : "text-muted"}`}>
-                    {c === "DE" ? "🇩🇪 Almanya" : "🇹🇷 Türkiye"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text className="mb-1 text-sm font-medium text-text">Posta Kodu</Text>
-            <TextInput
-              value={postalCode}
-              onChangeText={setPostalCode}
-              placeholder={postalCountry === "DE" ? "10115" : "34000"}
-              keyboardType="numeric"
-              className="mb-4 rounded-xl border border-border bg-background px-4 py-3 text-text"
-              placeholderTextColor="#9ca3af"
-            />
-
-            <TouchableOpacity
-              onPress={() => setGdprConsent((v) => !v)}
-              className="mb-6 flex-row items-start gap-3"
-            >
-              <View className={`mt-0.5 h-5 w-5 rounded border-2 items-center justify-center ${gdprConsent ? "border-primary bg-primary" : "border-border"}`}>
-                {gdprConsent && <Ionicons name="checkmark" size={12} color="#fff" />}
-              </View>
-              <Text className="flex-1 text-sm text-muted">
-                Kişisel verilerimin işlenmesine onay veriyorum (KVKK)
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => void handleRegister()}
-              disabled={loading || googleLoading}
-              className="items-center rounded-xl bg-primary py-4"
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-base font-semibold text-white">Kayıt Ol</Text>
-              )}
-            </TouchableOpacity>
-
-            <View className="my-6 flex-row items-center">
-              <View className="h-px flex-1 bg-border" />
-              <Text className="mx-3 text-xs text-muted">veya</Text>
-              <View className="h-px flex-1 bg-border" />
-            </View>
-
-            <GoogleSignInButton
-              onPress={() => void handleGoogleRegister()}
-              loading={googleLoading}
-              label="Google ile kayıt ol"
-            />
-          </View>
-
-          <View className="mt-6 flex-row items-center justify-center">
-            <Text className="text-muted">Zaten hesabın var mı? </Text>
-            <Link href="/(auth)/giris" asChild>
-              <TouchableOpacity>
-                <Text className="font-semibold text-primary">Giriş Yap</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
+        <View
+          className={`mt-0.5 h-5 w-5 items-center justify-center rounded-md border-2 ${
+            gdprConsent ? "border-primary bg-primary" : "border-border bg-surface"
+          }`}
+        >
+          {gdprConsent ? <Check size={13} color={colors.white} strokeWidth={3} /> : null}
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        <Text className="flex-1 text-sm leading-5 text-muted">
+          <Text
+            className="font-semibold text-primary"
+            onPress={() => router.push("/bilgi/gizlilik")}
+            accessibilityRole="link"
+          >
+            Gizlilik politikasını
+          </Text>{" "}
+          okudum ve kişisel verilerimin işlenmesine onay veriyorum (KVKK/GDPR).
+        </Text>
+      </Pressable>
+      {errors.gdpr ? (
+        <Text className="mt-1.5 text-xs font-medium text-danger">{errors.gdpr}</Text>
+      ) : null}
+
+      {formError ? (
+        <View className="mt-4 flex-row items-center gap-2.5 rounded-2xl bg-danger/10 p-3.5">
+          <CircleAlert size={18} color={colors.danger} />
+          <Text className="flex-1 text-sm font-medium text-danger">{formError}</Text>
+        </View>
+      ) : null}
+
+      <Button
+        label="Kayıt ol"
+        size="lg"
+        icon={UserPlus}
+        className="mt-6"
+        onPress={() => void handleRegister()}
+        loading={loading}
+        disabled={googleLoading}
+      />
+    </AuthLayout>
   );
 }

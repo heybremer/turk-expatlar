@@ -1,5 +1,6 @@
-import { Text, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Pressable, Text, View } from "react-native";
+import { ChevronLeft, ChevronRight } from "lucide-react-native";
+import { colors } from "@/lib/colors";
 
 type Props = {
   page: number;
@@ -9,27 +10,35 @@ type Props = {
 
 export function Pagination({ page, totalPages, onChange }: Props) {
   if (totalPages <= 1) return null;
+  const prevDisabled = page <= 1;
+  const nextDisabled = page >= totalPages;
   return (
-    <View className="flex-row items-center justify-center gap-3 mt-4 mb-2">
-      <TouchableOpacity
-        disabled={page <= 1}
+    <View className="mb-2 mt-4 flex-row items-center justify-center gap-3">
+      <Pressable
+        disabled={prevDisabled}
         onPress={() => onChange(page - 1)}
-        className={`flex-row items-center gap-1 px-4 py-2 rounded-xl border border-border ${page <= 1 ? "opacity-30" : ""}`}
+        accessibilityLabel="Önceki sayfa"
+        className={`h-11 w-11 items-center justify-center rounded-2xl border border-border bg-surface active:bg-background ${
+          prevDisabled ? "opacity-30" : "opacity-100"
+        }`}
       >
-        <Ionicons name="chevron-back" size={14} color="#1f2937" />
-        <Text className="text-sm text-text">Önceki</Text>
-      </TouchableOpacity>
-      <View className="px-4 py-2 items-center justify-center">
-        <Text className="text-sm text-muted">{page} / {totalPages}</Text>
+        <ChevronLeft size={18} color={colors.text} />
+      </Pressable>
+      <View className="min-w-20 items-center rounded-2xl bg-surface px-4 py-2.5">
+        <Text className="text-sm font-semibold text-text">
+          {page} <Text className="font-normal text-muted">/ {totalPages}</Text>
+        </Text>
       </View>
-      <TouchableOpacity
-        disabled={page >= totalPages}
+      <Pressable
+        disabled={nextDisabled}
         onPress={() => onChange(page + 1)}
-        className={`flex-row items-center gap-1 px-4 py-2 rounded-xl border border-border ${page >= totalPages ? "opacity-30" : ""}`}
+        accessibilityLabel="Sonraki sayfa"
+        className={`h-11 w-11 items-center justify-center rounded-2xl border border-border bg-surface active:bg-background ${
+          nextDisabled ? "opacity-30" : "opacity-100"
+        }`}
       >
-        <Text className="text-sm text-text">Sonraki</Text>
-        <Ionicons name="chevron-forward" size={14} color="#1f2937" />
-      </TouchableOpacity>
+        <ChevronRight size={18} color={colors.text} />
+      </Pressable>
     </View>
   );
 }

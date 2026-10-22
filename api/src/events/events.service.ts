@@ -1,11 +1,13 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { AttendeeStatus, EventStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationGateway } from '../notifications/notification.gateway';
 import { GamificationService } from '../gamification/gamification.service';
@@ -166,6 +168,68 @@ export class EventsService {
     );
 
     return event;
+  }
+
+  async updateEvent(eventId: string, userId: string, dto: UpdateEventDto) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+    });
+    if (!event) throw new NotFoundException('Etkinlik bulunamadı');
+    if (event.organizerId !== userId) throw new ForbiddenException();
+    if (
+      event.status === EventStatus.CANCELLED ||
+      event.status === EventStatus.COMPLETED
+    ) {
+      throw new ConflictException(
+        'İptal edilmiş veya tamamlanmış etkinlik düzenlenemez',
+      );
+    }
+
+    return this.prisma.event.update({
+      where: { id: eventId },
+      data: {
+        ...(dto.stateId !== undefined && { stateId: dto.stateId }),
+        ...(dto.cityId !== undefined && { cityId: dto.cityId }),
+        ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.location !== undefined && { location: dto.location }),
+        ...(dto.startsAt !== undefined && { startsAt: new Date(dto.startsAt) }),
+        ...(dto.endsAt !== undefined && {
+          endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
+        }),
+        ...(dto.capacity !== undefined && { capacity: dto.capacity }),
+        ...(dto.priceType !== undefined && { priceType: dto.priceType }),
+        ...(dto.priceAmount !== undefined && { priceAmount: dto.priceAmount }),
+        ...(dto.category !== undefined && { category: dto.category }),
+      },
+      include: { state: true, city: true },
+    });
+  }
+
+  async deleteEvent(eventId: string, userId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+    });
+    if (!event) throw new NotFoundException('Etkinlik bulunamadı');
+    if (event.organizerId !== userId) throw new ForbiddenException();
+
+    await this.prisma.event.update({
+      where: { id: eventId },
+      data: { deletedAt: new Date(), status: EventStatus.CANCELLED },
+    });
+    return { success: true };
+  }
+
+  async leaveEvent(eventId: string, userId: string) {
+    const existing = await this.prisma.eventAttendee.findUnique({
+      where: { eventId_userId: { eventId, userId } },
+    });
+    if (!existing) return { success: true };
+
+    await this.prisma.eventAttendee.delete({
+      where: { eventId_userId: { eventId, userId } },
+    });
+    return { success: true };
   }
 
   async attend(

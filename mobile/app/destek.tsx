@@ -1,127 +1,240 @@
-import { useState } from "react";
-import { Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useMutation } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { Pressable, Text, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  CircleAlert,
+  CircleCheck,
+  Heart,
+  Lightbulb,
+  Mail,
+  MessagesSquare,
+  MoreHorizontal,
+  Send,
+  Sparkles,
+  Tag,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
+import { colors } from "@/lib/colors";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { TextField } from "@/components/ui/TextField";
 import { Screen } from "@/components/ui/Screen";
+import { LinkRow, SectionLabel, ToolHero } from "@/components/ui/kit";
 
-const CATEGORIES = [
-  { value: "TECHNICAL", label: "Teknik sorun", icon: "build-outline" },
-  { value: "SUGGESTION", label: "Öneri", icon: "bulb-outline" },
-  { value: "REQUEST", label: "İstek", icon: "sparkles-outline" },
-  { value: "COMPLAINT", label: "Şikayet", icon: "alert-circle-outline" },
-  { value: "OTHER", label: "Diğer", icon: "ellipsis-horizontal-circle-outline" },
-] as const;
+type Category = "TECHNICAL" | "SUGGESTION" | "REQUEST" | "COMPLAINT" | "OTHER";
+type Ticket = { id: string; category: Category; subject: string; status: string; createdAt: string };
 
-type Category = (typeof CATEGORIES)[number]["value"];
+const CATEGORIES: ReadonlyArray<{ value: Category; label: string; icon: LucideIcon }> = [
+  { value: "TECHNICAL", label: "Teknik sorun", icon: Wrench },
+  { value: "SUGGESTION", label: "Öneri", icon: Lightbulb },
+  { value: "REQUEST", label: "İstek", icon: Sparkles },
+  { value: "COMPLAINT", label: "Şikayet", icon: CircleAlert },
+  { value: "OTHER", label: "Diğer", icon: MoreHorizontal },
+];
+const SUBJECT_MIN = 5;
+const SUBJECT_MAX = 200;
+const MESSAGE_MIN = 20;
+const MESSAGE_MAX = 5000;
 
 export default function SupportScreen() {
   const { token } = useAuth();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [category, setCategory] = useState<Category>("SUGGESTION");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [serverError, setServerError] = useState("");
+  const [sent, setSent] = useState<Ticket | null>(null);
+  const messageRef = useRef<TextInput>(null);
+
+  const { data: myTickets } = useQuery({
+    queryKey: ["support-mine"],
+    queryFn: () => api.get<Ticket[]>("/support/mine", token),
+    enabled: !!token,
+  });
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.post("/support", { category, subject: subject.trim(), message: message.trim() }, token),
-    onSuccess: () => {
+      api.post<Ticket>("/support", { category, subject: subject.trim(), message: message.trim() }, token),
+    onSuccess: (ticket) => {
+      setSent(ticket);
+      void queryClient.invalidateQueries({ queryKey: ["support-mine"] });
       setSubject("");
       setMessage("");
       setCategory("SUGGESTION");
-      Alert.alert("Teşekkür ederiz", "Mesajınız ekibimize iletildi.");
+      setSubmitted(false);
     },
-    onError: (error) =>
-      Alert.alert(
-        "Gönderilemedi",
-        error instanceof ApiError ? error.message : "Lütfen tekrar deneyin.",
-      ),
+    onError: (error) => setServerError(error instanceof ApiError ? error.message : "Lütfen tekrar deneyin."),
   });
 
-  const valid = subject.trim().length >= 5 && message.trim().length >= 20;
+  const subjectError =
+    subject.trim().length < SUBJECT_MIN ? `Konu en az ${SUBJECT_MIN} karakter olmalı` : null;
+  const messageError =
+    message.trim().length < MESSAGE_MIN ? `Mesaj en az ${MESSAGE_MIN} karakter olmalı` : null;
 
-  return (
-    <Screen
-      title="Destek"
-      subtitle="Sorun, öneri ve isteklerinizi iletin"
-      keyboardAware
-    >
-      <Card className="mb-5 border-primary/20 bg-primary/5">
-        <View className="flex-row items-start gap-3">
-          <View className="h-11 w-11 items-center justify-center rounded-2xl bg-primary">
-            <Ionicons name="heart-outline" size={22} color="#fff" />
+  const submit = () => {
+    setSubmitted(true);
+    setServerError("");
+    if (subjectError || messageError || mutation.isPending) return;
+    mutation.mutate();
+  };
+
+  if (sent) {
+    return (
+      <Screen title="Destek" subtitle="Sorun, öneri ve isteklerinizi iletin">
+        <Card className="items-center p-6">
+          <View className="h-16 w-16 items-center justify-center rounded-3xl bg-success/10">
+            <CircleCheck size={30} color={colors.success} />
           </View>
-          <View className="flex-1">
-            <Text className="text-base font-bold text-text">Birlikte geliştirelim</Text>
-            <Text className="mt-1 text-sm leading-5 text-muted">
-              Her mesaj incelenir. İçerik veya kullanıcı şikâyetlerinde ilgili içerikteki şikâyet menüsünü kullanın.
+          <Text className="mt-4 text-center text-lg font-extrabold text-text">Teşekkür ederiz!</Text>
+          <Text className="mt-1.5 text-center text-sm leading-5 text-muted">
+            Mesajın ekibimize iletildi. Gerekirse e-posta adresin üzerinden sana dönüş yapacağız.
+          </Text>
+          <View className="mt-4 w-full rounded-2xl bg-background p-4">
+            <Text className="text-xs text-muted">Konu</Text>
+            <Text className="mt-0.5 text-[15px] font-semibold text-text">{sent.subject}</Text>
+            <Text className="mt-2 text-xs text-muted">
+              Talep no: <Text className="font-semibold text-text">{sent.id.slice(-8).toUpperCase()}</Text>
             </Text>
           </View>
-        </View>
-      </Card>
+          <View className="mt-5 w-full gap-2">
+            <Button label="Yeni mesaj yaz" variant="soft" onPress={() => setSent(null)} />
+            <Button label="Geri dön" variant="ghost" onPress={() => router.back()} />
+          </View>
+        </Card>
+      </Screen>
+    );
+  }
 
-      <Text className="mb-2 text-sm font-bold text-text">Kategori</Text>
-      <View className="mb-5 flex-row flex-wrap gap-2">
+  return (
+    <Screen title="Destek" subtitle="Sorun, öneri ve isteklerinizi iletin" keyboardAware>
+      <ToolHero
+        icon={Heart}
+        tint={colors.accent}
+        title="Birlikte geliştirelim"
+        subtitle="Her mesaj incelenir. İçerik veya kullanıcı şikâyetlerinde ilgili içerikteki şikâyet menüsünü kullanın."
+      />
+
+      <SectionLabel>Kategori</SectionLabel>
+      <View className="flex-row flex-wrap gap-2">
         {CATEGORIES.map((item) => {
           const selected = item.value === category;
+          const Icon = item.icon;
           return (
-            <TouchableOpacity
+            <Pressable
               key={item.value}
               onPress={() => setCategory(item.value)}
-              accessibilityRole="button"
+              accessibilityRole="radio"
               accessibilityState={{ selected }}
-              className={`min-h-11 flex-row items-center gap-2 rounded-xl border px-3 py-2.5 ${
-                selected ? "border-primary bg-primary/10" : "border-border bg-surface"
+              accessibilityLabel={item.label}
+              className={`min-h-11 flex-row items-center gap-2 rounded-full border px-4 active:opacity-70 ${
+                selected ? "border-primary bg-primary" : "border-border bg-surface"
               }`}
             >
-              <Ionicons
-                name={item.icon}
-                size={17}
-                color={selected ? "#0f766e" : "#6b7280"}
-              />
-              <Text className={selected ? "font-semibold text-primary" : "text-muted"}>
+              <Icon size={16} color={selected ? colors.white : colors.muted} />
+              <Text className={`text-sm font-semibold ${selected ? "text-white" : "text-muted"}`}>
                 {item.label}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           );
         })}
       </View>
 
-      <Text className="mb-2 text-sm font-bold text-text">Konu başlığı</Text>
-      <TextInput
-        value={subject}
-        onChangeText={setSubject}
-        maxLength={200}
-        placeholder="Kısa ve açıklayıcı bir başlık"
-        placeholderTextColor="#9ca3af"
-        className="mb-5 min-h-12 rounded-xl border border-border bg-surface px-4 text-text"
-      />
+      <SectionLabel>Mesaj</SectionLabel>
+      <Card>
+        <TextField
+          label="Konu başlığı"
+          value={subject}
+          onChangeText={setSubject}
+          maxLength={SUBJECT_MAX}
+          placeholder="Kısa ve açıklayıcı bir başlık"
+          icon={Tag}
+          autoCapitalize="sentences"
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => messageRef.current?.focus()}
+          hint={`En az ${SUBJECT_MIN} karakter`}
+          error={submitted ? subjectError : null}
+        />
+        <TextField
+          ref={messageRef}
+          label="Mesajınız"
+          value={message}
+          onChangeText={setMessage}
+          maxLength={MESSAGE_MAX}
+          multiline
+          autoCapitalize="sentences"
+          placeholder="Ne yaşadığınızı veya önerinizi ayrıntılı yazın…"
+          hint={`En az ${MESSAGE_MIN} karakter · ${message.length}/${MESSAGE_MAX}`}
+          error={submitted ? messageError : null}
+          style={{ minHeight: 140 }}
+          containerClassName="mb-0"
+        />
+      </Card>
 
-      <View className="mb-2 flex-row justify-between">
-        <Text className="text-sm font-bold text-text">Mesajınız</Text>
-        <Text className="text-xs text-muted">{message.length}/5000</Text>
-      </View>
-      <TextInput
-        value={message}
-        onChangeText={setMessage}
-        maxLength={5000}
-        multiline
-        textAlignVertical="top"
-        placeholder="Ne yaşadığınızı veya önerinizi ayrıntılı yazın…"
-        placeholderTextColor="#9ca3af"
-        className="mb-2 min-h-[160px] rounded-xl border border-border bg-surface px-4 py-3 text-text"
-      />
-      <Text className="mb-5 text-xs text-muted">En az 20 karakter</Text>
+      {serverError ? (
+        <Text className="mt-4 text-center text-sm font-medium text-danger">{serverError}</Text>
+      ) : null}
 
       <Button
         label="Mesajı gönder"
+        icon={Send}
         size="lg"
+        className="mt-6"
         loading={mutation.isPending}
-        disabled={!valid}
-        onPress={() => mutation.mutate()}
+        onPress={submit}
       />
+
+      {myTickets && myTickets.length > 0 ? (
+        <>
+          <SectionLabel count={myTickets.length}>Geçmiş taleplerim</SectionLabel>
+          <View className="gap-2">
+            {myTickets.map((t) => (
+              <Card key={t.id} className="gap-1">
+                <View className="flex-row items-center justify-between">
+                  <Text className="flex-1 text-sm font-semibold text-text" numberOfLines={1}>
+                    {t.subject}
+                  </Text>
+                  <Text
+                    className={`text-xs font-semibold ${
+                      t.status === "RESOLVED" || t.status === "CLOSED" ? "text-success" : "text-warning"
+                    }`}
+                  >
+                    {t.status === "OPEN"
+                      ? "Açık"
+                      : t.status === "IN_PROGRESS"
+                        ? "İnceleniyor"
+                        : t.status === "RESOLVED"
+                          ? "Çözüldü"
+                          : t.status === "CLOSED"
+                            ? "Kapandı"
+                            : t.status}
+                  </Text>
+                </View>
+                <Text className="text-xs text-muted">Talep no: {t.id.slice(-8).toUpperCase()}</Text>
+              </Card>
+            ))}
+          </View>
+        </>
+      ) : null}
+
+      <SectionLabel>Diğer kanallar</SectionLabel>
+      <Card>
+        <LinkRow icon={Mail} label="iletisim@turkexpatlar.de" url="mailto:iletisim@turkexpatlar.de" emphasis />
+        <Pressable
+          onPress={() => router.push("/(tabs)/forum" as never)}
+          accessibilityRole="link"
+          className="min-h-11 flex-row items-center gap-3 active:opacity-60"
+        >
+          <MessagesSquare size={17} color={colors.muted} />
+          <Text className="flex-1 text-sm leading-5 text-text">Topluluğa forumda sor</Text>
+        </Pressable>
+      </Card>
     </Screen>
   );
 }

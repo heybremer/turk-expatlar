@@ -1,109 +1,113 @@
 import {
-  Building2,
   BookOpenCheck,
+  Building2,
   CalendarDays,
+  ChevronRight,
   Landmark,
   Map,
   Newspaper,
   Plane,
   Radio,
+  Sparkles,
 } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 
 import { DetailHeader, Screen } from "@/components/ui/Screen";
+import { SectionLabel } from "@/components/ui/kit";
+import { colors } from "@/lib/colors";
 
 type Tool = {
   title: string;
   description: string;
   icon: typeof CalendarDays;
   color: string;
-  bg: string;
-  route?: string;
-  ready?: boolean;
+  route: Href;
+  badge?: string;
 };
 
-const tools: Tool[] = [
+type Section = { title: string; tools: Tool[] };
+
+const SECTIONS: Section[] = [
   {
-    title: "Yeni Gelen Rehberi",
-    description: "Almanya'daki ilk adımlarını sırayla tamamla.",
-    icon: BookOpenCheck,
-    color: "#7C3AED",
-    bg: "#F5F3FF",
-    route: "/uygulamalar/web?tool=yeni-gelen",
-    ready: true,
+    title: "Almanya'da yaşam",
+    tools: [
+      {
+        title: "Yeni Gelen Rehberi",
+        description: "Anmeldung'dan vergi numarasına ilk adımlar",
+        icon: BookOpenCheck,
+        color: "#7C3AED",
+        route: "/uygulamalar/yeni-gelen",
+        badge: "Kontrol listesi",
+      },
+      {
+        title: "Konsolosluklar",
+        description: "Türk temsilcilikleri, adres ve telefonlar",
+        icon: Landmark,
+        color: "#DC2626",
+        route: "/uygulamalar/konsolosluklar",
+      },
+      {
+        title: "Resmî Kurumlar",
+        description: "Bürgeramt, Finanzamt, Jobcenter ve diğerleri",
+        icon: Building2,
+        color: "#2563EB",
+        route: "/uygulamalar/resmi-kurumlar",
+      },
+    ],
   },
   {
-    title: "Etkinlik Takvimi",
-    description: "Almanya genelindeki yaklaşan etkinlikleri keşfet.",
-    icon: CalendarDays,
-    color: "#7C3AED",
-    bg: "#F5F3FF",
-    route: "/uygulamalar/etkinlik-takvimi",
-    ready: true,
+    title: "Yol ve seyahat",
+    tools: [
+      {
+        title: "Yolculuk Telsizi",
+        description: "Yoldaki gezginlerle bas-konuş sesli iletişim",
+        icon: Radio,
+        color: "#EA580C",
+        route: "/uygulamalar/yolculuk-telsiz",
+        badge: "Canlı",
+      },
+      {
+        title: "Gezgin Rehberi",
+        description: "Eyalet eyalet gezilecek yerler",
+        icon: Map,
+        color: "#059669",
+        route: "/uygulamalar/gezgin-rehberi",
+      },
+      {
+        title: "Tatil Günleri",
+        description: "Eyaletlere göre resmî ve okul tatilleri",
+        icon: Plane,
+        color: "#0891B2",
+        route: "/uygulamalar/tatil-gunleri",
+      },
+    ],
   },
   {
-    title: "Konsolosluklar",
-    description: "Türk temsilciliklerinin iletişim bilgilerine ulaş.",
-    icon: Landmark,
-    color: "#DC2626",
-    bg: "#FEF2F2",
-    route: "/uygulamalar/web?tool=konsolosluklar",
-    ready: true,
-  },
-  {
-    title: "Resmî Kurumlar",
-    description: "Almanya'daki temel kurumları ve görevlerini öğren.",
-    icon: Building2,
-    color: "#2563EB",
-    bg: "#EFF6FF",
-    route: "/uygulamalar/web?tool=resmi-kurumlar",
-    ready: true,
-  },
-  {
-    title: "Gezgin Rehberi",
-    description: "Şehir rotaları ve topluluk önerilerini incele.",
-    icon: Map,
-    color: "#059669",
-    bg: "#ECFDF5",
-    route: "/uygulamalar/web?tool=gezgin-rehberi",
-    ready: true,
-  },
-  {
-    title: "Yolculuk Telsizi",
-    description: "Yol durumunu ve seyahat notlarını toplulukla paylaş.",
-    icon: Radio,
-    color: "#EA580C",
-    bg: "#FFF7ED",
-    route: "/uygulamalar/web?tool=yolculuk-telsiz",
-    ready: true,
-  },
-  {
-    title: "Tatil Günleri",
-    description: "Eyaletlere göre resmî tatil günlerini görüntüle.",
-    icon: Plane,
-    color: "#0891B2",
-    bg: "#ECFEFF",
-    route: "/uygulamalar/tatil-gunleri",
-    ready: true,
-  },
-  {
-    title: "Eyalet Haberleri",
-    description: "Bulunduğun eyaletteki gündemi takip et.",
-    icon: Newspaper,
-    color: "#475569",
-    bg: "#F8FAFC",
-    route: "/uygulamalar/haberler?type=state",
-    ready: true,
-  },
-  {
-    title: "Şehir Haberleri",
-    description: "Şehrindeki güncel gelişmeleri takip et.",
-    icon: Newspaper,
-    color: "#475569",
-    bg: "#F8FAFC",
-    route: "/uygulamalar/haberler?type=city",
-    ready: true,
+    title: "Gündem",
+    tools: [
+      {
+        title: "Etkinlik Takvimi",
+        description: "Almanya genelinde yaklaşan etkinlikler",
+        icon: CalendarDays,
+        color: "#DB2777",
+        route: "/uygulamalar/etkinlik-takvimi",
+      },
+      {
+        title: "Eyalet Haberleri",
+        description: "Bulunduğun eyaletteki gündem",
+        icon: Newspaper,
+        color: colors.primary,
+        route: "/uygulamalar/haberler?type=state",
+      },
+      {
+        title: "Şehir Haberleri",
+        description: "Şehrindeki güncel gelişmeler",
+        icon: Newspaper,
+        color: colors.primaryDark,
+        route: "/uygulamalar/haberler?type=city",
+      },
+    ],
   },
 ];
 
@@ -112,49 +116,60 @@ export default function MiniAppsScreen() {
 
   return (
     <Screen header={<DetailHeader title="Mini Uygulamalar" />}>
-      <View className="mb-5 rounded-3xl bg-primary-950 p-6">
-        <Text className="text-2xl font-extrabold text-white">Almanya cebinde</Text>
-        <Text className="mt-2 leading-6 text-primary-100">
-          Günlük yaşamı kolaylaştıran araçlar tek yerde.
-        </Text>
+      <View className="mb-6 overflow-hidden rounded-3xl bg-primary-950 p-6">
+        <View className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-primary-700/40" />
+        <View className="h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+          <Sparkles size={20} color={colors.white} />
+        </View>
+        <Text className="mt-4 text-2xl font-extrabold text-white">Almanya cebinde</Text>
+        <Text className="mt-1.5 leading-6 text-primary-100">Günlük yaşamı kolaylaştıran araçlar tek yerde.</Text>
       </View>
 
-      <View className="gap-3">
-        {tools.map((tool) => {
-          const Icon = tool.icon;
-          return (
-            <Pressable
-              key={tool.title}
-              disabled={!tool.ready}
-              onPress={() => tool.route && router.push(tool.route as never)}
-              className="min-h-24 flex-row items-center rounded-3xl border border-slate-100 bg-white p-4 active:bg-slate-50"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !tool.ready }}
-            >
-              <View
-                className="h-14 w-14 items-center justify-center rounded-2xl"
-                style={{ backgroundColor: tool.bg }}
-              >
-                <Icon size={26} color={tool.color} strokeWidth={2.2} />
-              </View>
-              <View className="ml-4 flex-1">
-                <View className="flex-row items-center">
-                  <Text className="flex-1 text-base font-extrabold text-slate-900">
-                    {tool.title}
-                  </Text>
-                  {!tool.ready ? (
-                    <Text className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500">
-                      YAKINDA
+      {SECTIONS.map((section) => (
+        <View key={section.title} className="mb-5">
+          <SectionLabel>{section.title}</SectionLabel>
+          <View className="overflow-hidden rounded-3xl border border-border bg-surface">
+            {section.tools.map((tool, i) => {
+              const Icon = tool.icon;
+              return (
+                <Pressable
+                  key={tool.title}
+                  onPress={() => router.push(tool.route)}
+                  accessibilityRole="button"
+                  accessibilityLabel={tool.title}
+                  accessibilityHint={tool.description}
+                  className={`min-h-20 flex-row items-center gap-4 px-4 py-3.5 active:bg-background ${
+                    i > 0 ? "border-t border-border" : ""
+                  }`}
+                >
+                  <View
+                    className="h-12 w-12 items-center justify-center rounded-2xl"
+                    style={{ backgroundColor: `${tool.color}14` }}
+                  >
+                    <Icon size={23} color={tool.color} strokeWidth={2.2} />
+                  </View>
+                  <View className="flex-1">
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-base font-bold text-text" numberOfLines={1}>
+                        {tool.title}
+                      </Text>
+                      {tool.badge ? (
+                        <View className="rounded-full bg-primary/10 px-2 py-0.5">
+                          <Text className="text-[10px] font-bold text-primary">{tool.badge}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text className="mt-0.5 text-sm leading-5 text-muted" numberOfLines={2}>
+                      {tool.description}
                     </Text>
-                  ) : null}
-                </View>
-                <Text className="mt-1 leading-5 text-slate-500">{tool.description}</Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-      <View className="h-6" />
+                  </View>
+                  <ChevronRight size={18} color={colors.mutedLight} />
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ))}
     </Screen>
   );
 }

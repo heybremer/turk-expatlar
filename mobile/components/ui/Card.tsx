@@ -1,15 +1,32 @@
-import { View, ViewProps } from "react-native";
+import { Pressable, View, ViewProps } from "react-native";
 
 type Props = ViewProps & {
   className?: string;
+  /** Verilirse kart dokunulabilir olur (basınca hafif soluklaşır). */
+  onPress?: () => void;
+  padded?: boolean;
 };
 
-export function Card({ children, className = "", ...rest }: Props) {
+const BASE = "rounded-3xl border border-border bg-surface";
+
+/** Standart içerik kartı: beyaz yüzey, ince çerçeve, 24px köşe. */
+export function Card({ children, className = "", onPress, padded = true, ...rest }: Props) {
+  const cls = `${BASE} ${padded ? "p-4" : ""} ${className}`;
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        className={`${cls} active:opacity-70`}
+        style={rest.style}
+        testID={rest.testID}
+      >
+        {children}
+      </Pressable>
+    );
+  }
   return (
-    <View
-      {...rest}
-      className={`rounded-2xl bg-surface border border-border p-4 ${className}`}
-    >
+    <View {...rest} className={cls}>
       {children}
     </View>
   );

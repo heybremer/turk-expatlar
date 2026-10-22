@@ -1,13 +1,6 @@
 import { ReactNode } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  ScrollViewProps,
-  StyleProp,
-  View,
-  ViewStyle,
-} from "react-native";
+import { ScrollView, ScrollViewProps, StyleProp, View, ViewStyle } from "react-native";
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DetailHeader } from "@/components/navigation/DetailHeader";
 
@@ -25,6 +18,10 @@ type Props = {
   refreshControl?: ScrollViewProps["refreshControl"];
 };
 
+/**
+ * Standart sayfa iskeleti. `keyboardAware` verildiğinde odaklanan alan klavyenin
+ * üstünde kalacak şekilde otomatik kaydırılır (iOS ve Android'de aynı davranış).
+ */
 export function Screen({
   title,
   subtitle,
@@ -39,39 +36,47 @@ export function Screen({
   refreshControl,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const content = scroll ? (
-    <ScrollView
-      keyboardShouldPersistTaps="handled"
-      contentInsetAdjustmentBehavior="automatic"
-      refreshControl={refreshControl}
-      contentContainerStyle={[
-        { padding: 16, paddingBottom: insets.bottom + 28 },
-        contentContainerStyle,
-      ]}
-      className="flex-1"
-    >
-      <View className={contentClassName}>{children}</View>
-    </ScrollView>
-  ) : (
-    <View className={`flex-1 ${contentClassName}`} style={contentContainerStyle}>
-      {children}
-    </View>
-  );
+  const avoidKeyboard = keyboardAware || keyboard;
+  const scrollProps = {
+    keyboardShouldPersistTaps: "handled" as const,
+    keyboardDismissMode: "interactive" as const,
+    refreshControl,
+    contentContainerStyle: [{ padding: 16, paddingBottom: insets.bottom + 28 }, contentContainerStyle],
+    style: { flex: 1 },
+  };
+
+  let content: ReactNode;
+  if (scroll && avoidKeyboard) {
+    content = (
+      <KeyboardAwareScrollView {...scrollProps} bottomOffset={24}>
+        <View className={contentClassName}>{children}</View>
+      </KeyboardAwareScrollView>
+    );
+  } else if (scroll) {
+    content = (
+      <ScrollView {...scrollProps} contentInsetAdjustmentBehavior="automatic">
+        <View className={contentClassName}>{children}</View>
+      </ScrollView>
+    );
+  } else {
+    const inner = (
+      <View className={`flex-1 ${contentClassName}`} style={contentContainerStyle}>
+        {children}
+      </View>
+    );
+    content = avoidKeyboard ? (
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+        {inner}
+      </KeyboardAvoidingView>
+    ) : (
+      inner
+    );
+  }
 
   return (
     <View className="flex-1 bg-background">
       {header ?? (title ? <DetailHeader title={title} subtitle={subtitle} action={action} /> : null)}
-      {keyboardAware || keyboard ? (
-        <KeyboardAvoidingView
-          className="flex-1"
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
-        >
-          {content}
-        </KeyboardAvoidingView>
-      ) : (
-        content
-      )}
+      {content}
     </View>
   );
 }

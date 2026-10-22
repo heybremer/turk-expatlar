@@ -1,151 +1,186 @@
-import { useDeferredValue, useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { useEffect, useState } from "react";
+import { RefreshControl, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
-import { api, Business, Event, ForumTopic } from "@/lib/api";
-import { Card } from "@/components/ui/Card";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { CalendarDays, MessagesSquare, Search, SearchX, Store, UserRound } from "lucide-react-native";
+import { api, Business, Event, ForumTopic, UserSearchResult } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { colors } from "@/lib/colors";
+import { formatDate } from "@/lib/utils";
+import { Avatar } from "@/components/ui/Avatar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { LoadingScreen } from "@/components/ui/LoadingScreen";
-import { Screen } from "@/components/ui/Screen";
+import { SkeletonList } from "@/components/ui/LoadingScreen";
+import { DetailHeader, Screen } from "@/components/ui/Screen";
 import { SearchBar } from "@/components/ui/SearchBar";
+import { ListGroup, ListRow, SectionLabel } from "@/components/ui/kit";
 
 type SearchResults = {
-  topics: ForumTopic[];
-  events: Event[];
-  businesses: Business[];
+  topics?: ForumTopic[];
+  events?: Event[];
+  businesses?: Business[];
 };
+
+function useDebounced<T>(value: T, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
 
 export default function SearchScreen() {
   const router = useRouter();
+  const token = useAuth((s) => s.token);
   const [query, setQuery] = useState("");
-  const deferred = useDeferredValue(query.trim());
+  const term = useDebounced(query.trim());
+  const enabled = term.length >= 2;
+
   const result = useQuery({
-    queryKey: ["global-search", deferred],
-    queryFn: () => api.get<SearchResults>(`/search?q=${encodeURIComponent(deferred)}`),
-    enabled: deferred.length >= 2,
+    queryKey: ["global-search", term],
+    queryFn: () => api.get<SearchResults>(`/search?q=${encodeURIComponent(term)}`, token),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+  const users = useQuery({
+    queryKey: ["user-search", term],
+    queryFn: () => api.get<UserSearchResult[]>(`/users/search?q=${encodeURIComponent(term)}`, token),
+    enabled: enabled && !!token,
+    placeholderData: keepPreviousData,
   });
 
-  const total = result.data
-    ? result.data.topics.length + result.data.events.length + result.data.businesses.length
-    : 0;
+  const topics = result.data?.topics ?? [];
+  const events = result.data?.events ?? [];
+  const businesses = result.data?.businesses ?? [];
+  const people = users.data ?? [];
+  const total = topics.length + events.length + businesses.length + people.length;
 
   return (
-    <Screen title="Arama" subtitle="Forum, etkinlik ve işletmeler">
-      <SearchBar
-        value={query}
-        onChangeText={setQuery}
-        placeholder="En az 2 karakter yazın…"
-        autoFocus
-      />
-
-      {deferred.length < 2 ? (
+    <Screen
+      header={
+        <DetailHeader title="Arama" subtitle="Forum, etkinlik, işletme ve kişiler">
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder="En az 2 karakter yazın…"
+            autoFocus
+          />
+        </DetailHeader>
+      }
+      refreshControl={
+        enabled ? (
+          <RefreshControl
+            refreshing={(result.isRefetching || users.isRefetching) && !result.isLoading}
+            onRefresh={() => {
+              void result.refetch();
+              if (token) void users.refetch();
+            }}
+            tintColor={colors.primary}
+          />
+        ) : undefined
+      }
+    >
+      {!enabled ? (
         <EmptyState
-          icon="search-outline"
+          icon={Search}
           title="Ne arıyorsunuz?"
-          subtitle="Forum konuları, etkinlikler ve işletmeler arasında arayın."
+          subtitle="Forum konuları, etkinlikler, işletmeler ve üyeler arasında arayın."
         />
       ) : result.isLoading ? (
-        <LoadingScreen />
-      ) : result.isError ? (
+        <View className="-m-4">
+          <SkeletonList count={4} />
+        </View>
+      ) : result.isError && !people.length ? (
         <ErrorState title="Arama yapılamadı" onRetry={() => void result.refetch()} />
       ) : total === 0 ? (
         <EmptyState
-          icon="file-tray-outline"
+          icon={SearchX}
           title="Sonuç bulunamadı"
           subtitle="Başka bir kelime deneyin veya forumda yeni bir soru sorun."
+          actionLabel="Soru sor"
+          onAction={() => router.push("/(tabs)/forum/yeni" as never)}
         />
       ) : (
-        <View className="mt-5 gap-6">
-          {result.data!.topics.length > 0 && (
-            <ResultSection title="Forum" count={result.data!.topics.length}>
-              {result.data!.topics.map((topic) => (
-                <ResultRow
-                  key={topic.id}
-                  icon="chatbubbles-outline"
-                  title={topic.title}
-                  subtitle={`${topic.category.name} · ${topic._count?.replies ?? 0} cevap`}
-                  onPress={() => router.push(`/(tabs)/forum/${topic.id}`)}
-                />
-              ))}
-            </ResultSection>
+        <View className="-mt-6">
+          {topics.length > 0 && (
+            <>
+              <SectionLabel count={topics.length}>Forum</SectionLabel>
+              <ListGroup>
+                {topics.map((topic, i) => (
+                  <ListRow
+                    key={topic.id}
+                    first={i === 0}
+                    icon={MessagesSquare}
+                    title={topic.title}
+                    subtitle={[topic.category?.name, `${topic._count?.replies ?? 0} cevap`, topic.city?.name]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    onPress={() => router.push(`/(tabs)/forum/${topic.id}`)}
+                  />
+                ))}
+              </ListGroup>
+            </>
           )}
-          {result.data!.events.length > 0 && (
-            <ResultSection title="Etkinlikler" count={result.data!.events.length}>
-              {result.data!.events.map((event) => (
-                <ResultRow
-                  key={event.id}
-                  icon="calendar-outline"
-                  title={event.title}
-                  subtitle={`${event.city.name} · ${new Date(event.startsAt).toLocaleDateString("tr-TR")}`}
-                  onPress={() => router.push(`/(tabs)/etkinlikler/${event.id}`)}
-                />
-              ))}
-            </ResultSection>
+          {events.length > 0 && (
+            <>
+              <SectionLabel count={events.length}>Etkinlikler</SectionLabel>
+              <ListGroup>
+                {events.map((event, i) => (
+                  <ListRow
+                    key={event.id}
+                    first={i === 0}
+                    icon={CalendarDays}
+                    tint={colors.accent}
+                    title={event.title}
+                    subtitle={[event.city?.name, formatDate(event.startsAt)].filter(Boolean).join(" · ")}
+                    onPress={() => router.push(`/(tabs)/etkinlikler/${event.id}`)}
+                  />
+                ))}
+              </ListGroup>
+            </>
           )}
-          {result.data!.businesses.length > 0 && (
-            <ResultSection title="İşletmeler" count={result.data!.businesses.length}>
-              {result.data!.businesses.map((business) => (
-                <ResultRow
-                  key={business.id}
-                  icon="storefront-outline"
-                  title={business.name}
-                  subtitle={`${business.category.name} · ${business.city.name}`}
-                  onPress={() => router.push(`/rehber/${business.id}`)}
-                />
-              ))}
-            </ResultSection>
+          {businesses.length > 0 && (
+            <>
+              <SectionLabel count={businesses.length}>İşletmeler</SectionLabel>
+              <ListGroup>
+                {businesses.map((business, i) => (
+                  <ListRow
+                    key={business.id}
+                    first={i === 0}
+                    icon={Store}
+                    tint={colors.warning}
+                    title={business.name}
+                    subtitle={[business.category?.name, business.city?.name].filter(Boolean).join(" · ")}
+                    onPress={() => router.push(`/rehber/${business.id}`)}
+                  />
+                ))}
+              </ListGroup>
+            </>
+          )}
+          {people.length > 0 && (
+            <>
+              <SectionLabel count={people.length}>Kişiler</SectionLabel>
+              <ListGroup>
+                {people.map((person, i) => {
+                  const name = person.profile?.displayName ?? "Kullanıcı";
+                  return (
+                    <ListRow
+                      key={person.id}
+                      first={i === 0}
+                      icon={person.profile?.avatarUrl ? undefined : UserRound}
+                      title={name}
+                      subtitle={[person.profile?.city?.name, person.profile?.state?.name].filter(Boolean).join(", ") || undefined}
+                      right={person.profile?.avatarUrl ? <Avatar name={name} url={person.profile.avatarUrl} size="sm" /> : undefined}
+                      onPress={() => router.push(`/kullanici/${person.id}` as never)}
+                    />
+                  );
+                })}
+              </ListGroup>
+            </>
           )}
         </View>
       )}
     </Screen>
-  );
-}
-
-function ResultSection({
-  title,
-  count,
-  children,
-}: {
-  title: string;
-  count: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <View>
-      <Text className="mb-3 text-base font-bold text-text">
-        {title} <Text className="text-muted">({count})</Text>
-      </Text>
-      <Card className="overflow-hidden p-0">{children}</Card>
-    </View>
-  );
-}
-
-function ResultRow({
-  icon,
-  title,
-  subtitle,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      className="min-h-16 flex-row items-center gap-3 border-b border-border px-4 py-3"
-    >
-      <View className="h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-        <Ionicons name={icon} size={19} color="#0f766e" />
-      </View>
-      <View className="flex-1">
-        <Text className="font-semibold text-text" numberOfLines={1}>{title}</Text>
-        <Text className="mt-0.5 text-xs text-muted" numberOfLines={1}>{subtitle}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={17} color="#9ca3af" />
-    </TouchableOpacity>
   );
 }

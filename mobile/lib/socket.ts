@@ -38,6 +38,34 @@ export function disconnectSocket() {
   currentToken = undefined;
 }
 
+let telsizSocket: Socket | null = null;
+let telsizToken: string | null = null;
+
+/** Yolculuk Telsiz bas-konuş gateway'i ("/telsiz" namespace). */
+export function getTelsizSocket(token: string): Socket {
+  if (telsizSocket && telsizToken !== token) {
+    telsizSocket.disconnect();
+    telsizSocket = null;
+  }
+  if (telsizSocket) return telsizSocket;
+  telsizToken = token;
+  telsizSocket = io(`${WS_URL}/telsiz`, {
+    transports: ["websocket", "polling"],
+    auth: { token },
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    timeout: 10000,
+  });
+  return telsizSocket;
+}
+
+export function disconnectTelsizSocket() {
+  telsizSocket?.disconnect();
+  telsizSocket = null;
+  telsizToken = null;
+}
+
 export function isSocketConnected(): boolean {
   return socket?.connected ?? false;
 }

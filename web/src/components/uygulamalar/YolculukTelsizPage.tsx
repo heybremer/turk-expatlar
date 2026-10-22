@@ -196,6 +196,40 @@ export function YolculukTelsizPage() {
     [getCtx],
   );
 
+  // ── Mobil uygulamadan gelen sıkıştırılmış ses klipleri (AAC/m4a) ──────────
+  const playClip = useCallback(
+    async (audioB64: string) => {
+      if (mutedRef.current || !audioB64) return;
+      const ctx = getCtx();
+      if (ctx.state === "suspended") void ctx.resume();
+      let buf: AudioBuffer;
+      try {
+        const binary = atob(audioB64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        buf = await ctx.decodeAudioData(bytes.buffer);
+      } catch {
+        return;
+      }
+      if (mutedRef.current) return;
+
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      const t = Math.max(nextPlayTimeRef.current, ctx.currentTime + 0.05);
+      src.start(t);
+      nextPlayTimeRef.current = t + buf.duration;
+
+      setReceiving(true);
+      if (receivingTimerRef.current) clearTimeout(receivingTimerRef.current);
+      receivingTimerRef.current = setTimeout(
+        () => setReceiving(false),
+        (t - ctx.currentTime + buf.duration) * 1000 + 200,
+      );
+    },
+    [getCtx],
+  );
+
   // ── Kayıt: mikrofon → PCM parçaları → socket ──────────────────────────────
 
   async function ensureStream(): Promise<MediaStream | null> {
@@ -371,6 +405,11 @@ export function YolculukTelsizPage() {
       if (isMe(data.userId)) return;
       playChunk(data.pcm, data.rate ?? TARGET_RATE);
     };
+    const onVoiceClip = (data: { channelId: string; userId: string; audio: string }) => {
+      if (data.channelId !== channelIdRef.current) return;
+      if (isMe(data.userId)) return;
+      void playClip(data.audio);
+    };
     const onHandRaises = (data: { channelId: string; userIds: string[] }) => {
       if (data.channelId !== channelIdRef.current) return;
       setHandRaises(new Set(data.userIds));
@@ -403,6 +442,7 @@ export function YolculukTelsizPage() {
     sock.on("speaker_start", onSpeakerStart);
     sock.on("speaker_end", onSpeakerEnd);
     sock.on("voice_chunk", onVoiceChunk);
+    sock.on("voice", onVoiceClip);
     sock.on("ptt_granted", onPttGranted);
     sock.on("ptt_denied", onPttDenied);
     sock.on("hand_raises", onHandRaises);
@@ -416,6 +456,7 @@ export function YolculukTelsizPage() {
       sock.off("speaker_start", onSpeakerStart);
       sock.off("speaker_end", onSpeakerEnd);
       sock.off("voice_chunk", onVoiceChunk);
+      sock.off("voice", onVoiceClip);
       sock.off("ptt_granted", onPttGranted);
       sock.off("ptt_denied", onPttDenied);
       sock.off("hand_raises", onHandRaises);
@@ -436,7 +477,7 @@ export function YolculukTelsizPage() {
       ctxRef.current = null;
       disconnectTelsizSocket();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   function selectChannel(ch: TelsizChannel) {

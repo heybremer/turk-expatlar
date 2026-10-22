@@ -1,5 +1,6 @@
-import { Text, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { Timer } from "lucide-react-native";
+import { colors } from "@/lib/colors";
 
 export const TIMER_OPTIONS = [
   { label: "Yok", value: 0 },
@@ -17,18 +18,33 @@ type Props = {
 
 export function TimerPicker({ value, onChange }: Props) {
   return (
-    <View className="flex-row flex-wrap items-center gap-1.5 bg-background rounded-xl px-3 py-2 mb-2">
-      <Ionicons name="time-outline" size={14} color="#6b7280" />
-      <Text className="text-xs text-muted mr-1">Otomatik sil:</Text>
-      {TIMER_OPTIONS.map((opt) => (
-        <TouchableOpacity
-          key={opt.value}
-          onPress={() => onChange(opt.value)}
-          className={`rounded-full px-2.5 py-1 ${value === opt.value ? "bg-primary" : "border border-border bg-surface"}`}
-        >
-          <Text className={`text-xs font-medium ${value === opt.value ? "text-white" : "text-text"}`}>{opt.label}</Text>
-        </TouchableOpacity>
-      ))}
+    <View className="mb-2 flex-row items-center gap-2 rounded-2xl bg-background py-1.5 pl-3">
+      <View className="flex-row items-center gap-1">
+        <Timer size={14} color={colors.primary} />
+        <Text className="text-xs font-semibold text-muted">Otomatik sil</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: 6, paddingRight: 8 }}
+      >
+        {TIMER_OPTIONS.map((opt) => {
+          const active = value === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => onChange(opt.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`Otomatik silme: ${opt.label}`}
+              className={`min-h-8 justify-center rounded-full px-3 ${active ? "bg-primary" : "border border-border bg-surface"}`}
+            >
+              <Text className={`text-xs font-semibold ${active ? "text-white" : "text-text"}`}>{opt.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }

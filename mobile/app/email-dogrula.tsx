@@ -1,10 +1,12 @@
-import { CheckCircle2, LoaderCircle, XCircle } from "lucide-react-native";
+import { CircleCheck, CircleX, Send } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
 
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Screen } from "@/components/ui/Screen";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, AuthUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { colors } from "@/lib/colors";
 
@@ -12,10 +14,15 @@ type Status = "loading" | "success" | "error";
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
-  const { token } = useLocalSearchParams<{ token?: string }>();
+  const params = useLocalSearchParams<{ token?: string | string[] }>();
+  const token = (Array.isArray(params.token) ? params.token[0] : params.token)?.trim() ?? "";
   const authToken = useAuth((state) => state.token);
+  const emailVerified = useAuth((state) => state.user?.emailVerified);
   const [status, setStatus] = useState<Status>("loading");
   const [message, setMessage] = useState("E-posta adresin doğrulanıyor…");
+  const [resending, setResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const verifiedToken = useRef<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -23,68 +30,110 @@ export default function VerifyEmailScreen() {
       setMessage("Doğrulama bağlantısı geçersiz veya eksik.");
       return;
     }
+    // Token tek kullanımlık: aynı token ikinci kez gönderilirse backend hata döner.
+    if (verifiedToken.current === token) return;
+    verifiedToken.current = token;
+    setStatus("loading");
 
     api
       .get<{ message?: string }>(`/auth/verify-email?token=${encodeURIComponent(token)}`)
-      .then((response) => {
+      .then(async (response) => {
         setStatus("success");
-        setMessage(response.message ?? "E-posta adresin başarıyla doğrulandı.");
+        setMessage(response?.message ?? "E-posta adresin başarıyla doğrulandı.");
+        const { token: sessionToken, refreshUser } = useAuth.getState();
+        if (sessionToken) {
+          try {
+            refreshUser(await api.get<AuthUser>("/users/me", sessionToken));
+          } catch {
+            // Profil yenilenemese de doğrulama başarılı
+          }
+        }
       })
       .catch((err) => {
         setStatus("error");
-        setMessage(
-          err instanceof ApiError
-            ? err.message
-            : "Bağlantı geçersiz veya süresi dolmuş.",
-        );
+        setMessage(err instanceof ApiError ? err.message : "Bağlantı geçersiz veya süresi dolmuş.");
       });
   }, [token]);
+
+  const resend = async () => {
+    if (!authToken || resending) return;
+    setResending(true);
+    setResendMessage("");
+    try {
+      const res = await api.post<{ message?: string }>("/auth/resend-verification", {}, authToken);
+      setResendMessage(res?.message ?? "Doğrulama e-postası tekrar gönderildi.");
+    } catch (err) {
+      setResendMessage(err instanceof ApiError ? err.message : "E-posta gönderilemedi.");
+    } finally {
+      setResending(false);
+    }
+  };
 
   const destination = authToken ? "/(tabs)/akis" : "/(auth)/giris";
 
   return (
     <Screen
+      title="E-posta Doğrulama"
       scroll={false}
-      contentContainerStyle={{ flex: 1, justifyContent: "center" }}
+      contentContainerStyle={{ flex: 1, justifyContent: "center", padding: 16 }}
     >
-      <View className="items-center rounded-3xl border border-slate-100 bg-white p-8">
+      <Card padded={false} className="items-center p-8">
         <View
           className={`h-20 w-20 items-center justify-center rounded-full ${
             status === "success"
-              ? "bg-emerald-50"
+              ? "bg-success/10"
               : status === "error"
-                ? "bg-red-50"
-                : "bg-primary-50"
+                ? "bg-danger/10"
+                : "bg-primary/10"
           }`}
         >
           {status === "loading" ? (
-            <LoaderCircle size={38} color={colors.primary} />
+            <ActivityIndicator size="large" color={colors.primary} />
           ) : status === "success" ? (
-            <CheckCircle2 size={40} color="#16A34A" />
+            <CircleCheck size={40} color={colors.success} />
           ) : (
-            <XCircle size={40} color="#DC2626" />
+            <CircleX size={40} color={colors.danger} />
           )}
         </View>
-        <Text className="mt-6 text-center text-2xl font-extrabold text-slate-900">
+        <Text
+          accessibilityRole="header"
+          className="mt-6 text-center text-2xl font-extrabold text-text"
+        >
           {status === "loading"
             ? "Doğrulanıyor"
             : status === "success"
               ? "E-posta doğrulandı"
               : "Doğrulama başarısız"}
         </Text>
-        <Text className="mt-3 text-center leading-6 text-slate-500">{message}</Text>
+        <Text
+          accessibilityLiveRegion="polite"
+          className="mt-3 text-center text-[15px] leading-6 text-muted"
+        >
+          {message}
+        </Text>
         {status !== "loading" ? (
-          <Pressable
-            onPress={() => router.replace(destination)}
-            className="mt-7 min-h-12 w-full items-center justify-center rounded-2xl bg-primary-600"
-            accessibilityRole="button"
-          >
-            <Text className="font-bold text-white">
-              {authToken ? "Akışa git" : "Giriş yap"}
-            </Text>
-          </Pressable>
+          <View className="mt-7 w-full">
+            <Button
+              label={authToken ? "Akışa git" : "Giriş yap"}
+              size="lg"
+              onPress={() => router.replace(destination)}
+            />
+            {status === "error" && authToken && !emailVerified ? (
+              <Button
+                label="Yeni doğrulama e-postası gönder"
+                variant="ghost"
+                icon={Send}
+                className="mt-2"
+                loading={resending}
+                onPress={() => void resend()}
+              />
+            ) : null}
+            {resendMessage ? (
+              <Text className="mt-3 text-center text-sm text-muted">{resendMessage}</Text>
+            ) : null}
+          </View>
         ) : null}
-      </View>
+      </Card>
     </Screen>
   );
 }

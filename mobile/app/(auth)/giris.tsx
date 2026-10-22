@@ -1,24 +1,39 @@
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { Link, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useEffect, useRef, useState } from "react";
+import { Pressable, Text, TextInput, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { CircleAlert, Lock, LogIn, Mail, ShieldCheck, Sparkles } from "lucide-react-native";
+
+import { AuthDivider, AuthFooterLink, AuthLayout } from "@/components/auth/AuthLayout";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { TextField } from "@/components/ui/TextField";
 import { login } from "@/lib/auth";
 import { completeGoogleTwoFactor, loginWithGoogle } from "@/lib/google-auth";
 import { ApiError } from "@/lib/api";
+import { colors } from "@/lib/colors";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  oauth: "Google ile giriş başarısız. Lütfen tekrar deneyin.",
+  oauth_disabled: "Google ile giriş şu an yapılandırılmamış.",
+};
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      className="mb-4 flex-row items-center gap-2.5 rounded-2xl bg-danger/10 p-3.5"
+    >
+      <CircleAlert size={18} color={colors.danger} />
+      <Text className="flex-1 text-sm font-medium text-danger">{message}</Text>
+    </View>
+  );
+}
 
 export default function GirisScreen() {
-  const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { error: oauthError, twofa } = useLocalSearchParams<{ error?: string; twofa?: string }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,73 +44,107 @@ export default function GirisScreen() {
   );
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [formError, setFormError] = useState(() =>
+    typeof oauthError === "string" && oauthError
+      ? OAUTH_ERROR_MESSAGES[oauthError] ?? oauthError
+      : "",
+  );
+  const passwordRef = useRef<TextInput>(null);
+  const busyRef = useRef(false);
   const requiresTwoFactor = passwordTwoFactor || !!googleTicket;
 
   useEffect(() => {
     if (typeof twofa === "string" && twofa) {
       setGoogleTicket(twofa);
+      setPasswordTwoFactor(false);
       setCode("");
+      setFormError("");
     }
   }, [twofa]);
+
+  useEffect(() => {
+    if (typeof oauthError === "string" && oauthError) {
+      setFormError(OAUTH_ERROR_MESSAGES[oauthError] ?? oauthError);
+    }
+  }, [oauthError]);
 
   function resetTwoFactor() {
     setPasswordTwoFactor(false);
     setGoogleTicket(null);
     setCode("");
+    setFormError("");
+    if (twofa) router.setParams({ twofa: undefined });
   }
 
-  async function handleGoogleTwoFactor(ticket: string) {
+  async function runExclusive(task: () => Promise<void>) {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setLoading(true);
     try {
-      await completeGoogleTwoFactor(ticket, code);
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Bir hata oluştu";
-      if (err instanceof ApiError && /süresi doldu|bilet/i.test(message)) resetTwoFactor();
-      Alert.alert("Doğrulama Başarısız", message);
+      await task();
     } finally {
+      busyRef.current = false;
       setLoading(false);
     }
+  }
+
+  async function submitTwoFactor(value = code) {
+    if (value.length !== 6) {
+      setFormError("6 haneli doğrulama kodunu gir.");
+      return;
+    }
+    setFormError("");
+    await runExclusive(async () => {
+      try {
+        if (googleTicket) {
+          await completeGoogleTwoFactor(googleTicket, value);
+        } else {
+          await login(email.trim(), password, value);
+        }
+      } catch (err) {
+        const message = err instanceof ApiError ? err.message : "Doğrulama başarısız.";
+        setCode("");
+        if (googleTicket && /süresi doldu|bilet/i.test(message)) {
+          resetTwoFactor();
+        }
+        setFormError(message);
+      }
+    });
   }
 
   async function handleLogin(credentials?: { email: string; password: string }) {
-    if (googleTicket) {
-      await handleGoogleTwoFactor(googleTicket);
-      return;
-    }
-    const loginEmail = credentials?.email ?? email.trim();
+    const loginEmail = (credentials?.email ?? email).trim();
     const loginPassword = credentials?.password ?? password;
-    if (!loginEmail || !loginPassword) {
-      Alert.alert("Hata", "Email ve şifre giriniz.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const result = await login(
-        loginEmail,
-        loginPassword,
-        requiresTwoFactor ? code : undefined,
-      );
-      if ("requiresTwoFactor" in result) {
-        setPasswordTwoFactor(true);
-        setCode("");
+    const errors: typeof fieldErrors = {};
+    if (!EMAIL_RE.test(loginEmail)) errors.email = "Geçerli bir e-posta adresi gir.";
+    if (!loginPassword) errors.password = "Şifreni gir.";
+    setFieldErrors(errors);
+    setFormError("");
+    if (errors.email || errors.password) return;
+
+    await runExclusive(async () => {
+      try {
+        const result = await login(loginEmail, loginPassword);
+        if ("requiresTwoFactor" in result) {
+          setPasswordTwoFactor(true);
+          setCode("");
+        }
+      } catch (err) {
+        if (__DEV__) {
+          console.warn("Login failed", {
+            status: err instanceof ApiError ? err.status : undefined,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+        setFormError(err instanceof ApiError ? err.message : "Giriş başarısız. Tekrar dene.");
       }
-    } catch (err) {
-      if (__DEV__) {
-        console.warn("Login failed", {
-          status: err instanceof ApiError ? err.status : undefined,
-          message: err instanceof Error ? err.message : String(err),
-        });
-      }
-      Alert.alert(
-        "Giriş Başarısız",
-        err instanceof ApiError ? err.message : "Bir hata oluştu",
-      );
-    } finally {
-      setLoading(false);
-    }
+    });
   }
 
   async function handleGoogleLogin() {
+    if (busyRef.current) return;
+    setFormError("");
     setGoogleLoading(true);
     try {
       const result = await loginWithGoogle();
@@ -104,170 +153,157 @@ export default function GirisScreen() {
         setCode("");
       }
     } catch (err) {
-      if (err instanceof ApiError && err.status === 0) return;
-      Alert.alert(
-        "Google Girişi",
-        err instanceof ApiError ? err.message : "Bir hata oluştu",
-      );
+      if (err instanceof ApiError && err.status === 0 && /iptal/i.test(err.message)) return;
+      setFormError(err instanceof ApiError ? err.message : "Google ile giriş başarısız.");
     } finally {
       setGoogleLoading(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-background"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <AuthLayout
+      icon={requiresTwoFactor ? ShieldCheck : undefined}
+      title={requiresTwoFactor ? "Doğrulama kodu" : "Tekrar hoş geldin"}
+      subtitle={
+        requiresTwoFactor
+          ? "Doğrulama uygulamandaki 6 haneli kodu gir."
+          : "Almanya'daki Türk topluluğuna giriş yap."
+      }
+      footer={
+        !requiresTwoFactor ? (
+          <AuthFooterLink
+            prompt="Hesabın yok mu?"
+            label="Kayıt ol"
+            onPress={() => router.push("/(auth)/kayit")}
+          />
+        ) : null
+      }
     >
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: "center",
-          paddingTop: insets.top,
-          paddingBottom: insets.bottom,
-        }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View className="px-6 py-12">
-          {/* Logo / başlık */}
-          <View className="mb-10 items-center">
-            <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-primary">
-              <Text className="text-3xl font-bold text-white">TE</Text>
-            </View>
-            <Text className="text-2xl font-bold text-text">Türk Expatlar</Text>
-            <Text className="mt-1 text-sm text-muted">Almanya'daki Türk topluluğu</Text>
-          </View>
+      {!requiresTwoFactor ? (
+        <>
+          {formError ? <ErrorBanner message={formError} /> : null}
 
-          {/* Form */}
-          <View className="rounded-2xl bg-surface p-6 shadow-sm">
-            <Text className="mb-6 text-xl font-bold text-text">
-              {requiresTwoFactor ? "Doğrulama Kodu" : "Giriş Yap"}
-            </Text>
+          <GoogleSignInButton
+            onPress={() => void handleGoogleLogin()}
+            loading={googleLoading}
+            disabled={loading}
+          />
 
-            {!requiresTwoFactor ? (
-              <>
-            <Text className="mb-1 text-sm font-medium text-text">E-posta</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="ornek@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              className="mb-4 rounded-xl border border-border bg-background px-4 py-3 text-text"
-              placeholderTextColor="#9ca3af"
+          <AuthDivider label="veya e-posta ile" />
+
+          <TextField
+            label="E-posta"
+            icon={Mail}
+            value={email}
+            onChangeText={(v) => {
+              setEmail(v);
+              if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined }));
+            }}
+            placeholder="ornek@email.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            error={fieldErrors.email}
+          />
+          <TextField
+            ref={passwordRef}
+            label="Şifre"
+            icon={Lock}
+            password
+            value={password}
+            onChangeText={(v) => {
+              setPassword(v);
+              if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined }));
+            }}
+            placeholder="••••••••"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="password"
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={() => void handleLogin()}
+            error={fieldErrors.password}
+          />
+
+          <Pressable
+            onPress={() => router.push("/(auth)/sifre-unuttum")}
+            accessibilityRole="link"
+            hitSlop={8}
+            className="-mt-3 mb-3 min-h-11 justify-center self-end"
+          >
+            <Text className="text-sm font-semibold text-primary">Şifremi unuttum</Text>
+          </Pressable>
+
+          <Button
+            label="Giriş yap"
+            size="lg"
+            icon={LogIn}
+            onPress={() => void handleLogin()}
+            loading={loading}
+            disabled={googleLoading}
+          />
+
+          {__DEV__ ? (
+            <Button
+              label="Demo hesapla giriş"
+              variant="soft"
+              icon={Sparkles}
+              className="mt-3"
+              onPress={() => {
+                setEmail("demo@turkexpatlar.de");
+                setPassword("demo1234");
+                void handleLogin({ email: "demo@turkexpatlar.de", password: "demo1234" });
+              }}
+              disabled={loading || googleLoading}
             />
-
-            <Text className="mb-1 text-sm font-medium text-text">Şifre</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              secureTextEntry
-              autoComplete="password"
-              className="mb-2 rounded-xl border border-border bg-background px-4 py-3 text-text"
-              placeholderTextColor="#9ca3af"
-            />
-
-            <Link href="/(auth)/sifre-unuttum" asChild>
-              <TouchableOpacity className="mb-6 self-end">
-                <Text className="text-sm text-primary">Şifremi unuttum</Text>
-              </TouchableOpacity>
-            </Link>
-              </>
-            ) : (
-              <>
-                <Text className="mb-2 text-sm text-muted">
-                  Doğrulama uygulamandaki 6 haneli kodu gir.
-                </Text>
-                <TextInput
-                  value={code}
-                  onChangeText={(value) =>
-                    setCode(value.replace(/\D/g, "").slice(0, 6))
-                  }
-                  placeholder="000000"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  autoFocus
-                  className="mb-6 rounded-xl border border-border bg-background px-4 py-3 text-center text-2xl font-bold tracking-[8px] text-text"
-                  placeholderTextColor="#9ca3af"
-                />
-              </>
-            )}
-
-            <TouchableOpacity
-              onPress={() => void handleLogin()}
-              disabled={
-                loading ||
-                googleLoading ||
-                (requiresTwoFactor && code.length !== 6)
-              }
-              className="items-center rounded-xl bg-primary py-4"
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-base font-semibold text-white">
-                  {requiresTwoFactor ? "Doğrula" : "Giriş Yap"}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {__DEV__ && !requiresTwoFactor ? (
-              <TouchableOpacity
-                onPress={() =>
-                  void handleLogin({
-                    email: "demo@turkexpatlar.de",
-                    password: "demo1234",
-                  })
-                }
-                disabled={loading || googleLoading}
-                className="mt-3 min-h-12 items-center justify-center rounded-xl border border-primary"
-                accessibilityRole="button"
-              >
-                <Text className="font-semibold text-primary">
-                  Demo hesapla giriş
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {!requiresTwoFactor ? (
-              <>
-            <View className="my-6 flex-row items-center">
-              <View className="h-px flex-1 bg-border" />
-              <Text className="mx-3 text-xs text-muted">veya</Text>
-              <View className="h-px flex-1 bg-border" />
-            </View>
-
-            <GoogleSignInButton
-              onPress={() => void handleGoogleLogin()}
-              loading={googleLoading}
-            />
-
-            {typeof oauthError === "string" && oauthError.length > 0 && (
-              <Text className="mt-4 text-center text-sm text-danger">{oauthError}</Text>
-            )}
-              </>
-            ) : (
-              <TouchableOpacity
-                onPress={resetTwoFactor}
-                className="mt-3 min-h-11 items-center justify-center"
-              >
-                <Text className="font-semibold text-primary">Geri dön</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View className="mt-6 flex-row items-center justify-center">
-            <Text className="text-muted">Hesabın yok mu? </Text>
-            <Link href="/(auth)/kayit" asChild>
-              <TouchableOpacity>
-                <Text className="font-semibold text-primary">Kayıt Ol</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          ) : null}
+        </>
+      ) : (
+        <Card padded={false} className="p-5">
+          {formError ? <ErrorBanner message={formError} /> : null}
+          <TextInput
+            value={code}
+            onChangeText={(value) => {
+              const next = value.replace(/\D/g, "").slice(0, 6);
+              setCode(next);
+              if (formError) setFormError("");
+              if (next.length === 6) void submitTwoFactor(next);
+            }}
+            placeholder="000000"
+            placeholderTextColor={colors.mutedLight}
+            keyboardType="number-pad"
+            textContentType="oneTimeCode"
+            autoComplete="one-time-code"
+            maxLength={6}
+            autoFocus
+            editable={!loading}
+            returnKeyType="done"
+            onSubmitEditing={() => void submitTwoFactor()}
+            accessibilityLabel="Doğrulama kodu"
+            className="mb-5 min-h-16 rounded-2xl border border-border bg-background px-4 text-center text-3xl font-extrabold tracking-[10px] text-text"
+          />
+          <Button
+            label="Doğrula"
+            size="lg"
+            icon={ShieldCheck}
+            onPress={() => void submitTwoFactor()}
+            loading={loading}
+            disabled={code.length !== 6}
+          />
+          <Button
+            label="Geri dön"
+            variant="ghost"
+            className="mt-2"
+            onPress={resetTwoFactor}
+            disabled={loading}
+          />
+        </Card>
+      )}
+    </AuthLayout>
   );
 }

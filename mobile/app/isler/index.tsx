@@ -1,108 +1,284 @@
-import { useState } from "react";
-import { FlatList, RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  Briefcase,
+  Building2,
+  Clock,
+  Euro,
+  Languages,
+  MapPin,
+  SlidersHorizontal,
+  UserRound,
+} from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
-import { api, JobPosting } from "@/lib/api";
+import { api, FederalState, JobPosting } from "@/lib/api";
+import { colors } from "@/lib/colors";
 import { formatRelative } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
-import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { SkeletonList } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { Pagination } from "@/components/ui/Pagination";
 import { SearchBar } from "@/components/ui/SearchBar";
-import { BackButton } from "@/components/ui/BackButton";
+import { Screen } from "@/components/ui/Screen";
+import { ChipRow, HeaderButton, IconTile, MetaItem, Segmented } from "@/components/ui/kit";
+import { DetailHeader } from "@/components/navigation/DetailHeader";
 
-type JobsResponse = { items: JobPosting[]; total: number; page: number; totalPages: number };
+const PAGE_SIZE = 20;
+
+type JobsResponse = { items: JobPosting[]; total: number; page: number; limit: number; totalPages: number };
+type ListingFilter = "" | "EMPLOYER" | "SEEKER";
 
 const JOB_TYPE_LABELS: Record<string, string> = {
-  FULL_TIME: "Tam Zamanlı", PART_TIME: "Yarı Zamanlı", MINIJOB: "Minijob",
-  AUSBILDUNG: "Ausbildung", INTERNSHIP: "Staj", FREELANCE: "Freelance",
+  FULL_TIME: "Tam zamanlı",
+  PART_TIME: "Yarı zamanlı",
+  MINIJOB: "Minijob",
+  AUSBILDUNG: "Ausbildung",
+  INTERNSHIP: "Staj",
+  FREELANCE: "Freelance",
 };
+const WORK_MODE_LABELS: Record<string, string> = { ONSITE: "İşyerinde", REMOTE: "Remote", HYBRID: "Hibrit" };
+const JOB_CATEGORIES = [
+  { value: "yazilim", label: "Yazılım & IT" },
+  { value: "muhendislik", label: "Mühendislik" },
+  { value: "gastronomi", label: "Gastronomi & Turizm" },
+  { value: "saglik", label: "Sağlık" },
+  { value: "egitim", label: "Eğitim" },
+  { value: "lojistik", label: "Lojistik & Depo" },
+  { value: "satis", label: "Satış & Pazarlama" },
+  { value: "ofis", label: "Ofis & İdari" },
+  { value: "ticaret", label: "Ticaret & Perakende" },
+  { value: "diger", label: "Diğer" },
+];
 
-const WORK_MODE_LABELS: Record<string, string> = {
-  ONSITE: "Ofis", REMOTE: "Uzaktan", HYBRID: "Hibrit",
-};
+const LISTING_OPTIONS: { value: ListingFilter; label: string }[] = [
+  { value: "", label: "Tümü" },
+  { value: "EMPLOYER", label: "İşveren" },
+  { value: "SEEKER", label: "İş arayan" },
+];
+const JOB_TYPE_OPTIONS = [{ value: "", label: "Tüm çalışma tipleri" }, ...Object.entries(JOB_TYPE_LABELS).map(([value, label]) => ({ value, label }))];
+const WORK_MODE_OPTIONS = [{ value: "", label: "Her çalışma şekli" }, ...Object.entries(WORK_MODE_LABELS).map(([value, label]) => ({ value, label }))];
+const CATEGORY_OPTIONS = [{ value: "", label: "Tüm kategoriler" }, ...JOB_CATEGORIES];
+
+function useDebounced<T>(value: T, delay = 350) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
 
 function JobCard({ job }: { job: JobPosting }) {
   const router = useRouter();
   const isSeeker = job.listingType === "SEEKER";
+  const meta = [job.city?.name, JOB_TYPE_LABELS[job.jobType] ?? job.jobType, WORK_MODE_LABELS[job.workMode] ?? job.workMode]
+    .filter(Boolean)
+    .join(" · ");
   return (
-    <TouchableOpacity onPress={() => router.push(`/isler/${job.id}`)}>
-      <Card className="mb-3">
-        <View className="flex-row items-start justify-between gap-2 mb-1">
-          <Text className="font-bold text-text flex-1" numberOfLines={1}>{job.title}</Text>
-          <Badge label={isSeeker ? "İş Arıyor" : "İş İlanı"} color={isSeeker ? "warning" : "primary"} />
-        </View>
-        {job.company && (
-          <View className="flex-row items-center gap-1.5 mb-1">
-            <Ionicons name="business-outline" size={12} color="#6b7280" />
-            <Text className="text-xs text-muted">{job.company}</Text>
+    <Card className="mb-3" onPress={() => router.push(`/isler/${job.id}`)}>
+      <View className="flex-row items-start gap-3">
+        <IconTile icon={isSeeker ? UserRound : Briefcase} tint={isSeeker ? colors.warning : colors.primary} />
+        <View className="flex-1">
+          <Text className="text-base font-bold text-text" numberOfLines={2}>
+            {job.title}
+          </Text>
+          <View className="mt-1 gap-1">
+            {job.company && !isSeeker ? <MetaItem icon={Building2} label={job.company} /> : null}
+            <MetaItem icon={MapPin} label={meta} />
           </View>
-        )}
-        <View className="flex-row items-center gap-1.5 mb-2">
-          <Ionicons name="location-outline" size={12} color="#6b7280" />
-          <Text className="text-xs text-muted">{job.city?.name ?? "—"} · {JOB_TYPE_LABELS[job.jobType] ?? job.jobType} · {WORK_MODE_LABELS[job.workMode] ?? job.workMode}</Text>
         </View>
-        <Text className="text-sm text-muted" numberOfLines={2}>{job.description}</Text>
-        <View className="mt-2 flex-row gap-2 flex-wrap">
-          {job.turkishFriendly && <Badge label="🇹🇷 Türkçe" color="success" />}
-          {job.salaryRange && <Badge label={job.salaryRange} color="muted" />}
-          <Text className="text-xs text-muted self-center">{formatRelative(job.createdAt)}</Text>
+      </View>
+      {job.description ? (
+        <Text className="mt-3 text-sm leading-5 text-muted" numberOfLines={2}>
+          {job.description}
+        </Text>
+      ) : null}
+      <View className="mt-3 flex-row flex-wrap items-center gap-2">
+        <Badge label={isSeeker ? "İş arıyor" : "İş ilanı"} color={isSeeker ? "warning" : "primary"} />
+        {job.turkishFriendly && !isSeeker ? <Badge label="Türkçe" icon={Languages} color="success" /> : null}
+        {job.salaryRange ? <Badge label={job.salaryRange} icon={Euro} color="muted" /> : null}
+        <View className="ml-auto">
+          <MetaItem icon={Clock} label={formatRelative(job.createdAt)} />
         </View>
-      </Card>
-    </TouchableOpacity>
+      </View>
+    </Card>
   );
 }
 
 export default function IslerIndex() {
   const { token } = useAuth();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
+  const [listingType, setListingType] = useState<ListingFilter>("");
+  const [jobType, setJobType] = useState("");
+  const [workMode, setWorkMode] = useState("");
+  const [category, setCategory] = useState("");
+  const [stateId, setStateId] = useState("");
+  const [turkishFriendly, setTurkishFriendly] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const debouncedSearch = useDebounced(search.trim());
 
-  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
-    queryKey: ["jobs", search, page],
-    queryFn: () => {
-      const params = new URLSearchParams({ page: String(page) });
-      if (search.trim()) params.set("search", search.trim());
-      return api.get<JobsResponse>(`/jobs?${params}`, token);
-    },
-    enabled: !!token,
+  const { data: states } = useQuery({
+    queryKey: ["states"],
+    queryFn: () => api.get<FederalState[]>("/locations/states"),
+    staleTime: 60 * 60 * 1000,
   });
 
-  return (
-    <View className="flex-1 bg-background">
-      <View className="bg-surface border-b border-border px-4 pb-3" style={{ paddingTop: insets.top + 10 }}>
-        <View className="flex-row items-center gap-3 mb-3">
-          <BackButton />
-          <Text className="flex-1 text-xl font-bold text-text" numberOfLines={1}>İş İlanları</Text>
-          <TouchableOpacity onPress={() => router.push("/isler/yeni")} className="bg-primary rounded-xl px-4 py-2">
-            <Text className="text-white text-sm font-semibold">+ İlan Ver</Text>
-          </TouchableOpacity>
-        </View>
-        <SearchBar value={search} onChangeText={(v) => { setSearch(v); setPage(1); }} placeholder="İş ilanı ara…" />
-      </View>
+  const filters = { search: debouncedSearch, listingType, jobType, workMode, category, stateId, turkishFriendly };
+  const query = useInfiniteQuery({
+    queryKey: ["jobs", filters],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ page: String(pageParam), limit: String(PAGE_SIZE) });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (listingType) params.set("listingType", listingType);
+      if (jobType) params.set("jobType", jobType);
+      if (workMode) params.set("workMode", workMode);
+      if (category) params.set("category", category);
+      if (stateId) params.set("stateId", stateId);
+      if (turkishFriendly) params.set("turkishFriendly", "true");
+      return api.get<JobsResponse>(`/jobs?${params}`, token);
+    },
+    getNextPageParam: (last) => (last.page < (last.totalPages ?? 0) ? last.page + 1 : undefined),
+  });
 
-      {isLoading ? <LoadingScreen /> : isError ? (
-        <ErrorState onRetry={() => void refetch()} />
-      ) : (
-        <FlatList
-          data={data?.items ?? []}
-          keyExtractor={(j) => j.id}
-          contentContainerStyle={{ padding: 16 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
-          renderItem={({ item }) => <JobCard job={item} />}
-          ListEmptyComponent={<EmptyState icon="briefcase-outline" title="İlan bulunamadı" />}
-          ListFooterComponent={
-            data ? <Pagination page={page} totalPages={data.totalPages} onChange={setPage} /> : null
-          }
-        />
-      )}
-    </View>
+  const items = useMemo(() => query.data?.pages.flatMap((p) => p.items ?? []) ?? [], [query.data]);
+  const total = query.data?.pages[0]?.total;
+  const extraFilterCount = [jobType, workMode, category, stateId, turkishFriendly].filter(Boolean).length;
+  const hasFilters = Boolean(debouncedSearch || listingType || extraFilterCount);
+
+  const clearFilters = () => {
+    setSearch("");
+    setListingType("");
+    setJobType("");
+    setWorkMode("");
+    setCategory("");
+    setStateId("");
+    setTurkishFriendly(false);
+  };
+
+  const stateOptions = [
+    { value: "", label: "Tüm eyaletler" },
+    ...(states ?? []).map((s) => ({ value: s.id, label: s.name })),
+  ];
+
+  return (
+    <Screen
+      scroll={false}
+      header={
+        <DetailHeader
+          title="İş İlanları"
+          subtitle={total !== undefined ? `${total} ilan` : "İş ilanları ve iş arayanlar"}
+          action={<HeaderButton label="İlan ver" onPress={() => router.push("/isler/yeni")} />}
+        >
+          <View className="flex-row items-center gap-2">
+            <View className="flex-1">
+              <SearchBar value={search} onChangeText={setSearch} placeholder="Pozisyon, şirket ara…" />
+            </View>
+            <Pressable
+              onPress={() => setShowFilters((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={showFilters ? "Filtreleri gizle" : "Filtreleri göster"}
+              accessibilityState={{ expanded: showFilters }}
+              className={`h-11 min-w-11 flex-row items-center justify-center gap-1 rounded-2xl px-3 ${
+                showFilters || extraFilterCount ? "bg-primary/10" : "bg-background"
+              }`}
+            >
+              <SlidersHorizontal size={18} color={showFilters || extraFilterCount ? colors.primary : colors.muted} />
+              {extraFilterCount ? <Text className="text-xs font-bold text-primary">{extraFilterCount}</Text> : null}
+            </Pressable>
+          </View>
+          <Segmented className="mt-3" options={LISTING_OPTIONS} value={listingType} onChange={setListingType} />
+        </DetailHeader>
+      }
+    >
+      <FlatList
+        data={query.isLoading || query.isError ? [] : items}
+        keyExtractor={(j) => j.id}
+        contentContainerStyle={{ padding: 16, paddingBottom: 32, flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        onEndReachedThreshold={0.4}
+        onEndReached={() => {
+          if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={query.isRefetching && !query.isFetchingNextPage}
+            onRefresh={() => void query.refetch()}
+            tintColor={colors.primary}
+          />
+        }
+        ListHeaderComponent={
+          showFilters ? (
+            <View className="mb-4 gap-3">
+              <ChipRow options={CATEGORY_OPTIONS} value={category} onChange={setCategory} />
+              <ChipRow options={JOB_TYPE_OPTIONS} value={jobType} onChange={setJobType} />
+              <ChipRow options={WORK_MODE_OPTIONS} value={workMode} onChange={setWorkMode} />
+              <ChipRow options={stateOptions} value={stateId} onChange={setStateId} />
+              <View className="flex-row items-center gap-2">
+                <Pressable
+                  onPress={() => setTurkishFriendly((v) => !v)}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: turkishFriendly }}
+                  className={`min-h-9 flex-row items-center gap-1.5 rounded-full border px-3.5 ${
+                    turkishFriendly ? "border-primary bg-primary/10" : "border-border bg-surface"
+                  }`}
+                >
+                  <Languages size={14} color={turkishFriendly ? colors.primary : colors.muted} />
+                  <Text className={`text-sm font-semibold ${turkishFriendly ? "text-primary" : "text-muted"}`}>
+                    Türkçe işveren
+                  </Text>
+                </Pressable>
+                {hasFilters ? (
+                  <Pressable onPress={clearFilters} accessibilityRole="button" className="min-h-9 justify-center px-2">
+                    <Text className="text-sm font-semibold text-primary">Temizle</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          ) : null
+        }
+        renderItem={({ item }) => <JobCard job={item} />}
+        ListEmptyComponent={
+          query.isLoading ? (
+            <View className="-mx-4">
+              <SkeletonList count={4} />
+            </View>
+          ) : query.isError ? (
+            <ErrorState
+              subtitle={query.error instanceof Error ? query.error.message : undefined}
+              onRetry={() => void query.refetch()}
+            />
+          ) : hasFilters ? (
+            <EmptyState
+              icon={Briefcase}
+              title="Sonuç bulunamadı"
+              subtitle="Bu filtrelere uygun ilan yok."
+              actionLabel="Filtreleri temizle"
+              onAction={clearFilters}
+            />
+          ) : (
+            <EmptyState
+              icon={Briefcase}
+              title="Henüz ilan yok"
+              subtitle="İlk iş ilanını sen ver."
+              actionLabel="İlan ver"
+              onAction={() => router.push("/isler/yeni")}
+            />
+          )
+        }
+        ListFooterComponent={
+          query.isFetchingNextPage ? (
+            <View className="py-4">
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : null
+        }
+      />
+    </Screen>
   );
 }

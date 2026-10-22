@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -75,6 +76,24 @@ export class BusinessesController {
     @Body() dto: CreateBusinessDto,
   ) {
     return this.businessesService.createBusiness(user.id, dto);
+  }
+
+  @Patch(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  updateBusiness(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: Partial<CreateBusinessDto>,
+  ) {
+    return this.businessesService.updateBusiness(id, user.id, dto);
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  deleteBusiness(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.businessesService.deleteBusiness(id, user.id);
   }
 
   @Post(':id/reviews')

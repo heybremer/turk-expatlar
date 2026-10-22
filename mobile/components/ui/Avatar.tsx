@@ -18,8 +18,8 @@ const SIZE_MAP = {
 const SIZE_PX = { xs: 28, sm: 36, md: 44, lg: 56, xl: 80 };
 
 const BG_COLORS = [
-  "bg-blue-500", "bg-green-500", "bg-purple-500",
-  "bg-orange-500", "bg-pink-500", "bg-teal-500",
+  "bg-primary", "bg-primary-700", "bg-accent",
+  "bg-warning", "bg-success", "bg-primary-500",
 ];
 
 function pickColor(name: string) {

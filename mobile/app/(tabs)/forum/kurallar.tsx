@@ -1,12 +1,19 @@
-import { ScrollView, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { DetailHeader } from "@/components/navigation/DetailHeader";
+import { Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { Ban, Flag, type LucideIcon, MessageCircle, Pencil, ShieldCheck, Users } from "lucide-react-native";
+import { colors } from "@/lib/colors";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Screen } from "@/components/ui/Screen";
+import { IconTile } from "@/components/ui/kit";
 
-type Section = { title: string; items: string[] };
+type Section = { title: string; icon: LucideIcon; tint: string; items: string[] };
 
 const FORUM_RULES_SECTIONS: Section[] = [
   {
     title: "Genel davranış",
+    icon: Users,
+    tint: colors.primary,
     items: [
       "Saygılı, yapıcı ve yardımsever bir dil kullanın.",
       "Küfür, hakaret, tehdit, nefret söylemi ve ayrımcılık yasaktır.",
@@ -15,6 +22,8 @@ const FORUM_RULES_SECTIONS: Section[] = [
   },
   {
     title: "Konu açarken",
+    icon: Pencil,
+    tint: colors.primary,
     items: [
       "Başlığı net ve açıklayıcı yazın; tek cümlelik sorular yerine bağlam ekleyin.",
       "Aynı soruyu tekrar sormadan önce arama yapın ve benzer konuları kontrol edin.",
@@ -24,6 +33,8 @@ const FORUM_RULES_SECTIONS: Section[] = [
   },
   {
     title: "Yanıtlarken",
+    icon: MessageCircle,
+    tint: colors.success,
     items: [
       "Deneyime dayalı paylaşım yapın; kesin hukuki veya tıbbi tavsiye vermeyin.",
       "Kaynak veya resmi link eklemeniz teşvik edilir.",
@@ -33,6 +44,8 @@ const FORUM_RULES_SECTIONS: Section[] = [
   },
   {
     title: "Yasak içerikler",
+    icon: Ban,
+    tint: colors.danger,
     items: [
       "Spam, reklam ve sürekli dış link paylaşımı yasaktır.",
       "Sahte bilgi, yanıltıcı iddia ve iftira niteliğinde içerik yasaktır.",
@@ -42,6 +55,8 @@ const FORUM_RULES_SECTIONS: Section[] = [
   },
   {
     title: "Moderasyon ve şikayet",
+    icon: Flag,
+    tint: colors.warning,
     items: [
       "Kuralları ihlal eden konular kilitlenebilir, düzenlenebilir veya kaldırılabilir.",
       "Tekrarlayan ihlallerde hesap uyarısı, askıya alma veya ban uygulanabilir.",
@@ -52,34 +67,46 @@ const FORUM_RULES_SECTIONS: Section[] = [
 ];
 
 export default function ForumKurallarScreen() {
+  const router = useRouter();
   return (
-    <View className="flex-1 bg-background">
-      <DetailHeader title="Forum Kuralları" subtitle="Topluluk standartları ve moderasyon" />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
-        <View className="flex-row items-center gap-3 mb-4">
-          <View className="w-11 h-11 rounded-full bg-primary/10 items-center justify-center">
-            <Ionicons name="document-text-outline" size={20} color="#0f766e" />
-          </View>
-          <Text className="flex-1 text-sm text-muted leading-5">
-            Forum, Almanya&apos;daki Türkçe konuşan topluluğun soru-cevap ve deneyim paylaşım alanıdır. Herkesin
-            güvenle soru sorabilmesi için aşağıdaki kurallara uymanızı rica ederiz.
-          </Text>
+    <Screen title="Forum Kuralları" subtitle="Topluluk standartları ve moderasyon">
+      <View className="mb-6 rounded-3xl bg-primary-950 p-6">
+        <View className="mb-4 h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
+          <ShieldCheck size={24} color={colors.white} />
         </View>
+        <Text className="text-2xl font-extrabold text-white">Güvenli bir topluluk</Text>
+        <Text className="mt-2 text-sm leading-5 text-primary-100">
+          Forum, Almanya&apos;daki Türkçe konuşan topluluğun soru-cevap ve deneyim paylaşım alanıdır. Herkesin
+          güvenle soru sorabilmesi için aşağıdaki kurallara uymanızı rica ederiz.
+        </Text>
+      </View>
 
+      <View className="gap-3">
         {FORUM_RULES_SECTIONS.map((section) => (
-          <View key={section.title} className="mb-5">
-            <Text className="text-sm font-semibold text-text mb-2">{section.title}</Text>
-            <View className="gap-1.5">
+          <Card key={section.title}>
+            <View className="mb-3 flex-row items-center gap-3">
+              <IconTile icon={section.icon} tint={section.tint} size={40} />
+              <Text className="flex-1 text-base font-bold text-text">{section.title}</Text>
+            </View>
+            <View className="gap-2">
               {section.items.map((item) => (
-                <View key={item} className="flex-row gap-2">
-                  <Text className="text-sm text-muted">•</Text>
-                  <Text className="flex-1 text-sm text-muted leading-5">{item}</Text>
+                <View key={item} className="flex-row gap-2.5">
+                  <View className="mt-2 h-1.5 w-1.5 rounded-full bg-primary" />
+                  <Text className="flex-1 text-sm leading-5 text-muted">{item}</Text>
                 </View>
               ))}
             </View>
-          </View>
+          </Card>
         ))}
-      </ScrollView>
-    </View>
+      </View>
+
+      <Button
+        label="Anladım, konu aç"
+        icon={Pencil}
+        size="lg"
+        className="mt-6 w-full"
+        onPress={() => router.replace("/(tabs)/forum/yeni")}
+      />
+    </Screen>
   );
 }

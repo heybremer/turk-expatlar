@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -16,6 +17,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateEventDto } from './dto/create-event.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
 import { EventsService } from './events.service';
 
 @ApiTags('events')
@@ -76,6 +78,34 @@ export class EventsController {
     @Query('status') status?: AttendeeStatus,
   ) {
     return this.eventsService.attend(eventId, user.id, status);
+  }
+
+  @Delete(':id/attend')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  leave(@Param('id') eventId: string, @CurrentUser() user: { id: string }) {
+    return this.eventsService.leaveEvent(eventId, user.id);
+  }
+
+  @Patch(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  updateEvent(
+    @Param('id') eventId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: UpdateEventDto,
+  ) {
+    return this.eventsService.updateEvent(eventId, user.id, dto);
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  deleteEvent(
+    @Param('id') eventId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.eventsService.deleteEvent(eventId, user.id);
   }
 
   // Admin endpoints

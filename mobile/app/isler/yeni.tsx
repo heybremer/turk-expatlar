@@ -1,26 +1,37 @@
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { useRef, useState } from "react";
+import { Alert, Switch, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Briefcase, Building2, Euro, FileText, Languages, Link2, Mail } from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
 import { api, FederalState } from "@/lib/api";
-import { DetailHeader } from "@/components/navigation/DetailHeader";
+import { colors } from "@/lib/colors";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Screen } from "@/components/ui/Screen";
+import { TextField } from "@/components/ui/TextField";
+import { ChipRow, IconTile, SectionLabel, Segmented, TipBox } from "@/components/ui/kit";
 
+type ListingType = "EMPLOYER" | "SEEKER";
+type ContactMethod = "EMAIL" | "EXTERNAL_URL" | "PLATFORM";
+
+const LISTING_TYPES: { value: ListingType; label: string }[] = [
+  { value: "EMPLOYER", label: "İşveren ilanı" },
+  { value: "SEEKER", label: "İş arıyorum" },
+];
 const JOB_TYPES = [
-  { value: "FULL_TIME", label: "Tam Zamanlı" },
-  { value: "PART_TIME", label: "Yarı Zamanlı" },
+  { value: "FULL_TIME", label: "Tam zamanlı" },
+  { value: "PART_TIME", label: "Yarı zamanlı" },
   { value: "MINIJOB", label: "Minijob" },
   { value: "AUSBILDUNG", label: "Ausbildung" },
   { value: "INTERNSHIP", label: "Staj" },
   { value: "FREELANCE", label: "Freelance" },
 ];
-
-const LISTING_TYPES = [
-  { value: "EMPLOYER", label: "İş İlanı (İşveren)" },
-  { value: "SEEKER", label: "İş Arıyorum" },
+const WORK_MODES = [
+  { value: "ONSITE", label: "İşyerinde" },
+  { value: "REMOTE", label: "Remote" },
+  { value: "HYBRID", label: "Hibrit" },
 ];
-
 const JOB_CATEGORIES = [
   { value: "yazilim", label: "Yazılım & IT" },
   { value: "muhendislik", label: "Mühendislik" },
@@ -33,138 +44,294 @@ const JOB_CATEGORIES = [
   { value: "ticaret", label: "Ticaret & Perakende" },
   { value: "diger", label: "Diğer" },
 ];
+const GERMAN_LEVELS = ["", "A1", "A2", "B1", "B2", "C1", "C2", "Anadil"].map((l) => ({ value: l, label: l || "Belirtme" }));
+const CONTACT_METHODS: { value: ContactMethod; label: string }[] = [
+  { value: "EMAIL", label: "E-posta" },
+  { value: "EXTERNAL_URL", label: "Link" },
+  { value: "PLATFORM", label: "Mesaj" },
+];
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isHttpUrl(value: string) {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 export default function YeniIsIlani() {
   const { token } = useAuth();
   const router = useRouter();
   const qc = useQueryClient();
-  const [listingType, setListingType] = useState<"EMPLOYER" | "SEEKER">("EMPLOYER");
+  const [listingType, setListingType] = useState<ListingType>("EMPLOYER");
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [description, setDescription] = useState("");
+  const [briefInfo, setBriefInfo] = useState("");
+  const [cvUrl, setCvUrl] = useState("");
   const [category, setCategory] = useState("diger");
   const [jobType, setJobType] = useState("FULL_TIME");
+  const [workMode, setWorkMode] = useState("ONSITE");
+  const [salaryRange, setSalaryRange] = useState("");
+  const [germanLevel, setGermanLevel] = useState("");
   const [turkishFriendly, setTurkishFriendly] = useState(false);
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
+  const [contactMethod, setContactMethod] = useState<ContactMethod>("EMAIL");
+  const [contactValue, setContactValue] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const titleRef = useRef<TextInput>(null);
+  const descRef = useRef<TextInput>(null);
+  const salaryRef = useRef<TextInput>(null);
+
+  const isSeeker = listingType === "SEEKER";
 
   const { data: states } = useQuery({
     queryKey: ["states"],
-    queryFn: () => api.get<FederalState[]>("/locations/states", token),
-    enabled: !!token,
+    queryFn: () => api.get<FederalState[]>("/locations/states"),
+    staleTime: 60 * 60 * 1000,
   });
   const selectedState = states?.find((s) => s.id === stateId);
 
+  const cv = cvUrl.trim();
+  const contact = contactValue.trim();
+  const errors = {
+    company: !isSeeker && company.trim().length < 2 ? "Şirket / işveren adı zorunludur." : undefined,
+    title: title.trim().length < 5 ? "Başlık en az 5 karakter olmalı." : undefined,
+    description:
+      !isSeeker && description.trim().length < 30
+        ? `Açıklama en az 30 karakter olmalı (${description.trim().length}/30).`
+        : undefined,
+    briefInfo: isSeeker && briefInfo.trim().length < 10 ? "Kısa bilgi en az 10 karakter olmalı." : undefined,
+    cvUrl: isSeeker && !isHttpUrl(cv) ? "CV dosyanın paylaşım bağlantısını (https://…) girin." : undefined,
+    contactValue:
+      contactMethod === "EMAIL" && !EMAIL_RE.test(contact)
+        ? "Geçerli bir e-posta adresi girin."
+        : contactMethod === "EXTERNAL_URL" && !isHttpUrl(contact)
+          ? "Geçerli bir adres girin (https://…)."
+          : undefined,
+  };
+  const hasErrors = Object.values(errors).some(Boolean);
+  const show = (key: keyof typeof errors) => (submitted ? errors[key] : undefined);
+
   const createMut = useMutation({
-    mutationFn: () => api.post<{ id: string }>("/jobs", { listingType, title, company, description, category, jobType, workMode: "ONSITE", turkishFriendly, stateId, cityId, contactMethod: "PLATFORM" }, token),
+    mutationFn: () =>
+      api.post<{ id: string }>(
+        "/jobs",
+        {
+          listingType,
+          company: isSeeker ? undefined : company.trim(),
+          title: title.trim(),
+          description: isSeeker ? briefInfo.trim() : description.trim(),
+          briefInfo: isSeeker ? briefInfo.trim() : undefined,
+          cvUrl: isSeeker ? cv : undefined,
+          cvFileName: isSeeker ? "CV" : undefined,
+          category,
+          jobType,
+          workMode,
+          stateId: stateId || undefined,
+          cityId: cityId || undefined,
+          salaryRange: salaryRange.trim() || undefined,
+          turkishFriendly: isSeeker ? false : turkishFriendly,
+          germanLevel: germanLevel || undefined,
+          contactMethod,
+          contactValue: contactMethod === "PLATFORM" ? undefined : contact,
+        },
+        token,
+      ),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ["jobs"] });
+      Alert.alert("İlanın alındı", "İlanın moderasyon onayından sonra yayınlanacak.");
       router.replace(`/isler/${res.id}`);
     },
-    onError: () => Alert.alert("Hata", "İlan oluşturulamadı"),
+    onError: (error) => Alert.alert("İlan oluşturulamadı", error instanceof Error ? error.message : "Tekrar deneyin."),
   });
 
-  const canSubmit = title.trim() && description.trim() && stateId && cityId;
+  const submit = () => {
+    setSubmitted(true);
+    if (hasErrors) return;
+    createMut.mutate();
+  };
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <DetailHeader
-        title="İlan Ver"
-        action={
-          <TouchableOpacity disabled={!canSubmit || createMut.isPending} onPress={() => createMut.mutate()} className={`bg-primary rounded-xl px-4 py-2 ${(!canSubmit || createMut.isPending) ? "opacity-50" : ""}`}>
-            <Text className="text-white font-semibold text-sm">Yayınla</Text>
-          </TouchableOpacity>
-        }
+    <Screen title="İlan Ver" subtitle="İş ilanı veya iş arayışı paylaş" keyboardAware>
+      <Text className="mb-2 text-sm font-semibold text-text">İlan türü</Text>
+      <Segmented options={LISTING_TYPES} value={listingType} onChange={setListingType} className="mb-5" />
+
+      {!isSeeker ? (
+        <TextField
+          label="Şirket / İşveren"
+          icon={Building2}
+          value={company}
+          onChangeText={setCompany}
+          placeholder="Şirket adı"
+          returnKeyType="next"
+          onSubmitEditing={() => titleRef.current?.focus()}
+          submitBehavior="submit"
+          error={show("company")}
+        />
+      ) : null}
+      <TextField
+        ref={titleRef}
+        label={isSeeker ? "Aradığın pozisyon" : "Pozisyon başlığı"}
+        icon={Briefcase}
+        value={title}
+        onChangeText={setTitle}
+        placeholder={isSeeker ? "Örn: Yazılım geliştirici olarak iş arıyorum" : "Örn: Aşçı (m/w/d)"}
+        returnKeyType="next"
+        onSubmitEditing={() => descRef.current?.focus()}
+        submitBehavior="submit"
+        maxLength={150}
+        error={show("title")}
+      />
+      {isSeeker ? (
+        <>
+          <TextField
+            ref={descRef}
+            label="Kısa bilgi"
+            value={briefInfo}
+            onChangeText={setBriefInfo}
+            placeholder="Deneyimin, becerilerin, aradığın iş türü…"
+            multiline
+            maxLength={2000}
+            hint="En az 10 karakter"
+            error={show("briefInfo")}
+          />
+          <TextField
+            label="CV bağlantısı"
+            icon={FileText}
+            value={cvUrl}
+            onChangeText={setCvUrl}
+            placeholder="https://drive.google.com/…"
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+            hint="CV'ni Google Drive, Dropbox vb. ile paylaşıp bağlantısını yapıştır. Dosya yüklemek için web sitesini kullanabilirsin."
+            error={show("cvUrl")}
+          />
+        </>
+      ) : (
+        <TextField
+          ref={descRef}
+          label="Açıklama"
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Görev tanımı, aranan nitelikler, çalışma saatleri…"
+          multiline
+          maxLength={5000}
+          hint="En az 30 karakter"
+          error={show("description")}
+        />
+      )}
+
+      <TextField
+        ref={salaryRef}
+        label={isSeeker ? "Maaş beklentisi" : "Maaş aralığı"}
+        hint="İsteğe bağlı"
+        icon={Euro}
+        value={salaryRange}
+        onChangeText={setSalaryRange}
+        placeholder="2.500–3.000 € brüt/ay"
+        returnKeyType="done"
       />
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
-        <View>
-          <Text className="text-sm font-medium text-text mb-2">İlan Türü</Text>
-          <View className="flex-row gap-3">
-            {LISTING_TYPES.map((lt) => (
-              <TouchableOpacity key={lt.value} onPress={() => setListingType(lt.value as "EMPLOYER" | "SEEKER")} className={`flex-1 items-center rounded-xl border py-3 ${listingType === lt.value ? "border-primary bg-primary/10" : "border-border bg-surface"}`}>
-                <Text className={`text-xs font-semibold ${listingType === lt.value ? "text-primary" : "text-muted"}`}>{lt.label}</Text>
-              </TouchableOpacity>
-            ))}
+      <SectionLabel>Kategori</SectionLabel>
+      <ChipRow options={JOB_CATEGORIES} value={category} onChange={setCategory} />
+
+      <SectionLabel>Çalışma tipi</SectionLabel>
+      <ChipRow options={JOB_TYPES} value={jobType} onChange={setJobType} />
+
+      <SectionLabel>Çalışma şekli</SectionLabel>
+      <ChipRow options={WORK_MODES} value={workMode} onChange={setWorkMode} />
+
+      <SectionLabel>Almanca seviyesi</SectionLabel>
+      <ChipRow options={GERMAN_LEVELS} value={germanLevel} onChange={setGermanLevel} />
+
+      <SectionLabel>Eyalet (isteğe bağlı)</SectionLabel>
+      <ChipRow
+        options={[{ value: "", label: "Belirtme" }, ...(states ?? []).map((s) => ({ value: s.id, label: s.name }))]}
+        value={stateId}
+        onChange={(v) => {
+          setStateId(v);
+          setCityId("");
+        }}
+      />
+      {selectedState ? (
+        <>
+          <SectionLabel>Şehir</SectionLabel>
+          <ChipRow
+            options={[{ value: "", label: "Belirtme" }, ...selectedState.cities.map((c) => ({ value: c.id, label: c.name }))]}
+            value={cityId}
+            onChange={setCityId}
+          />
+        </>
+      ) : null}
+
+      {!isSeeker ? (
+        <Card className="mt-6">
+          <View className="flex-row items-center gap-3">
+            <IconTile icon={Languages} size={40} />
+            <View className="flex-1">
+              <Text className="text-[15px] font-semibold text-text">Türkçe konuşan tercih edilir</Text>
+              <Text className="text-xs text-muted">İlanda "Türkçe işveren" rozeti gösterilir</Text>
+            </View>
+            <Switch
+              value={turkishFriendly}
+              onValueChange={setTurkishFriendly}
+              trackColor={{ true: colors.primary, false: colors.border }}
+              thumbColor={colors.white}
+              accessibilityLabel="Türkçe konuşan tercih edilir"
+            />
           </View>
+        </Card>
+      ) : null}
+
+      <SectionLabel>{isSeeker ? "Sana nasıl ulaşılsın?" : "Başvuru yöntemi"}</SectionLabel>
+      <Segmented options={CONTACT_METHODS} value={contactMethod} onChange={setContactMethod} className="mb-4" />
+      {contactMethod === "EMAIL" ? (
+        <TextField
+          label="E-posta"
+          icon={Mail}
+          value={contactValue}
+          onChangeText={setContactValue}
+          placeholder="ornek@mail.de"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          error={show("contactValue")}
+        />
+      ) : contactMethod === "EXTERNAL_URL" ? (
+        <TextField
+          label="Başvuru linki"
+          icon={Link2}
+          value={contactValue}
+          onChangeText={setContactValue}
+          placeholder="https://…"
+          keyboardType="url"
+          autoCapitalize="none"
+          autoCorrect={false}
+          error={show("contactValue")}
+        />
+      ) : (
+        <View className="mb-4">
+          <TipBox>İlgilenenler sana uygulama içinden mesaj gönderir.</TipBox>
         </View>
+      )}
 
-        {[
-          { label: "Başlık", value: title, onChange: setTitle, placeholder: "Pozisyon veya meslek adı" },
-          { label: "Şirket (opsiyonel)", value: company, onChange: setCompany, placeholder: "Şirket adı" },
-        ].map(({ label, value, onChange, placeholder }) => (
-          <View key={label}>
-            <Text className="text-sm font-medium text-text mb-1">{label}</Text>
-            <TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor="#9ca3af" className="bg-surface border border-border rounded-xl px-4 py-3 text-text" />
-          </View>
-        ))}
-
-        <View>
-          <Text className="text-sm font-medium text-text mb-1">Açıklama</Text>
-          <TextInput value={description} onChangeText={setDescription} placeholder="İlanı detaylandırın…" placeholderTextColor="#9ca3af" multiline numberOfLines={5} textAlignVertical="top" className="bg-surface border border-border rounded-xl px-4 py-3 text-text min-h-[120]" />
-        </View>
-
-        <View>
-          <Text className="text-sm font-medium text-text mb-2">Kategori</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {JOB_CATEGORIES.map((item) => (
-              <TouchableOpacity
-                key={item.value}
-                onPress={() => setCategory(item.value)}
-                className={`min-h-11 justify-center rounded-full border px-4 ${
-                  category === item.value ? "border-primary bg-primary" : "border-border bg-surface"
-                }`}
-              >
-                <Text className={`text-sm font-medium ${category === item.value ? "text-white" : "text-muted"}`}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View>
-          <Text className="text-sm font-medium text-text mb-2">Çalışma Türü</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {JOB_TYPES.map((jt) => (
-              <TouchableOpacity key={jt.value} onPress={() => setJobType(jt.value)} className={`rounded-full px-4 py-2 border ${jobType === jt.value ? "bg-primary border-primary" : "bg-surface border-border"}`}>
-                <Text className={`text-sm font-medium ${jobType === jt.value ? "text-white" : "text-muted"}`}>{jt.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View>
-          <Text className="text-sm font-medium text-text mb-2">Eyalet</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {states?.map((s) => (
-              <TouchableOpacity key={s.id} onPress={() => { setStateId(s.id); setCityId(""); }} className={`rounded-full px-4 py-2 border ${stateId === s.id ? "bg-primary border-primary" : "bg-surface border-border"}`}>
-                <Text className={`text-sm font-medium ${stateId === s.id ? "text-white" : "text-muted"}`}>{s.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {selectedState && (
-          <View>
-            <Text className="text-sm font-medium text-text mb-2">Şehir</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {selectedState.cities.map((c) => (
-                <TouchableOpacity key={c.id} onPress={() => setCityId(c.id)} className={`rounded-full px-4 py-2 border ${cityId === c.id ? "bg-primary border-primary" : "bg-surface border-border"}`}>
-                  <Text className={`text-sm font-medium ${cityId === c.id ? "text-white" : "text-muted"}`}>{c.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        <TouchableOpacity onPress={() => setTurkishFriendly((v) => !v)} className="flex-row items-center gap-3 py-2">
-          <View className={`h-5 w-5 rounded border-2 items-center justify-center ${turkishFriendly ? "border-primary bg-primary" : "border-border"}`}>
-            {turkishFriendly && <Ionicons name="checkmark" size={12} color="#fff" />}
-          </View>
-          <Text className="text-sm font-medium text-text">🇹🇷 Türkçe konuşan tercih edilir</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Text className="mb-2 mt-2 text-xs leading-5 text-muted">
+        İlanlar moderasyon onayından sonra yayınlanır ve 60 gün yayında kalır.
+      </Text>
+      <Button
+        label="İlanı gönder"
+        size="lg"
+        loading={createMut.isPending}
+        disabled={submitted && hasErrors}
+        onPress={submit}
+      />
+    </Screen>
   );
 }

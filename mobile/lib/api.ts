@@ -111,7 +111,7 @@ export type AuthUser = {
     cityId?: string | null;
     postalCode?: string | null;
     postalCountry?: "DE" | "TR" | null;
-    state?: { name: string; id: string } | null;
+    state?: { name: string; id: string; slug?: string } | null;
     city?: { name: string; id: string } | null;
     onboardingCompletedAt?: string | null;
     interests?: string[];
@@ -194,6 +194,7 @@ export type Event = {
 
 export type Business = {
   id: string;
+  ownerId?: string | null;
   name: string;
   description: string;
   address?: string | null;

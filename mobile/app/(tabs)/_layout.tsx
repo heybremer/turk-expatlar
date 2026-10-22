@@ -2,7 +2,7 @@ import { Tabs } from "expo-router";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { CalendarDays, House, MessageCircle, MessagesSquare, UserRound, type LucideIcon } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -10,26 +10,13 @@ import { colors } from "@/lib/colors";
 
 const PRIMARY = colors.primary;
 const MUTED = colors.muted;
-const ACTIVE_BG = "rgba(26, 86, 219, 0.10)";
+const ACTIVE_BG = "rgba(15, 118, 110, 0.10)";
 const TAB_BAR_CONTENT_HEIGHT = 56;
 
-type IconName = keyof typeof Ionicons.glyphMap;
-
-function TabIcon({
-  icon,
-  iconActive,
-  label,
-  focused,
-}: {
-  icon: IconName;
-  iconActive: IconName;
-  label: string;
-  focused: boolean;
-}) {
+function TabIcon({ icon: Icon, label, focused }: { icon: LucideIcon; label: string; focused: boolean }) {
   return (
     <View style={[styles.tabItem, focused && styles.tabItemActive]}>
-      {focused && <View style={styles.activeDot} />}
-      <Ionicons name={focused ? iconActive : icon} size={22} color={focused ? PRIMARY : MUTED} />
+      <Icon size={22} color={focused ? PRIMARY : MUTED} strokeWidth={focused ? 2.4 : 1.9} />
       <Text style={[styles.label, focused ? styles.labelActive : styles.labelInactive]} numberOfLines={1}>
         {label}
       </Text>
@@ -37,15 +24,9 @@ function TabIcon({
   );
 }
 
-/** Sohbet sekmesinde özel mesaj + genel bildirim okunmamış sayılarının toplamını gösterir. */
+/** Sohbet sekmesinde okunmamış özel mesaj sayısını gösterir (bildirimler zil ikonunda). */
 function SohbetTabBadge() {
   const { token } = useAuth();
-  const { data: notif } = useQuery({
-    queryKey: ["notif-unread"],
-    queryFn: () => api.get<{ unreadCount: number }>("/notifications/unread-count", token),
-    enabled: !!token,
-    refetchInterval: 30000,
-  });
   const { data: dm } = useQuery({
     queryKey: ["chat-dm-unread"],
     queryFn: () => api.get<{ count: number }>("/chat/dm/unread-count", token),
@@ -53,7 +34,7 @@ function SohbetTabBadge() {
     refetchInterval: 30000,
   });
 
-  const count = (notif?.unreadCount ?? 0) + (dm?.count ?? 0);
+  const count = dm?.count ?? 0;
   if (count === 0) return null;
 
   return (
@@ -99,7 +80,7 @@ export default function TabsLayout() {
         name="akis"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="home-outline" iconActive="home" label="Akış" focused={focused} />
+            <TabIcon icon={House} label="Akış" focused={focused} />
           ),
         }}
       />
@@ -107,7 +88,7 @@ export default function TabsLayout() {
         name="forum"
         options={({ route }) => ({
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="chatbubbles-outline" iconActive="chatbubbles" label="Forum" focused={focused} />
+            <TabIcon icon={MessagesSquare} label="Forum" focused={focused} />
           ),
           tabBarStyle: tabBarStyleFor(route, tabBarBaseStyle),
         })}
@@ -117,7 +98,7 @@ export default function TabsLayout() {
         options={({ route }) => ({
           tabBarIcon: ({ focused }) => (
             <View style={{ position: "relative" }}>
-              <TabIcon icon="chatbox-ellipses-outline" iconActive="chatbox-ellipses" label="Sohbet" focused={focused} />
+              <TabIcon icon={MessageCircle} label="Sohbet" focused={focused} />
               <SohbetTabBadge />
             </View>
           ),
@@ -128,7 +109,7 @@ export default function TabsLayout() {
         name="etkinlikler"
         options={({ route }) => ({
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="calendar-outline" iconActive="calendar" label="Etkinlik" focused={focused} />
+            <TabIcon icon={CalendarDays} label="Etkinlik" focused={focused} />
           ),
           tabBarStyle: tabBarStyleFor(route, tabBarBaseStyle),
         })}
@@ -137,7 +118,7 @@ export default function TabsLayout() {
         name="profil"
         options={({ route }) => ({
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="person-outline" iconActive="person" label="Profil" focused={focused} />
+            <TabIcon icon={UserRound} label="Profil" focused={focused} />
           ),
           tabBarStyle: tabBarStyleFor(route, tabBarBaseStyle),
         })}
@@ -168,14 +149,6 @@ const styles = StyleSheet.create({
   },
   tabItemActive: {
     backgroundColor: ACTIVE_BG,
-  },
-  activeDot: {
-    position: "absolute",
-    top: -9,
-    width: 18,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: PRIMARY,
   },
   label: {
     fontSize: 11,

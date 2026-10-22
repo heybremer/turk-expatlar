@@ -1,94 +1,141 @@
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ArrowLeft, CircleAlert, KeyRound, Mail, MailCheck, RotateCw, Send } from "lucide-react-native";
+
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { TextField } from "@/components/ui/TextField";
 import { api, ApiError } from "@/lib/api";
+import { colors } from "@/lib/colors";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SifreUnuttumScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const [sentMessage, setSentMessage] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState("");
+  const [error, setError] = useState("");
+
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(auth)/giris");
+  };
 
   async function handleSubmit() {
-    if (!email.trim()) return;
+    if (loading) return;
+    const value = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(value)) {
+      setEmailError("Geçerli bir e-posta adresi gir.");
+      return;
+    }
+    setEmailError("");
+    setError("");
     setLoading(true);
     try {
-      await api.post("/auth/forgot-password", { email: email.trim() });
-      setSent(true);
+      const res = await api.post<{ message?: string }>("/auth/forgot-password", { email: value });
+      setSentMessage(
+        res?.message ?? "Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.",
+      );
     } catch (err) {
-      Alert.alert("Hata", err instanceof ApiError ? err.message : "Bir hata oluştu");
+      setError(err instanceof ApiError ? err.message : "Bağlantı gönderilemedi. Tekrar dene.");
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-background"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View
-        className="flex-1 justify-center px-6"
-        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+  const errorBanner = error ? (
+    <View className="mt-4 flex-row items-center gap-2.5 rounded-2xl bg-danger/10 p-3.5">
+      <CircleAlert size={18} color={colors.danger} />
+      <Text className="flex-1 text-sm font-medium text-danger">{error}</Text>
+    </View>
+  ) : null;
+
+  if (sentMessage) {
+    return (
+      <AuthLayout
+        icon={MailCheck}
+        title="E-posta gönderildi"
+        subtitle="Gelen kutunu (ve spam klasörünü) kontrol et. Bağlantı 1 saat geçerlidir."
+        onBack={goBack}
       >
-        {sent ? (
-          <View className="rounded-2xl bg-surface p-8 items-center">
-            <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Ionicons name="mail-outline" size={28} color="#0f766e" />
-            </View>
-            <Text className="text-xl font-bold text-text mb-2">E-posta Gönderildi</Text>
-            <Text className="text-muted text-center mb-6">
-              Şifre sıfırlama bağlantısı {email} adresine gönderildi.
-            </Text>
-            <TouchableOpacity onPress={() => router.back()} className="items-center rounded-xl bg-primary px-8 py-3">
-              <Text className="text-white font-semibold">Giriş Sayfasına Dön</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View className="rounded-2xl bg-surface p-6 shadow-sm">
-            <Text className="text-xl font-bold text-text mb-2">Şifremi Unuttum</Text>
-            <Text className="text-muted text-sm mb-6">
-              E-posta adresinizi girin, şifre sıfırlama bağlantısı göndereceğiz.
-            </Text>
-
-            <Text className="mb-1 text-sm font-medium text-text">E-posta</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="ornek@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              className="mb-6 rounded-xl border border-border bg-background px-4 py-3 text-text"
-              placeholderTextColor="#9ca3af"
-            />
-
-            <TouchableOpacity
+        <Card padded={false} className="p-5">
+          <Text className="text-[15px] leading-6 text-muted">{sentMessage}</Text>
+          <Text className="mt-2 text-sm font-bold text-text">{email.trim()}</Text>
+          <View className="mt-5">
+            <Button label="Giriş sayfasına dön" size="lg" onPress={goBack} />
+            <Button
+              label="Tekrar gönder"
+              variant="ghost"
+              icon={RotateCw}
+              className="mt-2"
+              loading={loading}
               onPress={() => void handleSubmit()}
+            />
+            <Button
+              label="Farklı e-posta kullan"
+              variant="ghost"
+              className="mt-1"
               disabled={loading}
-              className="items-center rounded-xl bg-primary py-4 mb-3"
-            >
-              {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white font-semibold">Bağlantı Gönder</Text>}
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => router.back()} className="flex-row items-center justify-center gap-1 py-2">
-              <Ionicons name="arrow-back" size={14} color="#0f766e" />
-              <Text className="text-primary text-sm">Geri Dön</Text>
-            </TouchableOpacity>
+              onPress={() => {
+                setSentMessage(null);
+                setError("");
+              }}
+            />
           </View>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+          {errorBanner}
+        </Card>
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout
+      icon={KeyRound}
+      title="Şifremi unuttum"
+      subtitle="E-posta adresini gir, sana şifre sıfırlama bağlantısı gönderelim."
+      onBack={goBack}
+    >
+      <TextField
+        label="E-posta"
+        icon={Mail}
+        value={email}
+        onChangeText={(v) => {
+          setEmail(v);
+          if (emailError) setEmailError("");
+        }}
+        placeholder="ornek@email.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="send"
+        autoFocus
+        onSubmitEditing={() => void handleSubmit()}
+        error={emailError}
+      />
+      <Button
+        label="Bağlantı gönder"
+        size="lg"
+        className="mt-2"
+        icon={Send}
+        onPress={() => void handleSubmit()}
+        loading={loading}
+        disabled={!email.trim()}
+      />
+      {errorBanner}
+      <Button
+        label="Geri dön"
+        variant="ghost"
+        icon={ArrowLeft}
+        className="mt-2"
+        onPress={goBack}
+        disabled={loading}
+      />
+    </AuthLayout>
   );
 }

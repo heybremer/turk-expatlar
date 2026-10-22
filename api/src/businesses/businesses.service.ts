@@ -132,6 +132,38 @@ export class BusinessesService {
     });
   }
 
+  async updateBusiness(
+    businessId: string,
+    ownerId: string,
+    dto: Partial<CreateBusinessDto>,
+  ) {
+    const business = await this.prisma.business.findFirst({
+      where: { id: businessId, deletedAt: null },
+    });
+    if (!business) throw new NotFoundException('İşletme bulunamadı');
+    if (business.ownerId !== ownerId) throw new ForbiddenException();
+
+    return this.prisma.business.update({
+      where: { id: businessId },
+      data: { ...dto },
+      include: { category: true, state: true, city: true },
+    });
+  }
+
+  async deleteBusiness(businessId: string, ownerId: string) {
+    const business = await this.prisma.business.findFirst({
+      where: { id: businessId, deletedAt: null },
+    });
+    if (!business) throw new NotFoundException('İşletme bulunamadı');
+    if (business.ownerId !== ownerId) throw new ForbiddenException();
+
+    await this.prisma.business.update({
+      where: { id: businessId },
+      data: { deletedAt: new Date(), status: BusinessStatus.SUSPENDED },
+    });
+    return { success: true };
+  }
+
   async createReview(businessId: string, userId: string, dto: CreateReviewDto) {
     const business = await this.prisma.business.findFirst({
       where: { id: businessId, deletedAt: null, status: BusinessStatus.ACTIVE },

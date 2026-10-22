@@ -1,7 +1,14 @@
-import { Modal, Text, TouchableOpacity, View, FlatList } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { useEffect, useMemo, useState } from "react";
+import { FlatList, Modal, Pressable, Text, View } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { MessageCircle, Users, X } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatOnlineUser } from "@/lib/api";
+import { colors } from "@/lib/colors";
 import { Avatar } from "@/components/ui/Avatar";
+import { IconTile } from "@/components/ui/kit";
+import { SearchBar } from "@/components/ui/SearchBar";
+import { normalizeTr } from "@/components/chat/search";
 
 type Props = {
   visible: boolean;
@@ -12,54 +19,105 @@ type Props = {
 };
 
 const COUNTRY_FLAG: Record<string, string> = { DE: "🇩🇪", TR: "🇹🇷" };
+const SEARCH_THRESHOLD = 8;
 
 export function OnlineUsersModal({ visible, users, currentUserId, onClose, onSelectUser }: Props) {
+  const insets = useSafeAreaInsets();
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (visible) setQuery("");
+  }, [visible]);
+
+  const sorted = useMemo(() => {
+    const nq = normalizeTr(query);
+    return [...users]
+      .filter((u) => !nq || normalizeTr(u.displayName).includes(nq))
+      .sort((a, b) => {
+        if (a.userId === currentUserId) return -1;
+        if (b.userId === currentUserId) return 1;
+        return a.displayName.localeCompare(b.displayName, "tr");
+      });
+  }, [users, query, currentUserId]);
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity activeOpacity={1} onPress={onClose} className="flex-1 bg-black/40 justify-end">
-        <TouchableOpacity activeOpacity={1} className="bg-surface rounded-t-2xl pt-2 pb-4 px-4 max-h-[75%]">
-          <View className="self-center w-10 h-1 rounded-full bg-border mb-3" />
-          <Text className="text-base font-bold text-text text-center mb-3">
-            {users.length > 0 ? `${users.length} kişi çevrimiçi` : "Çevrimiçi kimse yok"}
-          </Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <Pressable onPress={onClose} className="flex-1 justify-end bg-black/40" accessibilityLabel="Kapat">
+          <Pressable
+            onPress={() => {}}
+            className="max-h-[75%] rounded-t-3xl bg-surface px-4 pt-2.5"
+            style={{ paddingBottom: insets.bottom + 12 }}
+          >
+            <View className="mb-4 h-1.5 w-10 self-center rounded-full bg-border" />
+            <View className="mb-3 flex-row items-center gap-3 px-1">
+              <IconTile icon={Users} tint={colors.success} size={40} />
+              <View className="flex-1">
+                <Text className="text-[17px] font-bold text-text">
+                  {users.length > 0 ? `${users.length} kişi çevrimiçi` : "Çevrimiçi kimse yok"}
+                </Text>
+                <Text className="text-xs text-muted">Özel mesaj için bir kişiye dokunun</Text>
+              </View>
+              <Pressable
+                onPress={onClose}
+                accessibilityRole="button"
+                accessibilityLabel="Kapat"
+                hitSlop={8}
+                className="h-9 w-9 items-center justify-center rounded-full bg-background active:opacity-70"
+              >
+                <X size={18} color={colors.muted} />
+              </Pressable>
+            </View>
 
-          {users.length === 0 ? (
-            <Text className="text-sm text-muted text-center py-6">Şu anda bu sohbette kimse yok.</Text>
-          ) : (
-            <FlatList
-              data={users}
-              keyExtractor={(u) => u.userId}
-              renderItem={({ item }) => {
-                const isMe = item.userId === currentUserId;
-                return (
-                  <TouchableOpacity
-                    onPress={() => !isMe && onSelectUser(item.userId, item.displayName)}
-                    disabled={isMe}
-                    className="flex-row items-center gap-3 py-2.5 border-b border-border"
-                  >
-                    <View className="relative">
-                      <Avatar name={item.displayName} url={item.avatarUrl} size="sm" />
-                      <View className="absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-surface" />
-                    </View>
-                    <View className="flex-1 min-w-0">
-                      <Text className="text-sm font-medium text-text" numberOfLines={1}>
-                        {item.displayName} {isMe ? "(Sen)" : ""}
-                        {item.postalCountry ? ` ${COUNTRY_FLAG[item.postalCountry] ?? ""}` : ""}
-                      </Text>
-                    </View>
-                    {!isMe && (
-                      <View className="flex-row items-center gap-1 bg-primary/10 rounded-full px-2.5 py-1">
-                        <Ionicons name="chatbubble-outline" size={13} color="#0f766e" />
-                        <Text className="text-xs font-semibold text-primary">Mesaj</Text>
+            {users.length > SEARCH_THRESHOLD ? (
+              <SearchBar value={query} onChangeText={setQuery} placeholder="Çevrimiçi kişilerde ara…" className="mb-2" />
+            ) : null}
+
+            {sorted.length === 0 ? (
+              <Text className="py-8 text-center text-sm text-muted">
+                {users.length === 0 ? "Şu anda bu sohbette kimse yok." : "Eşleşen kişi yok."}
+              </Text>
+            ) : (
+              <FlatList
+                data={sorted}
+                keyExtractor={(u) => u.userId}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => {
+                  const isMe = item.userId === currentUserId;
+                  const flag = item.postalCountry ? COUNTRY_FLAG[item.postalCountry] : undefined;
+                  return (
+                    <Pressable
+                      onPress={() => !isMe && onSelectUser(item.userId, item.displayName)}
+                      disabled={isMe}
+                      accessibilityRole="button"
+                      accessibilityLabel={isMe ? `${item.displayName} (Sen)` : `${item.displayName} ile mesajlaş`}
+                      className="min-h-14 flex-row items-center gap-3 rounded-2xl px-2 py-2 active:bg-background"
+                    >
+                      <View>
+                        <Avatar name={item.displayName} url={item.avatarUrl} size="sm" />
+                        <View className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-surface bg-success" />
                       </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          )}
-        </TouchableOpacity>
-      </TouchableOpacity>
+                      <View className="min-w-0 flex-1 flex-row items-center gap-1">
+                        <Text className="flex-shrink text-[15px] font-semibold text-text" numberOfLines={1}>
+                          {item.displayName}
+                        </Text>
+                        {isMe ? <Text className="text-[15px] text-muted">(Sen)</Text> : null}
+                        {flag ? <Text className="text-[13px]">{flag}</Text> : null}
+                      </View>
+                      {!isMe && (
+                        <View className="flex-row items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5">
+                          <MessageCircle size={13} color={colors.primary} />
+                          <Text className="text-xs font-bold text-primary">Mesaj</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

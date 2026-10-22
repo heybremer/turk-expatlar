@@ -1,13 +1,21 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Pressable, RefreshControl, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban, Lock, ShieldCheck, Trash2, TriangleAlert } from "lucide-react-native";
 
 import { Avatar } from "@/components/ui/Avatar";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { SkeletonList } from "@/components/ui/LoadingScreen";
+import { TextField } from "@/components/ui/TextField";
 import { Screen } from "@/components/ui/Screen";
+import { IconTile, ListGroup, ListRow, SectionLabel } from "@/components/ui/kit";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { colors } from "@/lib/colors";
+import { formatRelative } from "@/lib/utils";
 
 type BlockedUser = {
   id: string;
@@ -16,26 +24,39 @@ type BlockedUser = {
 };
 
 const DELETE_CONFIRM_WORD = "SİL";
+const QUERY_KEY = ["blocked-users"] as const;
 
 export default function AccountScreen() {
   const router = useRouter();
   const qc = useQueryClient();
   const token = useAuth((state) => state.token);
+  const twoFactorEnabled = useAuth((state) => !!state.user?.twoFactorEnabled);
   const logout = useAuth((state) => state.logout);
   const [confirmText, setConfirmText] = useState("");
   const [deleteError, setDeleteError] = useState("");
 
   const blocked = useQuery({
-    queryKey: ["blocked-users"],
+    queryKey: QUERY_KEY,
     queryFn: () => api.get<BlockedUser[]>("/users/blocked", token),
     enabled: !!token,
   });
 
   const unblock = useMutation({
     mutationFn: (userId: string) => api.delete(`/users/${userId}/block`, token),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["blocked-users"] }),
-    onError: (err) =>
-      Alert.alert("İşlem başarısız", err instanceof ApiError ? err.message : "Engel kaldırılamadı."),
+    onMutate: async (userId) => {
+      await qc.cancelQueries({ queryKey: QUERY_KEY });
+      const previous = qc.getQueryData<BlockedUser[]>(QUERY_KEY);
+      qc.setQueryData<BlockedUser[]>(QUERY_KEY, (prev) => prev?.filter((b) => b.id !== userId));
+      return { previous };
+    },
+    onError: (err, _userId, ctx) => {
+      if (ctx?.previous) qc.setQueryData(QUERY_KEY, ctx.previous);
+      Alert.alert("İşlem başarısız", err instanceof ApiError ? err.message : "Engel kaldırılamadı.");
+    },
+    onSettled: (_d, _e, userId) => {
+      void qc.invalidateQueries({ queryKey: QUERY_KEY });
+      void qc.invalidateQueries({ queryKey: ["block-status", userId] });
+    },
   });
 
   const deleteAccount = useMutation({
@@ -48,7 +69,22 @@ export default function AccountScreen() {
       setDeleteError(err instanceof ApiError ? err.message : "Hesap silinemedi. Tekrar dene."),
   });
 
+  const confirmUnblock = (entry: BlockedUser) => {
+    const name = entry.profile?.displayName ?? "Kullanıcı";
+    Alert.alert("Engeli kaldır", `${name} tekrar sana mesaj gönderebilecek.`, [
+      { text: "Vazgeç", style: "cancel" },
+      { text: "Engeli kaldır", onPress: () => unblock.mutate(entry.id) },
+    ]);
+  };
+
+  const canDelete =
+    confirmText.trim().toLocaleUpperCase("tr-TR") === DELETE_CONFIRM_WORD && !deleteAccount.isPending;
+
   const confirmDelete = () => {
+    if (!canDelete) {
+      setDeleteError(`Onaylamak için ${DELETE_CONFIRM_WORD} yaz`);
+      return;
+    }
     setDeleteError("");
     Alert.alert(
       "Hesabı kalıcı olarak sil",
@@ -60,86 +96,124 @@ export default function AccountScreen() {
     );
   };
 
-  const canDelete =
-    confirmText.trim().toLocaleUpperCase("tr-TR") === DELETE_CONFIRM_WORD && !deleteAccount.isPending;
-
   return (
-    <Screen title="Hesap ve Gizlilik" subtitle="Engellenen kullanıcılar ve hesap silme" keyboardAware>
-      <Text className="mb-3 text-base font-bold text-text">Engellenen kullanıcılar</Text>
+    <Screen
+      title="Hesap ve Gizlilik"
+      subtitle="Engellenen kullanıcılar ve hesap silme"
+      keyboardAware
+      refreshControl={
+        <RefreshControl
+          refreshing={blocked.isRefetching && !blocked.isLoading}
+          onRefresh={() => void blocked.refetch()}
+          tintColor={colors.primary}
+        />
+      }
+    >
+      <View className="-mt-6">
+        <SectionLabel>Güvenlik</SectionLabel>
+      </View>
+      <ListGroup>
+        <ListRow first icon={Lock} title="Şifre değiştir" onPress={() => router.push("/(tabs)/profil/sifre" as never)} />
+        <ListRow
+          icon={ShieldCheck}
+          tint={colors.success}
+          title="İki aşamalı doğrulama"
+          subtitle={twoFactorEnabled ? "Açık" : "Kapalı"}
+          onPress={() => router.push("/iki-asamali-dogrulama" as never)}
+        />
+      </ListGroup>
+
+      <SectionLabel count={blocked.data?.length}>Engellenen kullanıcılar</SectionLabel>
       {blocked.isLoading ? (
-        <ActivityIndicator className="my-6" />
+        <View className="-m-4">
+          <SkeletonList count={2} />
+        </View>
       ) : blocked.isError ? (
         <ErrorState title="Liste yüklenemedi" onRetry={() => void blocked.refetch()} />
       ) : !blocked.data?.length ? (
-        <View className="rounded-2xl border border-border bg-surface p-4">
-          <Text className="text-muted">Engellediğin kullanıcı yok.</Text>
-        </View>
+        <Card className="flex-row items-center gap-3">
+          <IconTile icon={ShieldCheck} tint={colors.success} size={40} />
+          <View className="flex-1">
+            <Text className="text-[15px] font-bold text-text">Engellediğin kullanıcı yok</Text>
+            <Text className="mt-0.5 text-xs text-muted">
+              Bir profili engellediğinde burada görünür ve buradan kaldırabilirsin.
+            </Text>
+          </View>
+        </Card>
       ) : (
         <View className="gap-3">
           {blocked.data.map((entry) => {
             const name = entry.profile?.displayName ?? "Kullanıcı";
             const pending = unblock.isPending && unblock.variables === entry.id;
             return (
-              <View
-                key={entry.id}
-                className="flex-row items-center rounded-2xl border border-border bg-surface p-4"
-              >
-                <Avatar name={name} url={entry.profile?.avatarUrl} size="md" />
-                <Text className="ml-3 flex-1 font-semibold text-text" numberOfLines={1}>
-                  {name}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => unblock.mutate(entry.id)}
-                  disabled={pending}
+              <Card key={entry.id} className="flex-row items-center gap-3">
+                <Pressable
+                  onPress={() => router.push(`/kullanici/${entry.id}` as never)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${name} engelini kaldır`}
-                  className="min-h-11 justify-center rounded-xl border border-border px-3"
+                  accessibilityLabel={`${name} profilini aç`}
+                  className="min-h-11 flex-1 flex-row items-center gap-3 active:opacity-70"
                 >
-                  {pending ? (
-                    <ActivityIndicator />
-                  ) : (
-                    <Text className="font-semibold text-primary">Engeli kaldır</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+                  <Avatar name={name} url={entry.profile?.avatarUrl} size="md" />
+                  <View className="flex-1">
+                    <Text className="text-[15px] font-bold text-text" numberOfLines={1}>
+                      {name}
+                    </Text>
+                    {entry.blockedAt ? (
+                      <Text className="text-xs text-muted">{formatRelative(entry.blockedAt)} engellendi</Text>
+                    ) : null}
+                  </View>
+                </Pressable>
+                <Button
+                  label="Kaldır"
+                  variant="soft"
+                  size="sm"
+                  icon={Ban}
+                  loading={pending}
+                  disabled={unblock.isPending}
+                  onPress={() => confirmUnblock(entry)}
+                  accessibilityLabel={`${name} engelini kaldır`}
+                />
+              </Card>
             );
           })}
         </View>
       )}
 
-      <View className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-5">
-        <Text className="text-lg font-bold text-red-800">Hesabı sil</Text>
-        <Text className="mt-2 leading-6 text-red-700">
+      <SectionLabel>Tehlikeli bölge</SectionLabel>
+      <View className="rounded-3xl border border-danger/20 bg-danger/5 p-5">
+        <View className="flex-row items-center gap-3">
+          <IconTile icon={TriangleAlert} tint={colors.danger} size={40} />
+          <Text className="flex-1 text-lg font-extrabold text-danger">Hesabı sil</Text>
+        </View>
+        <Text className="mt-3 text-sm leading-6 text-text">
           Hesabın kapatılır; ad, fotoğraf, biyografi, telefon ve giriş bilgilerin silinir. Paylaştığın
           içerikler "Silinmiş Kullanıcı" adıyla kalabilir.
         </Text>
-        <Text className="mb-2 mt-4 text-sm font-semibold text-red-800">
-          Onaylamak için {DELETE_CONFIRM_WORD} yaz
-        </Text>
-        <TextInput
+        <TextField
+          label={`Onaylamak için ${DELETE_CONFIRM_WORD} yaz`}
           value={confirmText}
-          onChangeText={setConfirmText}
+          onChangeText={(v) => {
+            setConfirmText(v);
+            if (deleteError) setDeleteError("");
+          }}
           autoCapitalize="characters"
           autoCorrect={false}
+          autoComplete="off"
+          returnKeyType="done"
+          onSubmitEditing={confirmDelete}
           placeholder={DELETE_CONFIRM_WORD}
-          placeholderTextColor="#fca5a5"
-          className="min-h-12 rounded-xl border border-red-200 bg-white px-4 text-text"
+          error={deleteError || null}
+          containerClassName="mt-4 mb-3"
         />
-        <TouchableOpacity
-          onPress={confirmDelete}
+        <Button
+          label="Hesabımı kalıcı olarak sil"
+          variant="danger"
+          size="lg"
+          icon={Trash2}
+          loading={deleteAccount.isPending}
           disabled={!canDelete}
-          accessibilityRole="button"
-          className={`mt-3 min-h-12 items-center justify-center rounded-xl bg-danger ${
-            canDelete ? "" : "opacity-40"
-          }`}
-        >
-          {deleteAccount.isPending ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className="font-semibold text-white">Hesabımı kalıcı olarak sil</Text>
-          )}
-        </TouchableOpacity>
-        {deleteError ? <Text className="mt-3 text-red-700">{deleteError}</Text> : null}
+          onPress={confirmDelete}
+        />
       </View>
     </Screen>
   );

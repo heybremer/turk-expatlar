@@ -58,13 +58,14 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Profil fotoğrafı seçmek için galeri izni gereklidir."
+          "photosPermission": "Profil fotoğrafı ve sohbette resim seçmek için galeri izni gereklidir.",
+          "cameraPermission": "Sohbette fotoğraf çekip göndermek için kamera izni gereklidir."
         }
       ],
       [
         "expo-audio",
         {
-          "microphonePermission": "Sesli mesaj göndermek için mikrofon izni gereklidir."
+          "microphonePermission": "Sesli mesaj göndermek ve Yolculuk Telsizi'nde konuşmak için mikrofon izni gereklidir."
         }
       ],
       "expo-asset"

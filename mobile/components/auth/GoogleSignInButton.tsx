@@ -1,32 +1,42 @@
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
-import { AntDesign } from "@expo/vector-icons";
+
+import { colors } from "@/lib/colors";
 
 type GoogleSignInButtonProps = {
   onPress: () => void;
   loading?: boolean;
+  disabled?: boolean;
   label?: string;
 };
 
 export function GoogleSignInButton({
   onPress,
   loading = false,
+  disabled = false,
   label = "Google ile devam et",
 }: GoogleSignInButtonProps) {
+  const inactive = loading || disabled;
   return (
     <TouchableOpacity
       onPress={onPress}
-      disabled={loading}
+      disabled={inactive}
+      activeOpacity={0.8}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: loading, busy: loading }}
-      className="min-h-12 flex-row items-center justify-center rounded-xl border border-border bg-surface py-3.5"
+      accessibilityHint="Google hesabınla oturum açmak için tarayıcı açılır"
+      accessibilityState={{ disabled: inactive, busy: loading }}
+      className={`min-h-14 flex-row items-center justify-center rounded-2xl border border-border bg-surface px-6 ${
+        disabled && !loading ? "opacity-50" : ""
+      }`}
     >
       {loading ? (
-        <ActivityIndicator color="#4285F4" />
+        <ActivityIndicator color={colors.primary} />
       ) : (
         <View className="flex-row items-center gap-3">
-          <AntDesign name="google" size={20} color="#DB4437" />
-          <Text className="text-base font-medium text-text">{label}</Text>
+          <View className="h-7 w-7 items-center justify-center rounded-full border border-border bg-background">
+            <Text className="text-[15px] font-black text-primary">G</Text>
+          </View>
+          <Text className="text-base font-bold text-text">{label}</Text>
         </View>
       )}
     </TouchableOpacity>

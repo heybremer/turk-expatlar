@@ -1,5 +1,7 @@
-import { Text, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Text, View } from "react-native";
+import { CloudOff, RotateCw } from "lucide-react-native";
+import { colors } from "@/lib/colors";
+import { Button } from "./Button";
 
 type Props = {
   title?: string;
@@ -14,21 +16,13 @@ export function ErrorState({
   onRetry,
 }: Props) {
   return (
-    <View className="flex-1 items-center justify-center py-20 px-6">
-      <View className="mb-4 h-16 w-16 items-center justify-center rounded-full bg-danger/10">
-        <Ionicons name="cloud-offline-outline" size={30} color="#dc2626" />
+    <View className="flex-1 items-center justify-center px-8 py-16">
+      <View className="mb-4 h-16 w-16 items-center justify-center rounded-3xl bg-danger/10">
+        <CloudOff size={28} color={colors.danger} />
       </View>
-      <Text className="text-lg font-semibold text-text text-center mb-2">{title}</Text>
-      <Text className="text-sm text-muted text-center mb-5">{subtitle}</Text>
-      {onRetry && (
-        <TouchableOpacity
-          onPress={onRetry}
-          activeOpacity={0.8}
-          className="bg-primary rounded-xl px-6 py-3"
-        >
-          <Text className="text-white font-semibold">Tekrar Dene</Text>
-        </TouchableOpacity>
-      )}
+      <Text className="mb-1.5 text-center text-lg font-bold text-text">{title}</Text>
+      <Text className="mb-5 text-center text-sm leading-5 text-muted">{subtitle}</Text>
+      {onRetry ? <Button label="Tekrar dene" icon={RotateCw} onPress={onRetry} size="sm" /> : null}
     </View>
   );
 }

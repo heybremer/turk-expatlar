@@ -1,19 +1,16 @@
-import { ExternalLink, MapPin, Search } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
-import {
-  Linking,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { CalendarDays, ChevronRight, Clock, ExternalLink, MapPin, Tag, Users } from "lucide-react-native";
+import { useEffect, useMemo, useState } from "react";
+import { FlatList, Image, Linking, RefreshControl, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 
 import { DetailHeader, Screen } from "@/components/ui/Screen";
+import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { SkeletonList } from "@/components/ui/LoadingScreen";
+import { SearchBar } from "@/components/ui/SearchBar";
+import { ChipRow, MetaItem, SectionLabel } from "@/components/ui/kit";
 import { api } from "@/lib/api";
 import { colors } from "@/lib/colors";
 
@@ -21,190 +18,174 @@ type CalendarEvent = {
   id: string;
   title: string;
   startDate: string;
+  endDate?: string;
   city: string;
   venue?: string;
   cost?: string;
   category?: string;
+  imageUrl?: string;
+  artist?: string;
   ticketUrl?: string;
   detailUrl: string;
   source: "eventturk" | "platform";
 };
+type CalendarResponse = { items: CalendarEvent[]; total: number; cities: string[]; categories: string[] };
 
-type CalendarResponse = {
-  items: CalendarEvent[];
-  total: number;
-  cities: string[];
-  categories: string[];
+const ALL = "Almanya";
+
+const safeDate = (value: string) => {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
 };
+const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("tr-TR", opts).format(d);
 
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat("tr-TR", {
-    day: "numeric",
-    month: "short",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+function useDebounced<T>(value: T, delay = 350) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
 
 export default function EventCalendarScreen() {
-  const [data, setData] = useState<CalendarResponse | null>(null);
-  const [query, setQuery] = useState("");
-  const [city, setCity] = useState("Almanya");
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
+  const router = useRouter();
+  const [search, setSearch] = useState("");
+  const [city, setCity] = useState(ALL);
+  const [category, setCategory] = useState("");
+  const debouncedSearch = useDebounced(search.trim());
 
-  const load = useCallback(async (refresh = false) => {
-    refresh ? setRefreshing(true) : setLoading(true);
-    setError("");
-    try {
-      const params = new URLSearchParams({ limit: "200" });
-      if (city !== "Almanya") params.set("city", city);
-      if (query.trim()) params.set("search", query.trim());
-      const response = await api.get<CalendarResponse>(
-        `/event-calendar/events?${params.toString()}`,
-      );
-      setData(response);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Etkinlikler yüklenemedi.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [city, query]);
+  const query = useQuery({
+    queryKey: ["event-calendar", city, category, debouncedSearch],
+    placeholderData: (prev) => prev,
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (city !== ALL) params.set("city", city);
+      if (category) params.set("category", category);
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      return api.get<CalendarResponse>(`/event-calendar/events?${params}`);
+    },
+  });
+  const data = query.data;
 
+  const [cityOptions, setCityOptions] = useState<{ value: string; label: string }[]>([{ value: ALL, label: "Tüm Almanya" }]);
+  const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([]);
   useEffect(() => {
-    const timer = setTimeout(() => void load(), 350);
-    return () => clearTimeout(timer);
-  }, [load]);
+    if (!data) return;
+    if (data.cities?.length) setCityOptions([{ value: ALL, label: "Tüm Almanya" }, ...data.cities.map((c) => ({ value: c, label: c }))]);
+    if (data.categories?.length) setCategoryOptions([{ value: "", label: "Tüm türler" }, ...data.categories.map((c) => ({ value: c, label: c }))]);
+  }, [data]);
 
-  const openEvent = async (event: CalendarEvent) => {
-    const url = event.ticketUrl ?? event.detailUrl;
-    if (/^https?:\/\//.test(url)) {
-      await Linking.openURL(url);
+  const items = useMemo(() => (data?.items ?? []).filter((e) => safeDate(e.startDate)), [data]);
+
+  const openEvent = (event: CalendarEvent) => {
+    if (event.source === "platform") {
+      const id = event.detailUrl.split("/").pop();
+      if (id) router.push(`/(tabs)/etkinlikler/${id}` as never);
+      return;
     }
+    const url = event.ticketUrl ?? event.detailUrl;
+    if (/^https?:\/\//.test(url)) void Linking.openURL(url);
   };
 
   return (
     <Screen
       scroll={false}
-      header={<DetailHeader title="Etkinlik Takvimi" />}
+      header={
+        <DetailHeader title="Etkinlik Takvimi" subtitle="Almanya'daki Türk etkinlikleri">
+          <SearchBar value={search} onChangeText={setSearch} placeholder="Etkinlik, sanatçı veya mekân ara" />
+          <ChipRow className="mt-3" options={cityOptions} value={city} onChange={setCity} />
+        </DetailHeader>
+      }
     >
-      <View className="mb-3 flex-row items-center rounded-2xl border border-slate-200 bg-white px-4">
-        <Search size={19} color={colors.mutedLight} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Etkinlik, sanatçı veya mekân ara"
-          placeholderTextColor={colors.mutedLight}
-          className="min-h-12 flex-1 px-3 text-[15px] text-slate-900"
-          returnKeyType="search"
-          accessibilityLabel="Etkinlik ara"
-        />
-      </View>
-
-      <View className="-mx-4 mb-3">
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
-        >
-          {["Almanya", ...(data?.cities ?? []).slice(0, 20)].map((item) => (
-            <Pressable
-              key={item}
-              onPress={() => setCity(item)}
-              className={`min-h-10 justify-center rounded-full px-4 ${
-                city === item ? "bg-primary-600" : "border border-slate-200 bg-white"
-              }`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: city === item }}
-            >
-              <Text
-                className={`font-bold ${
-                  city === item ? "text-white" : "text-slate-600"
-                }`}
-              >
-                {item}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-
-      {loading && !data ? (
-        <LoadingScreen />
-      ) : error && !data ? (
-        <ErrorState subtitle={error} onRetry={() => void load()} />
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void load(true)}
-              tintColor={colors.primary}
-            />
-          }
-          contentContainerStyle={{ paddingBottom: 32 }}
-        >
-          <Text className="mb-3 text-sm font-semibold text-slate-500">
-            {data?.total ?? 0} etkinlik
-          </Text>
-          {!data?.items.length ? (
-            <EmptyState
-              title="Etkinlik bulunamadı"
-              subtitle="Arama veya şehir filtresini değiştirmeyi dene."
+      <FlatList
+        data={query.isLoading || (query.isError && !data) ? [] : items}
+        keyExtractor={(e) => e.id}
+        contentContainerStyle={{ padding: 16, paddingBottom: 32, flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        initialNumToRender={8}
+        ItemSeparatorComponent={() => <View className="h-3" />}
+        refreshControl={
+          <RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={colors.primary} />
+        }
+        ListHeaderComponent={
+          <View>
+            {categoryOptions.length > 1 ? (
+              <ChipRow className="mb-1" options={categoryOptions} value={category} onChange={setCategory} />
+            ) : null}
+            {data && items.length > 0 ? <SectionLabel count={data.total}>Etkinlikler</SectionLabel> : null}
+          </View>
+        }
+        ListEmptyComponent={
+          query.isLoading ? (
+            <View className="-mx-4">
+              <SkeletonList count={5} />
+            </View>
+          ) : query.isError ? (
+            <ErrorState
+              title="Etkinlikler yüklenemedi"
+              subtitle={query.error instanceof Error ? query.error.message : undefined}
+              onRetry={() => void query.refetch()}
             />
           ) : (
-            <View className="gap-3">
-              {data.items.map((event) => (
-                <Pressable
-                  key={event.id}
-                  onPress={() => void openEvent(event)}
-                  disabled={event.source === "platform" && !event.ticketUrl}
-                  className="rounded-3xl border border-slate-100 bg-white p-5 active:bg-slate-50"
-                  accessibilityRole="button"
-                >
-                  <View className="flex-row items-start">
-                    <View className="mr-4 w-14 items-center rounded-2xl bg-primary-50 px-2 py-3">
-                      <Text className="text-xs font-extrabold uppercase text-primary-600">
-                        {new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(
-                          new Date(event.startDate),
-                        )}
-                      </Text>
-                      <Text className="text-2xl font-black text-primary-950">
-                        {new Date(event.startDate).getDate()}
-                      </Text>
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-base font-extrabold leading-6 text-slate-900">
-                        {event.title}
-                      </Text>
-                      <Text className="mt-2 text-sm font-semibold text-primary-700">
-                        {formatDate(event.startDate)}
-                      </Text>
-                      <View className="mt-2 flex-row items-center">
-                        <MapPin size={14} color={colors.mutedLight} />
-                        <Text className="ml-1 flex-1 text-sm text-slate-500">
-                          {[event.venue, event.city].filter(Boolean).join(" · ")}
-                        </Text>
-                      </View>
-                    </View>
+            <EmptyState
+              icon={CalendarDays}
+              title="Etkinlik bulunamadı"
+              subtitle="Arama, şehir veya tür filtresini değiştirmeyi dene."
+            />
+          )
+        }
+        renderItem={({ item: event }) => {
+          const start = safeDate(event.startDate)!;
+          const isPlatform = event.source === "platform";
+          const footer = event.cost ?? event.category ?? (isPlatform ? "Topluluk etkinliği" : "Detayları incele");
+          return (
+            <Card padded={false} onPress={() => openEvent(event)}>
+              {event.imageUrl ? (
+                <Image
+                  source={{ uri: event.imageUrl }}
+                  style={{ width: "100%", height: 150, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
+                  resizeMode="cover"
+                  accessibilityIgnoresInvertColors
+                />
+              ) : null}
+              <View className="p-4">
+                <View className="flex-row items-start gap-4">
+                  <View className="w-14 items-center rounded-2xl bg-primary-50 px-2 py-2.5">
+                    <Text className="text-xs font-extrabold uppercase text-primary-600">{fmt(start, { month: "short" })}</Text>
+                    <Text className="text-2xl font-black text-primary-950">{start.getDate()}</Text>
                   </View>
-                  <View className="mt-4 flex-row items-center border-t border-slate-100 pt-3">
-                    <Text className="flex-1 text-sm font-bold text-slate-600">
-                      {event.cost ?? event.category ?? "Detayları incele"}
+                  <View className="flex-1">
+                    <Text className="text-base font-bold leading-6 text-text" numberOfLines={3}>
+                      {event.title}
                     </Text>
-                    {event.source === "eventturk" ? (
-                      <ExternalLink size={16} color={colors.primary} />
-                    ) : null}
+                    <View className="mt-2 gap-1">
+                      <MetaItem
+                        icon={Clock}
+                        label={fmt(start, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      />
+                      <MetaItem icon={MapPin} label={[event.venue, event.city].filter(Boolean).join(" · ")} />
+                      {event.artist ? <MetaItem icon={Users} label={event.artist} /> : null}
+                    </View>
                   </View>
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </ScrollView>
-      )}
+                </View>
+                <View className="mt-3 flex-row items-center gap-2 border-t border-border pt-3">
+                  <View className="flex-1">
+                    <MetaItem icon={Tag} label={footer} />
+                  </View>
+                  {isPlatform ? (
+                    <ChevronRight size={16} color={colors.primary} />
+                  ) : (
+                    <ExternalLink size={16} color={colors.primary} />
+                  )}
+                </View>
+              </View>
+            </Card>
+          );
+        }}
+      />
     </Screen>
   );
 }

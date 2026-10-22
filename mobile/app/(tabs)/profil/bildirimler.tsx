@@ -1,44 +1,64 @@
-import { FlatList, RefreshControl, Text, TouchableOpacity, View } from "react-native";
+import { Alert, FlatList, Linking, Pressable, RefreshControl, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bell, CheckCheck } from "lucide-react-native";
 import { useAuth } from "@/lib/auth";
-import { api, Notification } from "@/lib/api";
+import { api, ApiError, Notification } from "@/lib/api";
+import { colors } from "@/lib/colors";
 import { formatRelative } from "@/lib/utils";
-import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { SkeletonList } from "@/components/ui/LoadingScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { DetailHeader } from "@/components/navigation/DetailHeader";
+import { IconTile } from "@/components/ui/kit";
+import { Screen } from "@/components/ui/Screen";
+import { HeaderIconButton } from "@/components/navigation/AppHeader";
 
 type NotifResponse = { items: Notification[]; unreadCount: number };
+
+const QUERY_KEY = ["notifications"] as const;
+const SITE_HOST = /^https?:\/\/(www\.)?turkexpatlar\.de/i;
 
 /** Web bağlantısını mobil uygulama rotasına çevirir (eşleşme yoksa null). */
 function resolveNotificationRoute(link?: string | null): string | null {
   if (!link) return null;
-  const path = link.replace(/^https?:\/\/[^/]+/, "");
+  const path = link.replace(SITE_HOST, "").split(/[?#]/)[0];
+  if (/^https?:\/\//i.test(path)) return null;
   const segments = path.split("/").filter(Boolean);
-  if (segments.length < 2) return null;
   const [section, id] = segments;
   switch (section) {
+    case undefined:
+    case "akis":
+      return "/(tabs)/akis";
     case "forum":
-      return `/(tabs)/forum/${id}`;
+      return id ? `/(tabs)/forum/${id}` : "/(tabs)/forum";
     case "etkinlikler":
-      return `/(tabs)/etkinlikler/${id}`;
+      return id ? `/(tabs)/etkinlikler/${id}` : "/(tabs)/etkinlikler";
     case "isler":
-      return `/isler/${id}`;
+      return id ? `/isler/${id}` : "/isler";
     case "rehber":
-      return `/rehber/${id}`;
+      return id ? `/rehber/${id}` : "/rehber";
     case "kullanici":
-      return `/kullanici/${id}`;
+      return id ? `/kullanici/${id}` : null;
+    case "sehir":
+      return id ? `/sehir/${id}` : null;
     case "seyahat":
-      return segments[1] === "yolculuk" && segments[2]
-        ? `/seyahat/yolculuk/${segments[2]}`
-        : `/seyahat/${id}`;
+      if (id === "yolculuk" && segments[2]) return `/seyahat/yolculuk/${segments[2]}`;
+      return id ? `/seyahat/${id}` : "/seyahat";
     case "sohbet":
-      return segments[1] === "dm" && segments[2]
-        ? `/(tabs)/sohbet/dm-${segments[2]}`
-        : "/(tabs)/sohbet";
+      return id === "dm" && segments[2] ? `/(tabs)/sohbet/dm-${segments[2]}` : "/(tabs)/sohbet";
+    case "uygulamalar":
+      return id ? `/uygulamalar/${id}` : "/uygulamalar";
+    case "profil":
+      if (id === "duzenle") return "/(tabs)/profil/duzenle";
+      if (id === "hesap") return "/hesap";
+      if (id === "2fa") return "/iki-asamali-dogrulama";
+      return "/(tabs)/profil";
+    case "arkadaslar":
+      return "/arkadaslar";
     case "uyelik":
       return "/uyelik";
+    case "destek":
+      return "/destek";
     default:
       return null;
   }
@@ -50,67 +70,135 @@ export default function BildirimlerScreen() {
   const qc = useQueryClient();
 
   const { data, isLoading, isError, refetch, isRefetching } = useQuery({
-    queryKey: ["notifications"],
+    queryKey: QUERY_KEY,
     queryFn: () => api.get<NotifResponse>("/notifications", token),
     enabled: !!token,
   });
 
+  const markLocal = (id: string | null) => {
+    qc.setQueryData<NotifResponse>(QUERY_KEY, (prev) => {
+      if (!prev) return prev;
+      const items = prev.items.map((n) => (id === null || n.id === id ? { ...n, read: true } : n));
+      return { items, unreadCount: items.filter((n) => !n.read).length };
+    });
+  };
+
+  const syncCaches = () => {
+    void qc.invalidateQueries({ queryKey: QUERY_KEY });
+    void qc.invalidateQueries({ queryKey: ["notif-unread"] });
+  };
+
   const markAllMut = useMutation({
     mutationFn: () => api.patch("/notifications/read-all", {}, token),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["notifications"] }),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: QUERY_KEY });
+      const previous = qc.getQueryData<NotifResponse>(QUERY_KEY);
+      markLocal(null);
+      return { previous };
+    },
+    onError: (e, _v, ctx) => {
+      if (ctx?.previous) qc.setQueryData(QUERY_KEY, ctx.previous);
+      Alert.alert("İşlem başarısız", e instanceof ApiError ? e.message : "Bildirimler güncellenemedi.");
+    },
+    onSettled: syncCaches,
+  });
+
+  const markOneMut = useMutation({
+    mutationFn: (id: string) => api.patch(`/notifications/${id}/read`, {}, token),
+    onMutate: (id) => markLocal(id),
+    onSettled: syncCaches,
   });
 
   function handlePress(item: Notification) {
-    if (!item.read) {
-      api
-        .patch(`/notifications/${item.id}/read`, {}, token)
-        .then(() => void qc.invalidateQueries({ queryKey: ["notifications"] }))
-        .catch(() => {});
-    }
+    if (!item.read) markOneMut.mutate(item.id);
     const route = resolveNotificationRoute(item.link);
-    if (route) router.push(route as never);
+    if (route) {
+      router.push(route as never);
+    } else if (item.link && /^https?:\/\//i.test(item.link)) {
+      void Linking.openURL(item.link).catch(() => {});
+    }
   }
 
-  return (
-    <View className="flex-1 bg-background">
-      <DetailHeader
-        title="Bildirimler"
-        action={
-          (data?.unreadCount ?? 0) > 0 ? (
-            <TouchableOpacity onPress={() => markAllMut.mutate()} className="px-3 py-1.5 rounded-xl bg-primary/10">
-              <Text className="text-primary text-xs font-semibold">Tümünü Okundu İşaretle</Text>
-            </TouchableOpacity>
-          ) : undefined
-        }
-      />
+  const items = data?.items ?? [];
+  const unread = data?.unreadCount ?? items.filter((n) => !n.read).length;
 
+  return (
+    <Screen
+      title="Bildirimler"
+      subtitle={isLoading ? undefined : unread > 0 ? `${unread} okunmamış bildirim` : "Hepsi okundu"}
+      scroll={false}
+      action={
+        unread > 0 ? (
+          <HeaderIconButton
+            icon={CheckCheck}
+            label="Tümünü okundu işaretle"
+            onPress={() => {
+              if (!markAllMut.isPending) markAllMut.mutate();
+            }}
+          />
+        ) : undefined
+      }
+    >
       {isLoading ? (
-        <LoadingScreen />
+        <SkeletonList count={6} />
       ) : isError ? (
         <ErrorState title="Bildirimler yüklenemedi" onRetry={() => void refetch()} />
       ) : (
         <FlatList
-          data={data?.items ?? []}
+          data={items}
           keyExtractor={(n) => n.id}
-          contentContainerStyle={{ padding: 16 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor="#0f766e" />}
+          contentContainerStyle={{ padding: 16, paddingBottom: 32, flexGrow: 1 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching && !isLoading}
+              onRefresh={() => {
+                void refetch();
+                void qc.invalidateQueries({ queryKey: ["notif-unread"] });
+              }}
+              tintColor={colors.primary}
+            />
+          }
           renderItem={({ item }) => (
-            <TouchableOpacity
-              activeOpacity={0.7}
+            <Pressable
               onPress={() => handlePress(item)}
-              className={`mb-2 rounded-2xl border p-4 ${item.read ? "bg-surface border-border" : "bg-primary/5 border-primary/20"}`}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.read ? "" : "Okunmamış: "}${item.title}`}
+              accessibilityHint={item.link ? "İlgili sayfayı açar" : undefined}
+              className={`mb-3 flex-row gap-3 rounded-3xl border p-4 active:opacity-70 ${
+                item.read ? "border-border bg-surface" : "border-primary/20 bg-primary/5"
+              }`}
             >
-              {!item.read && (
-                <View className="absolute top-4 right-4 h-2 w-2 rounded-full bg-primary" />
-              )}
-              <Text className="font-semibold text-text mb-1" numberOfLines={2}>{item.title}</Text>
-              <Text className="text-sm text-muted" numberOfLines={3}>{item.body}</Text>
-              <Text className="text-xs text-muted mt-2">{formatRelative(item.createdAt)}</Text>
-            </TouchableOpacity>
+              <IconTile icon={Bell} tint={item.read ? colors.muted : colors.primary} size={40} />
+              <View className="flex-1">
+                <View className="flex-row items-start gap-2">
+                  <Text className="flex-1 text-[15px] font-bold text-text" numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  <View className={`mt-1.5 h-2 w-2 rounded-full ${item.read ? "bg-transparent" : "bg-primary"}`} />
+                </View>
+                {item.body ? (
+                  <Text className="mt-1 text-sm leading-5 text-muted" numberOfLines={3}>
+                    {item.body}
+                  </Text>
+                ) : null}
+                <Text className="mt-2 text-xs text-muted-light">{formatRelative(item.createdAt)}</Text>
+              </View>
+            </Pressable>
           )}
-          ListEmptyComponent={<EmptyState icon="notifications-outline" title="Bildirim yok" subtitle="Yeni bildirimler burada görünecek" />}
+          ListEmptyComponent={
+            <EmptyState
+              icon={Bell}
+              title="Bildirim yok"
+              subtitle="Cevaplar, etkinlik hatırlatmaları ve mesajlar burada görünecek."
+            />
+          }
+          ListFooterComponent={
+            items.length >= 20 ? (
+              <Text className="mt-2 text-center text-xs text-muted">Son 20 bildirim gösteriliyor.</Text>
+            ) : null
+          }
         />
       )}
-    </View>
+    </Screen>
   );
 }

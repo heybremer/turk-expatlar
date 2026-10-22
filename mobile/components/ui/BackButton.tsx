@@ -1,5 +1,5 @@
 import { TouchableOpacity, TouchableOpacityProps } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { ChevronLeft } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { colors } from "@/lib/colors";
 
@@ -9,18 +9,18 @@ type Props = Omit<TouchableOpacityProps, "onPress"> & {
   size?: number;
 };
 
-export function BackButton({ onPress, color = colors.primary, size = 22, ...rest }: Props) {
+export function BackButton({ onPress, color = colors.text, size = 22, ...rest }: Props) {
   const router = useRouter();
   return (
     <TouchableOpacity
-      onPress={onPress ?? (() => router.back())}
+      onPress={onPress ?? (() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/akis")))}
       accessibilityRole="button"
       accessibilityLabel="Geri"
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      className="h-11 w-11 items-center justify-center"
+      hitSlop={8}
+      className="h-10 w-10 items-center justify-center rounded-full bg-background"
       {...rest}
     >
-      <Ionicons name="arrow-back" size={size} color={color} />
+      <ChevronLeft size={size} color={color} strokeWidth={2.4} />
     </TouchableOpacity>
   );
 }

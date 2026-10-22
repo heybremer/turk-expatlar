@@ -23,4 +23,20 @@ export class SupportService {
       },
     });
   }
+
+  findMine(userId: string) {
+    return this.prisma.supportTicket.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        category: true,
+        subject: true,
+        message: true,
+        status: true,
+        adminNote: true,
+        createdAt: true,
+      },
+    });
+  }
 }

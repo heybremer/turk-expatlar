@@ -1,15 +1,22 @@
-import { useState } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { ReactNode, useState } from "react";
+import { Alert, Pressable, RefreshControl, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, Clock, MessageCircle, Search, UserMinus, UserPlus, Users, X } from "lucide-react-native";
 
 import { Avatar } from "@/components/ui/Avatar";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { LoadingScreen } from "@/components/ui/LoadingScreen";
-import { Screen } from "@/components/ui/Screen";
-import { api } from "@/lib/api";
+import { SkeletonList } from "@/components/ui/LoadingScreen";
+import { DetailHeader, Screen } from "@/components/ui/Screen";
+import { Segmented } from "@/components/ui/kit";
+import { HeaderIconButton } from "@/components/navigation/AppHeader";
+import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { colors } from "@/lib/colors";
+import { formatRelative } from "@/lib/utils";
 
 type Person = {
   id: string;
@@ -18,7 +25,10 @@ type Person = {
   friendsSince?: string;
 };
 type FriendRequest = { id: string; createdAt: string; user: Person };
-type Tab = "friends" | "requests";
+type Tab = "friends" | "requests" | "sent";
+type Action =
+  | { kind: "accept" | "reject" | "cancel"; requestId: string; userId: string }
+  | { kind: "remove"; userId: string };
 
 export default function FriendsScreen() {
   const router = useRouter();
@@ -29,123 +39,217 @@ export default function FriendsScreen() {
   const friends = useQuery({
     queryKey: ["friends"],
     queryFn: () => api.get<Person[]>("/users/friends", token),
+    enabled: !!token,
   });
   const incoming = useQuery({
     queryKey: ["friend-requests"],
-    queryFn: () =>
-      api.get<FriendRequest[]>("/users/friend-requests/incoming", token),
+    queryFn: () => api.get<FriendRequest[]>("/users/friend-requests/incoming", token),
+    enabled: !!token,
   });
+  const outgoing = useQuery({
+    queryKey: ["friend-requests-outgoing"],
+    queryFn: () => api.get<FriendRequest[]>("/users/friend-requests/outgoing", token),
+    enabled: !!token,
+  });
+
   const action = useMutation({
-    mutationFn: ({ id, accept }: { id: string; accept: boolean }) =>
-      accept
-        ? api.post(`/users/friend-requests/${id}/accept`, {}, token)
-        : api.delete(`/users/friend-requests/${id}`, token),
-    onSuccess: () => {
+    mutationFn: (a: Action) => {
+      switch (a.kind) {
+        case "accept":
+          return api.post(`/users/friend-requests/${a.requestId}/accept`, {}, token);
+        case "reject":
+        case "cancel":
+          return api.delete(`/users/friend-requests/${a.requestId}`, token);
+        case "remove":
+          return api.delete(`/users/${a.userId}/friend`, token);
+      }
+    },
+    onMutate: async (a) => {
+      const drop = (key: string[], match: (r: FriendRequest) => boolean) =>
+        qc.setQueryData<FriendRequest[]>(key, (prev) => prev?.filter((r) => !match(r)));
+      if (a.kind === "remove") {
+        await qc.cancelQueries({ queryKey: ["friends"] });
+        qc.setQueryData<Person[]>(["friends"], (prev) => prev?.filter((p) => p.id !== a.userId));
+      } else if (a.kind === "cancel") {
+        await qc.cancelQueries({ queryKey: ["friend-requests-outgoing"] });
+        drop(["friend-requests-outgoing"], (r) => r.id === a.requestId);
+      } else {
+        await qc.cancelQueries({ queryKey: ["friend-requests"] });
+        drop(["friend-requests"], (r) => r.id === a.requestId);
+      }
+    },
+    onError: (e) =>
+      Alert.alert("İşlem başarısız", e instanceof ApiError ? e.message : "Lütfen tekrar deneyin."),
+    onSettled: (_d, _e, a) => {
       void qc.invalidateQueries({ queryKey: ["friends"] });
       void qc.invalidateQueries({ queryKey: ["friend-requests"] });
+      void qc.invalidateQueries({ queryKey: ["friend-requests-outgoing"] });
+      void qc.invalidateQueries({ queryKey: ["friendship", a.userId] });
     },
   });
 
-  const query = tab === "friends" ? friends : incoming;
-  const list = tab === "friends" ? friends.data ?? [] : incoming.data ?? [];
+  const confirmRemove = (person: Person) =>
+    Alert.alert("Arkadaşlıktan çıkar", `${person.displayName} arkadaş listenden çıkarılsın mı?`, [
+      { text: "Vazgeç", style: "cancel" },
+      { text: "Çıkar", style: "destructive", onPress: () => action.mutate({ kind: "remove", userId: person.id }) },
+    ]);
+
+  const query = tab === "friends" ? friends : tab === "requests" ? incoming : outgoing;
+  const isPending = (id: string) =>
+    action.isPending &&
+    (("requestId" in action.variables! && action.variables.requestId === id) ||
+      (action.variables!.kind === "remove" && action.variables!.userId === id));
+
+  const refreshing =
+    (friends.isRefetching || incoming.isRefetching || outgoing.isRefetching) && !query.isLoading;
+  const onRefresh = () => {
+    void friends.refetch();
+    void incoming.refetch();
+    void outgoing.refetch();
+  };
+
+  const emptyCopy = {
+    friends: {
+      icon: Users,
+      title: "Henüz arkadaşın yok",
+      subtitle: "Sohbet ve forumdaki kullanıcıların profillerinden istek gönderebilirsin.",
+    },
+    requests: { icon: UserPlus, title: "Bekleyen istek yok", subtitle: "Yeni arkadaşlık istekleri burada görünecek." },
+    sent: { icon: Clock, title: "Gönderilen istek yok", subtitle: "Yanıt bekleyen isteklerin burada listelenir." },
+  }[tab];
+
+  const renderPerson = (person: Person, subtitle: string, key: string, actions: ReactNode) => (
+    <Card key={key}>
+      <Pressable
+        onPress={() => router.push(`/kullanici/${person.id}` as never)}
+        accessibilityRole="button"
+        accessibilityLabel={`${person.displayName} profilini aç`}
+        className="min-h-11 flex-row items-center gap-3 active:opacity-70"
+      >
+        <Avatar name={person.displayName} url={person.avatarUrl} size="md" />
+        <View className="flex-1">
+          <Text className="text-[15px] font-bold text-text" numberOfLines={1}>
+            {person.displayName}
+          </Text>
+          <Text className="mt-0.5 text-xs text-muted">{subtitle}</Text>
+        </View>
+      </Pressable>
+      {actions}
+    </Card>
+  );
 
   return (
-    <Screen title="Arkadaşlar" subtitle="Bağlantıların ve gelen istekler">
-      <View className="mb-5 flex-row rounded-xl border border-border bg-surface p-1">
-        <TabButton
-          label={`Arkadaşlar (${friends.data?.length ?? 0})`}
-          active={tab === "friends"}
-          onPress={() => setTab("friends")}
-        />
-        <TabButton
-          label={`İstekler (${incoming.data?.length ?? 0})`}
-          active={tab === "requests"}
-          onPress={() => setTab("requests")}
-        />
-      </View>
-
+    <Screen
+      header={
+        <DetailHeader
+          title="Arkadaşlar"
+          subtitle="Bağlantıların ve istekler"
+          action={<HeaderIconButton icon={Search} label="Kişi ara" onPress={() => router.push("/ara" as never)} />}
+        >
+          <Segmented
+            options={[
+              { value: "friends", label: `Arkadaşlar${friends.data ? ` (${friends.data.length})` : ""}` },
+              { value: "requests", label: "Gelen", badge: incoming.data?.length ?? 0 },
+              { value: "sent", label: "Gönderilen" },
+            ]}
+            value={tab}
+            onChange={setTab}
+          />
+        </DetailHeader>
+      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+    >
       {query.isLoading ? (
-        <LoadingScreen />
+        <View className="-m-4">
+          <SkeletonList count={5} />
+        </View>
       ) : query.isError ? (
-        <ErrorState
-          title="Liste yüklenemedi"
-          onRetry={() => void query.refetch()}
-        />
-      ) : !list.length ? (
-        <EmptyState
-          icon="people-outline"
-          title={tab === "friends" ? "Henüz arkadaşın yok" : "Bekleyen istek yok"}
-          subtitle={
-            tab === "friends"
-              ? "Sohbet ve forumdaki kullanıcıların profillerinden istek gönderebilirsin."
-              : undefined
-          }
-        />
+        <ErrorState title="Liste yüklenemedi" onRetry={() => void query.refetch()} />
+      ) : tab === "friends" ? (
+        !friends.data?.length ? (
+          <EmptyState {...emptyCopy} actionLabel="Kişi ara" onAction={() => router.push("/ara" as never)} />
+        ) : (
+          <View className="gap-3">
+            {friends.data.map((person) =>
+              renderPerson(
+                person,
+                person.friendsSince ? `${formatRelative(person.friendsSince)} arkadaş oldunuz` : "Arkadaşın",
+                person.id,
+                <View className="mt-3 flex-row gap-2">
+                  <Button
+                    label="Mesaj"
+                    size="sm"
+                    variant="soft"
+                    icon={MessageCircle}
+                    className="flex-1"
+                    onPress={() => router.push(`/(tabs)/sohbet/dm-${person.id}` as never)}
+                  />
+                  <Button
+                    label="Çıkar"
+                    size="sm"
+                    variant="secondary"
+                    icon={UserMinus}
+                    className="flex-1"
+                    loading={isPending(person.id)}
+                    disabled={action.isPending}
+                    onPress={() => confirmRemove(person)}
+                    accessibilityLabel={`${person.displayName} arkadaşlıktan çıkar`}
+                  />
+                </View>,
+              ),
+            )}
+          </View>
+        )
+      ) : !(query.data as FriendRequest[] | undefined)?.length ? (
+        <EmptyState {...emptyCopy} />
       ) : (
         <View className="gap-3">
-          {list.map((entry) => {
-            const person = "user" in entry ? entry.user : entry;
-            return (
-              <TouchableOpacity
-                key={"user" in entry ? entry.id : person.id}
-                onPress={() => router.push(`/kullanici/${person.id}` as never)}
-                className="flex-row items-center rounded-2xl border border-border bg-surface p-4"
-              >
-                <Avatar
-                  name={person.displayName}
-                  url={person.avatarUrl}
-                  size="md"
-                />
-                <View className="ml-3 flex-1">
-                  <Text className="font-bold text-text">{person.displayName}</Text>
-                  <Text className="mt-0.5 text-xs text-muted">
-                    {"user" in entry ? "Sana arkadaşlık isteği gönderdi" : "Arkadaşın"}
-                  </Text>
+          {(query.data as FriendRequest[]).map((req) =>
+            renderPerson(
+              req.user,
+              tab === "requests"
+                ? `Sana arkadaşlık isteği gönderdi · ${formatRelative(req.createdAt)}`
+                : `İstek gönderildi · ${formatRelative(req.createdAt)}`,
+              req.id,
+              tab === "requests" ? (
+                <View className="mt-3 flex-row gap-2">
+                  <Button
+                    label="Reddet"
+                    variant="secondary"
+                    size="sm"
+                    icon={X}
+                    className="flex-1"
+                    disabled={action.isPending}
+                    onPress={() => action.mutate({ kind: "reject", requestId: req.id, userId: req.user.id })}
+                    accessibilityLabel={`${req.user.displayName} isteğini reddet`}
+                  />
+                  <Button
+                    label="Kabul et"
+                    size="sm"
+                    icon={Check}
+                    className="flex-1"
+                    loading={isPending(req.id)}
+                    disabled={action.isPending}
+                    onPress={() => action.mutate({ kind: "accept", requestId: req.id, userId: req.user.id })}
+                    accessibilityLabel={`${req.user.displayName} isteğini kabul et`}
+                  />
                 </View>
-                {"user" in entry ? (
-                  <View className="flex-row gap-2">
-                    <TouchableOpacity
-                      onPress={() => action.mutate({ id: entry.id, accept: false })}
-                      className="min-h-10 justify-center rounded-xl border border-border px-3"
-                    >
-                      <Text className="font-semibold text-muted">Reddet</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => action.mutate({ id: entry.id, accept: true })}
-                      className="min-h-10 justify-center rounded-xl bg-primary px-3"
-                    >
-                      <Text className="font-semibold text-white">Kabul</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-              </TouchableOpacity>
-            );
-          })}
+              ) : (
+                <Button
+                  label="İsteği geri çek"
+                  variant="secondary"
+                  size="sm"
+                  icon={X}
+                  className="mt-3"
+                  loading={isPending(req.id)}
+                  disabled={action.isPending}
+                  onPress={() => action.mutate({ kind: "cancel", requestId: req.id, userId: req.user.id })}
+                />
+              ),
+            ),
+          )}
         </View>
       )}
     </Screen>
-  );
-}
-
-function TabButton({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      className={`min-h-11 flex-1 items-center justify-center rounded-lg ${
-        active ? "bg-primary" : ""
-      }`}
-    >
-      <Text className={active ? "font-semibold text-white" : "font-medium text-muted"}>
-        {label}
-      </Text>
-    </TouchableOpacity>
   );
 }

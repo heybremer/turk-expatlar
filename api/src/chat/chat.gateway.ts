@@ -704,6 +704,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
       if (!recipientId) return;
       if (await this.chatService.isMuted(chatId, recipientId)) return;
+      // Alıcı şu anda bu DM odasını açık tutuyorsa (presence'ta kayıtlıysa)
+      // push bildirimi göstermeye gerek yok, zaten canlı olarak görüyor.
+      if (this.roomPresence.get(chatId)?.has(recipientId)) return;
       await this.expoPush.sendToUser(recipientId, {
         title: senderName,
         body: body || (hasAttachment ? '📎 Ek gönderdi' : 'Yeni mesaj'),
